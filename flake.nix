@@ -58,6 +58,7 @@
         sway.enable = false;
         wayland.enable = false;
         git.enable = false;
+        starship.enable = true;
 
         packages = [ ];
 
@@ -74,6 +75,7 @@
         network-manager.enable = true;
         bluetooth.enable = true;
         sway.enable = true;
+        starship.enable = true;
         wayland.enable = true;
         git = {
           enable = true;
