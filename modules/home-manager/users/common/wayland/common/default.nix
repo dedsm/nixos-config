@@ -1,4 +1,4 @@
-attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
+attrs@{ lib, homeManagerConfig, unfreePkgs, pkgs, ... }: {
   programs = {
     firefox = {
       enable = true;
@@ -131,7 +131,7 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
       };
       Service = {
         Restart = "Always";
-        ExecStart = "${unfree._1password-gui}/bin/1password --silent";
+        ExecStart = "${unfreePkgs._1password-gui}/bin/1password --silent";
       };
     };
   };
