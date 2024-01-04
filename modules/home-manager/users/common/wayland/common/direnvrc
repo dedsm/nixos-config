@@ -1,0 +1,36 @@
+#!/bin/bash
+
+layout_virtualenv() {
+  venv_name=${VIRTUALENV_NAME:-`basename $PWD | tr . -`}
+  echo "Using $venv_name as virtualenv name"
+  local python=${1:-python}
+  unset PYTHONHOME
+  local python_version ve
+  # shellcheck disable=SC2046
+  read -r python_version ve <<<$($python -c "import pkgutil as u, platform as p;ve='venv' if u.find_loader('venv') else ('virtualenv' if u.find_loader('virtualenv') else '');print(p.python_version()+' '+ve)")
+  if [[ -z $python_version ]]; then
+    log_error "Could not find python's version"
+    return 1
+  fi
+  mkdir -p ${HOME}/.local/share/direnv/virtualenvs
+
+  VIRTUAL_ENV=${HOME}/.local/share/direnv/virtualenvs/$venv_name
+  case $ve in
+    "venv")
+      if [[ ! -d $VIRTUAL_ENV ]]; then
+        $python -m venv "$@" "$VIRTUAL_ENV"
+      fi
+      ;;
+    "virtualenv")
+      if [[ ! -d $VIRTUAL_ENV ]]; then
+        $python -m virtualenv "$@" "$VIRTUAL_ENV"
+      fi
+      ;;
+    *)
+      log_error "Error: neither venv nor virtualenv are available."
+      return 1
+      ;;
+  esac
+  export VIRTUAL_ENV
+  PATH_add "$VIRTUAL_ENV/bin"
+}
