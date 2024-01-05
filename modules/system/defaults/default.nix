@@ -156,21 +156,6 @@ in {
     programs.light = { enable = true; };
     programs.hyprland.enable = true;
 
-    programs.sway = {
-      enable = true;
-      wrapperFeatures = {
-        gtk = true;
-        base = true;
-      };
-      extraSessionCommands = ''
-        export SDL_VIDEODRIVER=wayland
-        export QT_WAYLAND_DISABLE_WINDOWDECORATION="1"
-        export _JAVA_AWT_WM_NONREPARENTING=1
-        export MOZ_ENABLE_WAYLAND=1
-        export NIXOS_OZONE_WL=1
-      '';
-    };
-
     # Enable touchpad support (enabled default in most desktopManager).
     # services.xserver.libinput.enable = true;
 
