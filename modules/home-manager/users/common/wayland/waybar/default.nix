@@ -4,7 +4,6 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
       enable = true;
       systemd = {
         enable = true;
-        target = "sway-session.target";
       };
       style = ''
         * {
@@ -93,7 +92,7 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
           layer = "top";
           position = "top";
           height = 10;
-          modules-left = [ "sway/workspaces" "custom/right-arrow-dark" ];
+          modules-left = [ "hyprland/workspaces" "custom/right-arrow-dark" ];
           modules-center = [
             "custom/left-arrow-dark"
             "clock#1"
@@ -146,7 +145,7 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
             tooltip = false;
           };
 
-          "sway/workspaces" = {
+          "hyprland/workspaces" = {
             disable-scroll = true;
             format = "{name}";
           };
@@ -216,9 +215,5 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
         };
       };
     };
-  };
-
-  systemd.user.services = {
-    waybar = { Unit = { After = [ "sway-session.target" ]; }; };
   };
 }

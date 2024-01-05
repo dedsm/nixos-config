@@ -1,6 +1,7 @@
 attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
   services.kanshi = {
     enable = true;
+    systemdTarget = "graphical-session.target";
     profiles = {
       default = {
         outputs = [{

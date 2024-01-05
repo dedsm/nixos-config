@@ -23,11 +23,15 @@
         inherit system;
         config = { allowUnfree = true; };
       };
-      util = import ./lib {
-        inherit system nixpkgs unstable unstablePkgs unfreePkgs home-manager
-          lib;
+      localpkgs = import ./pkgs;
+      overlaidPkgs = import nixpkgs {
+        inherit system;
+        overlays = [ localpkgs ];
       };
-      pkgs = nixpkgs.legacyPackages.${system};
+      util = import ./lib {
+        inherit system nixpkgs unstable overlaidPkgs unstablePkgs unfreePkgs
+          home-manager lib;
+      };
 
       defaultUser = {
         name = "david";
@@ -56,6 +60,7 @@
         network-manager.enable = false;
         bluetooth.enable = false;
         sway.enable = false;
+        hyprland.enable = false;
         wayland.enable = false;
         git.enable = false;
         starship.enable = true;
@@ -75,6 +80,7 @@
         network-manager.enable = true;
         bluetooth.enable = true;
         sway.enable = true;
+        hyprland.enable = true;
         starship.enable = true;
         wayland.enable = true;
         git = {
@@ -110,7 +116,7 @@
 
         stateVersion = "22.05";
 
-        packages = with pkgs; [
+        packages = with overlaidPkgs; [
           unstablePkgs.slack
           unstablePkgs.spotify
           (unstablePkgs.google-cloud-sdk.withExtraComponents ([
