@@ -129,6 +129,7 @@
           gnome.nautilus
           gnome.eog
           evince
+          swaylock
           polkit_gnome
           docker-credential-helpers
           (pkgs.writers.writePython3Bin "i3xmonadhelper" {
