@@ -40,6 +40,7 @@ in {
       enable = true;
       displayManager = {
         gdm.enable = true;
+        gdm.wayland = true;
         defaultSession = "hyprland";
       };
 
@@ -93,6 +94,8 @@ in {
     security.rtkit.enable = true;
 
     security.pam.services.gdm.enableGnomeKeyring = true;
+    security.pam.services.gdm.enableKwallet = true;
+    security.pam.services.login.enableKwallet = true;
 
     services.accounts-daemon.enable = true;
 
@@ -200,6 +203,7 @@ in {
       rnix-lsp
       nixfmt
       qt5.qtwayland
+      plasma5Packages.kwallet
       ripgrep
       virtiofsd # Shared files with virt-manager
     ];

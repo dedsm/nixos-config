@@ -20,6 +20,10 @@ mkIf homeManagerConfig.hyprland.enable {
         "${unstablePkgs.synology-drive-client}/bin/synology-drive"
         "sleep 5 && systemctl --user restart _1password.service"
       ];
+      misc = {
+        force_default_wallpaper = 0;
+        disable_hyprland_logo = true;
+      };
       master = {
         new_is_master = false;
         no_gaps_when_only = 1;
@@ -69,9 +73,11 @@ mkIf homeManagerConfig.hyprland.enable {
       ];
       bind = [
         "ALT SHIFT, W, exec, $browser"
+        "ALT SHIFT, F, exec, chromium"
         "ALT SHIFT, S, exec, slack"
         "ALT SHIFT, P, exec, nautilus"
         "ALT SHIFT, C, exec, gnome-calculator"
+        "CTRL ALT, L, exec, swaylock -fF -c 000000"
         "$mod, P, exec, bemenu-run"
         "$mod, X, exec, playerctl play-pause"
         "$mod, Z, exec, playerctl previous"
