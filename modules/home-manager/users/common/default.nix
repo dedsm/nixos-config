@@ -8,7 +8,6 @@ let
   mako = import ./mako attrs;
   bluetooth = import ./bluetooth attrs;
   network-manager = import ./network-manager attrs;
-  sway = import ./sway attrs;
   hyprland = import ./hyprland attrs;
   wayland = import ./wayland attrs;
   starship = import ./starship attrs;
@@ -22,7 +21,6 @@ in lib.mkMerge [
   mako
   network-manager
   bluetooth
-  sway
   hyprland
   wayland
   starship
