@@ -1,5 +1,4 @@
-attrs@{ system, home-manager, lib, ... }:
-{
+attrs@{ system, home-manager, lib, overlaidPkgs, ... }: {
   mkHost = { name, systemConfig ? { }, stateVersion, homeManagerConfig ? { } }:
     lib.nixosSystem {
       inherit system;

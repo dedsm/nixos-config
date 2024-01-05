@@ -40,7 +40,7 @@ in {
       enable = true;
       displayManager = {
         gdm.enable = true;
-        defaultSession = "sway";
+        defaultSession = "hyprland";
       };
 
       layout = "us";
@@ -143,7 +143,7 @@ in {
       icons.enable = true;
       portal = {
         enable = true;
-        wlr.enable = true;
+        wlr.enable = false;
         # gtk portal needed to make gtk apps happy
         extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
         gtkUsePortal = false;

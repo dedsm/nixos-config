@@ -80,7 +80,8 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, pkgs, ... }: {
 
   qt = {
     enable = true;
-    platformTheme = "gtk";
+    platformTheme = "gtk3";
+    style.name = "adwaita";
   };
 
   gtk = {
@@ -123,11 +124,11 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, pkgs, ... }: {
 
   systemd.user.services = {
     _1password = {
-      Install = { WantedBy = lib.mkForce [ "sway-session.target" ]; };
+      Install = { WantedBy = lib.mkForce [ "graphical-session.target" ]; };
       Unit = {
-        After = lib.mkForce [ "sway-session.target" "waybar.service" ];
-        PartOf = lib.mkForce [ "sway-session.target" ];
-        Requires = lib.mkForce [ "sway-session.target" "waybar.service" ];
+        After = lib.mkForce [ "graphical-session.target" "waybar.service" ];
+        PartOf = lib.mkForce [ "graphical-session.target" ];
+        Requires = lib.mkForce [ "graphical-session.target" "waybar.service" ];
       };
       Service = {
         Restart = "Always";

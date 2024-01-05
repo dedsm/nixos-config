@@ -1,0 +1,114 @@
+{ lib, homeManagerConfig, unstablePkgs, overlaidPkgs, pkgs, ... }:
+with lib;
+mkIf homeManagerConfig.hyprland.enable {
+  wayland.windowManager.hyprland = {
+    enable = true;
+    systemd.enable = true;
+    plugins =
+      [ "${overlaidPkgs.hyprland-grab-workspace}/lib/grab-workspace.so" ];
+    settings = {
+      "$terminal" = "${pkgs.foot}/bin/foot";
+      "$browser" = "firefox-developer-edition";
+      "$mod" = "SUPER";
+      exec-once = [
+        "mako"
+        "dropbox"
+        "avizo-service"
+        "solaar -w hide"
+        "wl-paste -t text --watch clipman store --no-persist"
+        "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
+        "${unstablePkgs.synology-drive-client}/bin/synology-drive"
+        "sleep 5 && systemctl --user restart _1password.service"
+      ];
+      master = {
+        new_is_master = false;
+        no_gaps_when_only = 1;
+      };
+      decoration = { rounding = 0; };
+      input = {
+        kb_layout = "us";
+        kb_variant = "altgr-intl";
+        kb_model = "pc105";
+        kb_options = "caps:super";
+        numlock_by_default = true;
+      };
+      general = {
+        border_size = 2;
+        "col.active_border" = "0xffff0000";
+        no_border_on_floating = true;
+        gaps_in = 2;
+        gaps_out = 2;
+        resize_on_border = true;
+        layout = "master";
+      };
+      animations = {
+        bezier = [
+          "wind, 0.05, 0.9, 0.1, 1.05"
+          "winIn, 0.1, 1.1, 0.1, 1.1"
+          "winOut, 0.3, -0.3, 0, 1"
+          "liner, 1, 1, 1, 1"
+        ];
+        animation = [
+          "windows, 1, 6, wind, slide"
+          "windowsIn, 1, 6, winIn, slide"
+          "windowsOut, 1, 5, winOut, slide"
+          "windowsMove, 1, 5, wind, slide"
+          "border, 1, 1, liner"
+          "borderangle, 1, 30, liner, loop"
+          "fade, 1, 10, default"
+          "workspaces, 1, 5, wind"
+        ];
+      };
+      env = [
+        "GDK_BACKEND,wayland,x11"
+        "SDL_VIDEODRIVER,wayland"
+        "QT_WAYLAND_DISABLE_WINDOWDECORATION,1"
+        "_JAVA_AWT_WM_NONREPARENTING,1"
+        "MOZ_ENABLE_WAYLAND,1"
+        "NIXOS_OZONE_WL,1"
+      ];
+      bind = [
+        "ALT SHIFT, W, exec, $browser"
+        "ALT SHIFT, S, exec, slack"
+        "ALT SHIFT, P, exec, nautilus"
+        "ALT SHIFT, C, exec, gnome-calculator"
+        "$mod, P, exec, bemenu-run"
+        "$mod, X, exec, playerctl play-pause"
+        "$mod, Z, exec, playerctl previous"
+        "$mod, C, exec, playerctl next"
+        ", XF86AudioPlay, exec, playerctl play-pause"
+        ", XF86AudioPrev, exec, playerctl previous"
+        ", XF86AudioNext, exec, playerctl next"
+        ", Print, exec, grimblast copy area"
+        ", XF86MonBrightnessDown, exec, lightctl down 1"
+        ", XF86MonBrightnessUp, exec, lightctl up 1"
+
+        ", XF86AudioRaiseVolume, exec, volumectl + 1"
+        ", XF86AudioLowerVolume, exec, volumectl - 1"
+        ", XF86AudioMute, exec, volumectl %"
+        "$mod SHIFT, RETURN, exec, $terminal"
+        "$mod SHIFT, C, killactive"
+        "$mod SHIFT, Q, exit"
+        "$mod, RETURN, layoutmsg, swapwithmaster"
+        "$mod, W, focusmonitor, l"
+        "$mod, E, focusmonitor, r"
+        "$mod SHIFT, W, movewindow, mon:l"
+        "$mod SHIFT, E, movewindow, mon:r"
+        "$mod, TAB, cyclenext"
+        "$mod SHIFT, TAB, cyclenext, prev"
+        "$mod SHIFT, COMMA, layoutmsg, addmaster"
+        "$mod SHIFT, PERIOD, layoutmsg, removemaster"
+        "$mod, SPACE, layoutmsg, orientationcycle left top"
+      ] ++ (
+        # workspaces
+        # binds $mod + [shift +] {1..10} to [move to] workspace {1..10}
+        builtins.concatLists (builtins.genList (x:
+          let
+            ws = let c = (x + 1) / 10; in builtins.toString (x + 1 - (c * 10));
+          in [
+            "$mod, ${ws}, grab-workspace, ${toString (x + 1)}"
+            "$mod SHIFT, ${ws}, movetoworkspacesilent, ${toString (x + 1)}"
+          ]) 10));
+    };
+  };
+}
