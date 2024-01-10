@@ -17,7 +17,7 @@ mkIf homeManagerConfig.hyprland.enable {
         "solaar -w hide"
         "wl-paste -t text --watch clipman store --no-persist"
         "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
-        "${unstablePkgs.synology-drive-client}/bin/synology-drive"
+        "sleep 5 && ${unstablePkgs.synology-drive-client}/bin/synology-drive"
         "sleep 5 && systemctl --user restart _1password.service"
       ];
       misc = {
@@ -45,6 +45,9 @@ mkIf homeManagerConfig.hyprland.enable {
         resize_on_border = true;
         layout = "master";
       };
+      windowrulev2 = [
+        "float, title:^(.*Picture.*)$"
+      ];
       animations = {
         bezier = [
           "wind, 0.05, 0.9, 0.1, 1.05"
@@ -71,6 +74,17 @@ mkIf homeManagerConfig.hyprland.enable {
         "MOZ_ENABLE_WAYLAND,1"
         "NIXOS_OZONE_WL,1"
       ];
+      bindm = [
+        "$mod, mouse:272, movewindow"
+        "$mod, mouse:273, resizewindow"
+      ];
+      binde = [
+        ", XF86MonBrightnessDown, exec, lightctl down 1"
+        ", XF86MonBrightnessUp, exec, lightctl up 1"
+
+        ", XF86AudioRaiseVolume, exec, volumectl + 1"
+        ", XF86AudioLowerVolume, exec, volumectl - 1"
+      ];
       bind = [
         "ALT SHIFT, W, exec, $browser"
         "ALT SHIFT, F, exec, chromium"
@@ -82,15 +96,11 @@ mkIf homeManagerConfig.hyprland.enable {
         "$mod, X, exec, playerctl play-pause"
         "$mod, Z, exec, playerctl previous"
         "$mod, C, exec, playerctl next"
+        "$mod, T, togglefloating"
         ", XF86AudioPlay, exec, playerctl play-pause"
         ", XF86AudioPrev, exec, playerctl previous"
         ", XF86AudioNext, exec, playerctl next"
         ", Print, exec, grimblast copy area"
-        ", XF86MonBrightnessDown, exec, lightctl down 1"
-        ", XF86MonBrightnessUp, exec, lightctl up 1"
-
-        ", XF86AudioRaiseVolume, exec, volumectl + 1"
-        ", XF86AudioLowerVolume, exec, volumectl - 1"
         ", XF86AudioMute, exec, volumectl %"
         "$mod SHIFT, RETURN, exec, $terminal"
         "$mod SHIFT, C, killactive"
@@ -102,8 +112,8 @@ mkIf homeManagerConfig.hyprland.enable {
         "$mod SHIFT, E, movewindow, mon:r"
         "$mod, TAB, cyclenext"
         "$mod SHIFT, TAB, cyclenext, prev"
-        "$mod SHIFT, COMMA, layoutmsg, addmaster"
-        "$mod SHIFT, PERIOD, layoutmsg, removemaster"
+        "$mod, COMMA, layoutmsg, addmaster"
+        "$mod, PERIOD, layoutmsg, removemaster"
         "$mod, SPACE, layoutmsg, orientationcycle left top"
       ] ++ (
         # workspaces

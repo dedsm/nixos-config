@@ -1,1 +1,3 @@
-{ ... }: { imports = [ ./core ./defaults ./laptop ./gnome-services ]; }
+{ ... }: {
+  imports = [ ./core ./defaults ./laptop ./gnome-services ./gnome-programs ];
+}
