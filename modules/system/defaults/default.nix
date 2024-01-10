@@ -41,7 +41,7 @@ in {
       displayManager = {
         gdm.enable = true;
         gdm.wayland = true;
-        defaultSession = "hyprland";
+        defaultSession = "sway";
       };
 
       layout = "us";
@@ -155,12 +155,27 @@ in {
     };
 
     programs.light = { enable = true; };
-    programs.hyprland = {
+    programs.sway = {
       enable = true;
-      package = hyprland.packages.${pkgs.system}.hyprland;
-      portalPackage =
-        hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
+      wrapperFeatures = {
+        gtk = true;
+        base = true;
+      };
+      extraSessionCommands = ''
+        export SDL_VIDEODRIVER=wayland
+        export QT_WAYLAND_DISABLE_WINDOWDECORATION="1"
+        export _JAVA_AWT_WM_NONREPARENTING=1
+        export MOZ_ENABLE_WAYLAND=1
+        export NIXOS_OZONE_WL=1
+      '';
     };
+
+    #programs.hyprland = {
+      #enable = true;
+      #package = hyprland.packages.${pkgs.system}.hyprland;
+      #portalPackage =
+        #hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
+    #};
 
     # Enable touchpad support (enabled default in most desktopManager).
     # services.xserver.libinput.enable = true;
