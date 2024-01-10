@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-23.11";
     unstable.url = "nixpkgs/nixos-unstable";
+    hyprland.url = "github:dedsm/Hyprland/update_flakes";
     home-manager = {
       url = "github:nix-community/home-manager/release-23.11";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -11,7 +12,7 @@
     nixos-hardware = { url = "github:NixOS/nixos-hardware"; };
   };
 
-  outputs = attrs@{ nixpkgs, unstable, home-manager, nixos-hardware, ... }:
+  outputs = attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware, ... }:
     let
       lib = nixpkgs.lib;
       system = "x86_64-linux";
@@ -30,7 +31,7 @@
       };
       util = import ./lib {
         inherit system nixpkgs unstable overlaidPkgs unstablePkgs unfreePkgs
-          home-manager lib;
+          home-manager nixos-hardware lib hyprland;
       };
 
       defaultUser = {
@@ -195,6 +196,8 @@
           stateVersion = "21.05";
           systemConfig = {
             laptop.enable = true;
+            gnome-services.enable = true;
+            gnome-programs.enable = true;
             defaults.users = users;
           };
           homeManagerConfig = homeManagerConfig;

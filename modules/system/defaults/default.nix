@@ -1,6 +1,6 @@
 # Since I only have one system this is a placeholder for all the configurations I'd use in a laptop
 # It should be split into more detailed modules if the situation ever changes (like having a dedicated desktop for instance)
-{ lib, pkgs, config, unfreePkgs, unstablePkgs, ... }:
+{ lib, pkgs, config, unfreePkgs, unstablePkgs, hyprland, ... }:
 with lib;
 let
   cfg = config.dedsm.defaults;
@@ -155,7 +155,12 @@ in {
     };
 
     programs.light = { enable = true; };
-    programs.hyprland.enable = true;
+    programs.hyprland = {
+      enable = true;
+      package = hyprland.packages.${pkgs.system}.hyprland;
+      portalPackage =
+        hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
+    };
 
     # Enable touchpad support (enabled default in most desktopManager).
     # services.xserver.libinput.enable = true;
