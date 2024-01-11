@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-23.11";
     unstable.url = "nixpkgs/nixos-unstable";
-    hyprland.url = "github:dedsm/Hyprland/update_flakes";
+    hyprland.url = "github:hyprwm/Hyprland";
     home-manager = {
       url = "github:nix-community/home-manager/release-23.11";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -24,7 +24,7 @@
         inherit system;
         config = { allowUnfree = true; };
       };
-      localpkgs = import ./pkgs;
+      localpkgs = import ./pkgs {hyprlandPkgs = hyprland;};
       overlaidPkgs = import nixpkgs {
         inherit system;
         overlays = [ localpkgs ];

@@ -1,9 +1,10 @@
-{ lib, homeManagerConfig, unstablePkgs, overlaidPkgs, pkgs, ... }:
+{ lib, hyprland,homeManagerConfig, unstablePkgs, overlaidPkgs, pkgs, ... }:
 with lib;
 mkIf homeManagerConfig.hyprland.enable {
   wayland.windowManager.hyprland = {
     enable = true;
     systemd.enable = true;
+    package = hyprland.packages.${pkgs.system}.hyprland;
     plugins =
       [ "${overlaidPkgs.hyprland-grab-workspace}/lib/grab-workspace.so" ];
     settings = {
