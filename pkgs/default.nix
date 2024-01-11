@@ -1,3 +1,4 @@
+{ hyprlandPkgs }:
 self: super: {
   hyprland-grab-workspace = super.gcc13Stdenv.mkDerivation {
     name = "hyprland-grab-workspace";
@@ -9,14 +10,15 @@ self: super: {
     };
 
     #inherit (super.hyprland) nativeBuildInputs;
-    nativeBuildInputs = with super; [ 
+    nativeBuildInputs = with super; [
       jq
       makeWrapper
       pkg-config
       wayland-scanner
     ];
 
-    buildInputs = [ super.hyprland ] ++ super.hyprland.buildInputs;
+    buildInputs = [ hyprlandPkgs.packages.${super.system}.hyprland ]
+      ++ hyprlandPkgs.packages.${super.system}.hyprland.buildInputs;
 
     installPhase = ''
       mkdir -p $out/lib
