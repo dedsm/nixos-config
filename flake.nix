@@ -81,7 +81,7 @@
         network-manager.enable = true;
         bluetooth.enable = true;
         sway.enable = true;
-        hyprland.enable = true;
+        hyprland.enable = false;
         starship.enable = true;
         wayland.enable = true;
         git = {
@@ -196,8 +196,8 @@
           stateVersion = "21.05";
           systemConfig = {
             laptop.enable = true;
-            gnome-services.enable = true;
             gnome-programs.enable = true;
+            gnome-services.enable = true;
             defaults.users = users;
           };
           homeManagerConfig = homeManagerConfig;

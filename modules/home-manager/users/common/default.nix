@@ -9,6 +9,7 @@ let
   bluetooth = import ./bluetooth attrs;
   network-manager = import ./network-manager attrs;
   hyprland = import ./hyprland attrs;
+  sway = import ./sway attrs;
   wayland = import ./wayland attrs;
   starship = import ./starship attrs;
   git = import ./git attrs;
@@ -22,6 +23,7 @@ in lib.mkMerge [
   network-manager
   bluetooth
   hyprland
+  sway
   wayland
   starship
   git
