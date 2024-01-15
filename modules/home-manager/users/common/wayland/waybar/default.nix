@@ -89,7 +89,7 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
       '';
       settings = {
         mainBar = {
-          layer = "top";
+          layer = "bottom";
           position = "top";
           height = 10;
           modules-left = [ "sway/workspaces" "custom/right-arrow-dark" ];
