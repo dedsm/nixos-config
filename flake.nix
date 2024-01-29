@@ -81,7 +81,7 @@
         network-manager.enable = true;
         bluetooth.enable = true;
         sway.enable = true;
-        hyprland.enable = false;
+        hyprland.enable = true;
         starship.enable = true;
         wayland.enable = true;
         git = {
