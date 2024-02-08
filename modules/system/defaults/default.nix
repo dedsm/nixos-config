@@ -251,11 +251,8 @@ in {
     services.udev = { packages = with pkgs; [ yubikey-personalization ]; };
 
     services.ddclient = {
-      enable = false;
-      protocol = "namecheap";
-      username = "dedsm.com";
-      passwordFile = "/etc/nixos/ddclientPassword";
-      domains = [ "mobile.dedsm.com" ];
+      enable = true;
+      configFile = "/etc/nixos/ddclient.conf";
     };
   };
 }
