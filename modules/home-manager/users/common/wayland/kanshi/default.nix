@@ -7,7 +7,7 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
         outputs = [{
           criteria = "eDP-1";
           status = "enable";
-          scale = 1.5;
+          scale = 1.566667;
           position = "0,0";
           mode = "2256x1504@59.999Hz";
         }];
@@ -39,7 +39,7 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
           {
             criteria = "eDP-1";
             status = "enable";
-            scale = 1.5;
+            scale = 1.566667;
             position = "1920,0";
             mode = "2256x1504@59.999Hz";
           }
