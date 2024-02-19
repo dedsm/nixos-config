@@ -12,7 +12,8 @@
     nixos-hardware = { url = "github:NixOS/nixos-hardware"; };
   };
 
-  outputs = attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware, ... }:
+  outputs =
+    attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware, ... }:
     let
       lib = nixpkgs.lib;
       system = "x86_64-linux";
@@ -24,7 +25,7 @@
         inherit system;
         config = { allowUnfree = true; };
       };
-      localpkgs = import ./pkgs {hyprlandPkgs = hyprland;};
+      localpkgs = import ./pkgs { hyprlandPkgs = hyprland; };
       overlaidPkgs = import nixpkgs {
         inherit system;
         overlays = [ localpkgs ];
@@ -113,6 +114,11 @@
             pull = { ff = "only"; };
             init = { defaultBranch = "master"; };
           };
+
+          includes = [{
+            path = "~/Develop/DealMaker/.gitconfig";
+            condition = "gitdir:~/Develop/DealMaker/";
+          }];
         };
 
         stateVersion = "22.05";
