@@ -35,6 +35,7 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, pkgs, ... }: {
       hashKnownHosts = true;
       extraConfig = ''
         UseRoaming no
+        SetEnv TERM=xterm-256color
       '';
     };
 
