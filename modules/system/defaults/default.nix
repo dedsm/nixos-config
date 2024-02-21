@@ -50,7 +50,7 @@ in {
         options = "caps:super";
       };
     };
-    services.displayManager = { defaultSession = "sway"; };
+    services.displayManager = { defaultSession = "hyprland"; };
 
     console.useXkbConfig = true;
 
@@ -161,7 +161,7 @@ in {
 
     programs.light = { enable = true; };
     programs.sway = {
-      enable = true;
+      enable = false;
       wrapperFeatures = {
         gtk = true;
         base = true;
@@ -175,12 +175,12 @@ in {
       '';
     };
 
-    #programs.hyprland = {
-    #enable = true;
-    #package = hyprland.packages.${pkgs.system}.hyprland;
-    #portalPackage =
-    #hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
-    #};
+    programs.hyprland = {
+      enable = true;
+      package = hyprland.packages.${pkgs.system}.hyprland;
+      portalPackage =
+        hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
+    };
 
     # Enable touchpad support (enabled default in most desktopManager).
     # services.xserver.libinput.enable = true;

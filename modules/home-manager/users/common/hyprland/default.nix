@@ -1,4 +1,4 @@
-{ lib, hyprland,homeManagerConfig, unstablePkgs, overlaidPkgs, pkgs, ... }:
+{ lib, hyprland, homeManagerConfig, unstablePkgs, overlaidPkgs, pkgs, hycov, ... }:
 with lib;
 mkIf homeManagerConfig.hyprland.enable {
   wayland.windowManager.hyprland = {
@@ -9,6 +9,14 @@ mkIf homeManagerConfig.hyprland.enable {
       "$terminal" = "${pkgs.foot}/bin/foot";
       "$browser" = "firefox-developer-edition";
       "$mod" = "SUPER";
+      plugin = {
+        hycov = {
+          overview_gappo = 60;
+          overview_gappi = 24;
+          hotarea_size = 10;
+          enable_hotarea = 1;
+        };
+      };
       exec-once = [
         "mako"
         "dropbox"
@@ -44,9 +52,7 @@ mkIf homeManagerConfig.hyprland.enable {
         resize_on_border = true;
         layout = "master";
       };
-      windowrulev2 = [
-        "float, title:^(.*Picture.*)$"
-      ];
+      windowrulev2 = [ "float, title:^(.*Picture.*)$" ];
       animations = {
         bezier = [
           "wind, 0.05, 0.9, 0.1, 1.05"
@@ -73,10 +79,7 @@ mkIf homeManagerConfig.hyprland.enable {
         "MOZ_ENABLE_WAYLAND,1"
         "NIXOS_OZONE_WL,1"
       ];
-      bindm = [
-        "$mod, mouse:272, movewindow"
-        "$mod, mouse:273, resizewindow"
-      ];
+      bindm = [ "$mod, mouse:272, movewindow" "$mod, mouse:273, resizewindow" ];
       binde = [
         ", XF86MonBrightnessDown, exec, lightctl down 1"
         ", XF86MonBrightnessUp, exec, lightctl up 1"
@@ -90,6 +93,11 @@ mkIf homeManagerConfig.hyprland.enable {
         "ALT SHIFT, S, exec, slack"
         "ALT SHIFT, P, exec, nautilus"
         "ALT SHIFT, C, exec, gnome-calculator"
+        "ALT, tab, hycov:toggleoverview"
+        "ALT, left, hycov:movefocus, l"
+        "ALT, right, hycov:movefocus, r"
+        "ALT, up, hycov:movefocus, u"
+        "ALT, down, hycov:movefocus, d"
         "CTRL ALT, L, exec, swaylock -fF -c 000000"
         "$mod, P, exec, bemenu-run"
         "$mod, X, exec, playerctl play-pause"

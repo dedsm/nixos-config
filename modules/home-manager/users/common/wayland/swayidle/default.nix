@@ -19,8 +19,8 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
         }
         {
           timeout = 600;
-          command = ''${pkgs.sway}/bin/swaymsg "output * dpms off"'';
-          resumeCommand = ''${pkgs.sway}/bin/swaymsg "output * dpms on"'';
+          command = ''${pkgs.hyprland}/bin/hyprctl "dispatch dpms off"'';
+          resumeCommand = ''${pkgs.hyprland}/bin/hyprctl "dispatch dpms on"'';
         }
       ];
     };
