@@ -43,6 +43,9 @@ mkIf homeManagerConfig.hyprland.enable {
         kb_options = "caps:super";
         numlock_by_default = true;
       };
+      "input:touchpad" = {
+        natural_scroll = true;
+      };
       general = {
         border_size = 2;
         "col.active_border" = "0xffff0000";
