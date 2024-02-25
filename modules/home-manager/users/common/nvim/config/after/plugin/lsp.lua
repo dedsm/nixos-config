@@ -32,6 +32,7 @@ lsp.configure('solargraph', {
 lsp.configure('tsserver', {})
 lsp.configure('svelte', {})
 lsp.configure('gopls', {})
+lsp.configure('rust_analyzer', {})
 
 
 lsp.setup()
