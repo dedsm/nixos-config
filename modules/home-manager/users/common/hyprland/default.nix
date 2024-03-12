@@ -5,8 +5,6 @@ mkIf homeManagerConfig.hyprland.enable {
     enable = true;
     systemd.enable = true;
     package = hyprland.packages.${pkgs.system}.hyprland;
-    plugins =
-      [ "${overlaidPkgs.hyprland-grab-workspace}/lib/grab-workspace.so" ];
     settings = {
       "$terminal" = "${pkgs.foot}/bin/foot";
       "$browser" = "firefox-developer-edition";
@@ -123,7 +121,7 @@ mkIf homeManagerConfig.hyprland.enable {
           let
             ws = let c = (x + 1) / 10; in builtins.toString (x + 1 - (c * 10));
           in [
-            "$mod, ${ws}, grab-workspace, ${toString (x + 1)}"
+            "$mod, ${ws}, focusworkspaceoncurrentmonitor, ${toString (x + 1)}"
             "$mod SHIFT, ${ws}, movetoworkspacesilent, ${toString (x + 1)}"
           ]) 10));
     };
