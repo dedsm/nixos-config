@@ -1,4 +1,4 @@
-{ lib, hyprland, homeManagerConfig, unstablePkgs, overlaidPkgs, pkgs, hycov, ... }:
+{ lib, hyprland, homeManagerConfig, unstablePkgs, overlaidPkgs, pkgs, ... }:
 with lib;
 mkIf homeManagerConfig.hyprland.enable {
   wayland.windowManager.hyprland = {
@@ -9,14 +9,6 @@ mkIf homeManagerConfig.hyprland.enable {
       "$terminal" = "${pkgs.foot}/bin/foot";
       "$browser" = "firefox-developer-edition";
       "$mod" = "SUPER";
-      plugin = {
-        hycov = {
-          overview_gappo = 60;
-          overview_gappi = 24;
-          hotarea_size = 10;
-          enable_hotarea = 1;
-        };
-      };
       exec-once = [
         "mako"
         "dropbox"
@@ -96,11 +88,6 @@ mkIf homeManagerConfig.hyprland.enable {
         "ALT SHIFT, S, exec, slack"
         "ALT SHIFT, P, exec, nautilus"
         "ALT SHIFT, C, exec, gnome-calculator"
-        "ALT, tab, hycov:toggleoverview"
-        "ALT, left, hycov:movefocus, l"
-        "ALT, right, hycov:movefocus, r"
-        "ALT, up, hycov:movefocus, u"
-        "ALT, down, hycov:movefocus, d"
         "CTRL ALT, L, exec, swaylock -fF -c 000000"
         "$mod, P, exec, bemenu-run"
         "$mod, X, exec, playerctl play-pause"
