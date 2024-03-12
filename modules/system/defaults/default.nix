@@ -206,7 +206,6 @@ in {
     environment.systemPackages = with pkgs; [
       git
       any-nix-shell
-      rnix-lsp
       nixfmt
       qt5.qtwayland
       plasma5Packages.kwallet
