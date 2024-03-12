@@ -9,16 +9,12 @@
       url = "github:nix-community/home-manager/release-23.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    hycov = {
-      url = "github:DreamMaoMao/hycov";
-      inputs.hyprland.follows = "hyprland";
-    };
 
     nixos-hardware = { url = "github:NixOS/nixos-hardware"; };
   };
 
-  outputs =
-    attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware, hycov, ... }:
+  outputs = attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware
+    , ... }:
     let
       lib = nixpkgs.lib;
       system = "x86_64-linux";
@@ -37,7 +33,7 @@
       };
       util = import ./lib {
         inherit system nixpkgs unstable overlaidPkgs unstablePkgs unfreePkgs
-          home-manager nixos-hardware lib hyprland hycov;
+          home-manager nixos-hardware lib hyprland;
       };
 
       defaultUser = {
@@ -87,7 +83,7 @@
         network-manager.enable = true;
         bluetooth.enable = true;
         sway.enable = true;
-        hyprland.enable = true;
+        hyprland.enable = false;
         starship.enable = true;
         wayland.enable = true;
         git = {
