@@ -63,6 +63,9 @@ in {
     services.avahi.enable = true;
     services.avahi.nssmdns = true;
 
+    # Open Tablet Driver
+    hardware.opentabletdriver.enable = true;
+
     # Ledger support
     hardware.ledger.enable = true;
 
