@@ -13,8 +13,8 @@
     nixos-hardware = { url = "github:NixOS/nixos-hardware"; };
   };
 
-  outputs = attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware
-    , ... }:
+  outputs =
+    attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware, ... }:
     let
       lib = nixpkgs.lib;
       system = "x86_64-linux";
@@ -156,7 +156,7 @@
           kubectl
           stern
           p7zip
-          unstablePkgs.dropbox
+          unfreePkgs.dropbox
           vlc
           ntfs3g
           kubernetes-helm
