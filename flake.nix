@@ -102,8 +102,6 @@
             ".direnv"
             ".tool-versions"
             "shell.nix"
-            "flake.nix"
-            "flake.lock"
           ];
 
           signing = {
