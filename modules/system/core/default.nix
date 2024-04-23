@@ -33,6 +33,7 @@ in {
     users.defaultUserShell = pkgs.zsh;
 
     nix.settings.experimental-features = [ "nix-command" "flakes" ];
+    nix.settings.auto-optimise-store = true;
     networking.firewall.enable = false;
 
     # Enable the OpenSSH daemon.
