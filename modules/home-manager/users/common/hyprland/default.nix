@@ -47,7 +47,12 @@ mkIf homeManagerConfig.hyprland.enable {
         resize_on_border = true;
         layout = "master";
       };
-      windowrulev2 = [ "float, title:^(.*Picture.*)$" ];
+      windowrulev2 = [
+        "float, title:^(.*Picture.*)$"
+      ];
+      xwayland = {
+        force_zero_scaling = true;
+      };
       animations = {
         bezier = [
           "wind, 0.05, 0.9, 0.1, 1.05"
@@ -67,6 +72,7 @@ mkIf homeManagerConfig.hyprland.enable {
         ];
       };
       env = [
+        "GDK_SCALE,2"
         "GDK_BACKEND,wayland,x11"
         "SDL_VIDEODRIVER,wayland"
         "QT_WAYLAND_DISABLE_WINDOWDECORATION,1"
