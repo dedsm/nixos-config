@@ -19,7 +19,6 @@ attrs@{ system, nixos-hardware, home-manager, lib, overlaidPkgs, hyprland, ... }
           };
           system.stateVersion = stateVersion;
         }
-        nixos-hardware.nixosModules.common-gpu-intel
         nixos-hardware.nixosModules.framework-12th-gen-intel
         ../modules/hardware-configuration.nix
         ../modules/home-manager
