@@ -1,6 +1,7 @@
 attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
   programs = {
     waybar = {
+      package = unstablePkgs.waybar;
       enable = true;
       systemd = {
         enable = true;

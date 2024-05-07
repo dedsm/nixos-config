@@ -180,7 +180,6 @@
           imagemagick
           networkmanagerapplet
           bemenu
-          waybar
           unstablePkgs.avizo
           awscli2
           slurp
