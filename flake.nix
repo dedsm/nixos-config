@@ -144,6 +144,7 @@
             libraries = [ pkgs.python3Packages.i3ipc ];
           } (builtins.readFile ./custom/david/i3xmonadhelper.py))
           wl-clipboard
+          moonlight-qt
           clipman
           playerctl
           httpie
