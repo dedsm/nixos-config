@@ -16,7 +16,10 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
         outputs = [
           {
             criteria = "eDP-1";
-            status = "disable";
+            status = "enable";
+            scale = 1.566667;
+            position = "960,1080";
+            mode = "2256x1504@59.999Hz";
           }
           {
             criteria = "LG Electronics LG ULTRAFINE 110NTZN4L965";
