@@ -214,6 +214,7 @@ in {
       plasma5Packages.kwallet
       ripgrep
       virtiofsd # Shared files with virt-manager
+      lm_sensors
     ];
     environment.enableAllTerminfo = true;
 
