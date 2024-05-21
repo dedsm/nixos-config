@@ -4,6 +4,7 @@ mkIf homeManagerConfig.hyprland.enable {
   wayland.windowManager.hyprland = {
     enable = true;
     systemd.enable = true;
+    systemd.variables = [ "--all" ];
     package = hyprland.packages.${pkgs.system}.hyprland;
     settings = {
       "$terminal" = "${pkgs.foot}/bin/foot";
@@ -17,7 +18,6 @@ mkIf homeManagerConfig.hyprland.enable {
         "wl-paste -t text --watch clipman store --no-persist"
         "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
         "sleep 5 && ${unstablePkgs.synology-drive-client}/bin/synology-drive"
-        "sleep 5 && systemctl --user restart _1password.service"
       ];
       misc = {
         force_default_wallpaper = 0;
