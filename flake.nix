@@ -206,6 +206,7 @@
             laptop.enable = true;
             gnome-programs.enable = true;
             gnome-services.enable = true;
+            fw-fanctrl.enable = true;
             defaults.users = users;
           };
           homeManagerConfig = homeManagerConfig;

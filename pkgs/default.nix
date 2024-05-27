@@ -25,4 +25,24 @@ self: super: {
       cp grab-workspace.so $out/lib
     '';
   };
+
+  fw-fanctrl-nix = super.stdenv.mkDerivation {
+    name = "fw-fanctrl-nix";
+    src = super.fetchFromGitHub {
+      owner = "TamtamHero";
+      repo = "fw-fanctrl";
+      rev = "fb4c933e8eb1f362979cad8455297a7c6e6d2efa";
+      sha256 = "sha256-UDGadPeNn/ouQ9Rtg8Wzc5QvG15TkN5+LhRwyX86l1o=";
+    };
+    propagatedBuildInputs = [ super.python311Packages.watchdog ];
+    nativeBuildInputs = with super; [ jq makeWrapper pkg-config ];
+
+    installPhase = ''
+      mkdir -p $out/bin
+      cp fanctrl.py $out/bin/fw-fanctrl
+      chmod +x $out/bin/fw-fanctrl
+      mkdir -p $out/config
+      cp ${./fanctrl-config.json} $out/config/config.json
+    '';
+  };
 }
