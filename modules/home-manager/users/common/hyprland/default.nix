@@ -22,6 +22,7 @@ mkIf homeManagerConfig.hyprland.enable {
       misc = {
         force_default_wallpaper = 0;
         disable_hyprland_logo = true;
+        focus_on_activate = true;
       };
       master = {
         new_is_master = false;
@@ -49,6 +50,7 @@ mkIf homeManagerConfig.hyprland.enable {
       };
       windowrulev2 = [
         "float, title:^(.*Picture.*)$"
+        "float, class:(org.gnome.Calculator)"
       ];
       xwayland = {
         force_zero_scaling = true;
