@@ -2,7 +2,6 @@
 with lib;
 mkIf homeManagerConfig.nvim.enable {
   home = {
-    sessionVariables = { EDITOR = "vim"; };
     file = {
       nvim_config = {
         target = ".config/nvim";
@@ -19,32 +18,39 @@ mkIf homeManagerConfig.nvim.enable {
     withPython3 = true;
     withRuby = false;
     enable = true;
-    plugins = with pkgs.vimPlugins; [
+    defaultEditor = true;
+    package = unstablePkgs.neovim-unwrapped;
+    extraLuaPackages = ps: [
+      ps.tiktoken_core
+    ];
+    plugins = with unstablePkgs.vimPlugins; [
       telescope-nvim
       telescope-fzf-native-nvim
       nvim-treesitter.withAllGrammars
-      unstablePkgs.vimPlugins.lsp-zero-nvim
-      unstablePkgs.vimPlugins.nvim-lspconfig
-      unstablePkgs.vimPlugins.lspcontainers-nvim
-      unstablePkgs.vimPlugins.nvim-cmp
-      unstablePkgs.vimPlugins.cmp-nvim-lsp
-      unstablePkgs.vimPlugins.cmp-nvim-lua
-      unstablePkgs.vimPlugins.cmp_luasnip
-      unstablePkgs.vimPlugins.luasnip
-      unstablePkgs.vimPlugins.friendly-snippets
-      unstablePkgs.vimPlugins.nvim-lastplace
-      unstablePkgs.vimPlugins.ale
-      unstablePkgs.vimPlugins.copilot-lua
-      unstablePkgs.vimPlugins.copilot-cmp
-      unstablePkgs.vimPlugins.trouble-nvim
-      unstablePkgs.vimPlugins.nvim-web-devicons
+      lsp-zero-nvim
+      nvim-lspconfig
+      lspcontainers-nvim
+      nvim-cmp
+      cmp-nvim-lsp
+      cmp-nvim-lua
+      cmp_luasnip
+      luasnip
+      friendly-snippets
+      nvim-lastplace
+      ale
+      copilot-lua
+      CopilotChat-nvim
+      copilot-cmp
+      trouble-nvim
+      nvim-web-devicons
+      plenary-nvim
       nerdtree
       nerdtree-git-plugin
       vim-tmux-navigator
       vim-airline
       vim-airline-themes
       nerdcommenter
-      NeoSolarized
+      nvim-solarized-lua
       vim-surround
       vim-repeat
       editorconfig-vim
