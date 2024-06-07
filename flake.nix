@@ -130,6 +130,7 @@
           (unstablePkgs.google-cloud-sdk.withExtraComponents ([
             unstablePkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
           ]))
+          unstablePkgs.vscode
           gnome.gnome-themes-extra
           gnome.adwaita-icon-theme
           gnome-icon-theme
