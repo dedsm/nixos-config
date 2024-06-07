@@ -41,14 +41,16 @@ in {
       displayManager = {
         gdm.enable = true;
         gdm.wayland = true;
-        defaultSession = "sway";
       };
 
-      layout = "us";
-      xkbModel = "pc105";
-      xkbVariant = "altgr-intl";
-      xkbOptions = "caps:super";
+      xkb = {
+        layout = "us";
+        model = "pc105";
+        variant = "altgr-intl";
+        options = "caps:super";
+      };
     };
+    services.displayManager = { defaultSession = "sway"; };
 
     console.useXkbConfig = true;
 
@@ -61,7 +63,7 @@ in {
     };
 
     services.avahi.enable = true;
-    services.avahi.nssmdns = true;
+    services.avahi.nssmdns4 = true;
 
     # Open Tablet Driver
     hardware.opentabletdriver.enable = true;
@@ -174,10 +176,10 @@ in {
     };
 
     #programs.hyprland = {
-      #enable = true;
-      #package = hyprland.packages.${pkgs.system}.hyprland;
-      #portalPackage =
-        #hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
+    #enable = true;
+    #package = hyprland.packages.${pkgs.system}.hyprland;
+    #portalPackage =
+    #hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
     #};
 
     # Enable touchpad support (enabled default in most desktopManager).
@@ -209,7 +211,7 @@ in {
     environment.systemPackages = with pkgs; [
       git
       any-nix-shell
-      nixfmt
+      nixfmt-rfc-style
       qt5.qtwayland
       plasma5Packages.kwallet
       ripgrep
@@ -232,7 +234,7 @@ in {
     programs.gnupg.agent = {
       enable = true;
       enableSSHSupport = true;
-      pinentryFlavor = "gnome3";
+      pinentryPackage = pkgs.pinentry-gnome3;
     };
 
     # List services that you want to enable:

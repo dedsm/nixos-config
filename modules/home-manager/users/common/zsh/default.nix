@@ -4,7 +4,9 @@ mkIf homeManagerConfig.zsh.enable {
   programs.zsh = {
     enable = true;
     enableCompletion = true;
-    enableAutosuggestions = false;
+    autosuggestion = {
+      enable = true;
+    };
     enableVteIntegration = true;
     oh-my-zsh = {
       enable = true;

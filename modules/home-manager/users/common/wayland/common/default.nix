@@ -82,7 +82,7 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, pkgs, ... }: {
 
   qt = {
     enable = true;
-    platformTheme = "gtk3";
+    platformTheme.name = "gtk3";
     style.name = "adwaita";
   };
 
