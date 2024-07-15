@@ -68,6 +68,7 @@
         wayland.enable = false;
         git.enable = false;
         starship.enable = true;
+        defaults.enable = false;
 
         packages = [ ];
 
@@ -87,6 +88,7 @@
         hyprland.enable = false;
         starship.enable = true;
         wayland.enable = true;
+        defaults.enable = true;
         git = {
           enable = true;
           lfs = {
