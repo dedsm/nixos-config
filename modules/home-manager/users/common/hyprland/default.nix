@@ -5,7 +5,9 @@ mkIf homeManagerConfig.hyprland.enable {
     enable = true;
     systemd.enable = true;
     systemd.variables = [ "--all" ];
-    package = hyprland.packages.${pkgs.system}.hyprland;
+    package = hyprland.packages.${pkgs.system}.hyprland.override {
+      # debug = true;
+    };
     settings = {
       "$terminal" = "${pkgs.foot}/bin/foot";
       "$browser" = "firefox-developer-edition";
@@ -18,14 +20,19 @@ mkIf homeManagerConfig.hyprland.enable {
         "wl-paste -t text --watch clipman store --no-persist"
         "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
         "sleep 5 && ${unstablePkgs.synology-drive-client}/bin/synology-drive"
+        "${pkgs.kdePackages.kwallet-pam}/libexec/pam_kwallet_init"
       ];
+      #debug = {
+        #enable_stdout_logs = true;
+      #};
       misc = {
         force_default_wallpaper = 0;
         disable_hyprland_logo = true;
         focus_on_activate = true;
       };
       master = {
-        new_is_master = false;
+        new_status = "slave";
+        #new_is_master = false;
         no_gaps_when_only = 1;
       };
       decoration = { rounding = 0; };
