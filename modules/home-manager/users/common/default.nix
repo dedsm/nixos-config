@@ -13,6 +13,7 @@ let
   wayland = import ./wayland attrs;
   starship = import ./starship attrs;
   git = import ./git attrs;
+  defaults = import ./defaults attrs;
 in lib.mkMerge [
   tmux
   nvim
@@ -27,4 +28,5 @@ in lib.mkMerge [
   wayland
   starship
   git
+  defaults
 ]
