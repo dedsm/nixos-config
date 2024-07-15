@@ -214,6 +214,7 @@ in {
       nixfmt-rfc-style
       qt5.qtwayland
       plasma5Packages.kwallet
+      kdePackages.kwallet-pam
       ripgrep
       virtiofsd # Shared files with virt-manager
       lm_sensors

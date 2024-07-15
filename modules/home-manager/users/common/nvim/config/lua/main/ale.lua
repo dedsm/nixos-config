@@ -14,7 +14,8 @@ vim.g.ale_fixers = {
     python = {'black', 'isort'},
     ruby = {'rubocop'},
     rust = {'rustfmt'},
-    nix = {'nixfmt'}
+    nix = {'nixfmt'},
+    typescript = {'eslint', 'prettier'}
 }
 
 vim.g.ale_markdown_pandoc_options = "--columns 120 -f gfm -t gfm -s -"

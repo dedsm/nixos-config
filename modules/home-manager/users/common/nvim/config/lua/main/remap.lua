@@ -13,7 +13,6 @@ vim.keymap.set({ "n" }, "<leader><space>", vim.cmd.noh)
 
 vim.keymap.set({ "n" }, "<leader>f", function()
     vim.cmd.ALEFix()
-    vim.lsp.buf.format()
 end)
 
 vim.keymap.set({ "n" }, "<leader>gd", vim.lsp.buf.definition)

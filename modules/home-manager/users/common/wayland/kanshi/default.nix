@@ -21,10 +21,7 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
           outputs = [
             {
               criteria = "eDP-1";
-              status = "enable";
-              scale = 1.566667;
-              position = "960,1080";
-              mode = "2256x1504@59.999Hz";
+              status = "disable";
             }
             {
               criteria = "LG Electronics LG ULTRAFINE 110NTZN4L965";
@@ -56,6 +53,27 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
             }
             {
               criteria = "LG Electronics LG Ultra HD 0x0000E0D7";
+              status = "enable";
+              scale = 2.0;
+              position = "0,0";
+              mode = "3840x2160@60Hz";
+            }
+          ];
+        };
+      }
+      {
+        profile = {
+          name = "docked-dealmaker";
+          outputs = [
+            {
+              criteria = "eDP-1";
+              status = "enable";
+              scale = 1.566667;
+              position = "1920,0";
+              mode = "2256x1504@59.999Hz";
+            }
+            {
+              criteria = "LG Electronics LG HDR 4K 0x0000A52A";
               status = "enable";
               scale = 2.0;
               position = "0,0";
