@@ -5,9 +5,8 @@ mkIf homeManagerConfig.hyprland.enable {
     enable = true;
     systemd.enable = true;
     systemd.variables = [ "--all" ];
-    package = hyprland.packages.${pkgs.system}.hyprland.override {
-      # debug = true;
-    };
+    #package = hyprland.packages.${pkgs.system}.hyprland-debug;
+    package = hyprland.packages.${pkgs.system}.hyprland;
     settings = {
       "$terminal" = "${pkgs.foot}/bin/foot";
       "$browser" = "firefox-developer-edition";
@@ -22,9 +21,9 @@ mkIf homeManagerConfig.hyprland.enable {
         "sleep 5 && ${unstablePkgs.synology-drive-client}/bin/synology-drive"
         "${pkgs.kdePackages.kwallet-pam}/libexec/pam_kwallet_init"
       ];
-      #debug = {
-        #enable_stdout_logs = true;
-      #};
+      debug = {
+        enable_stdout_logs = true;
+      };
       misc = {
         force_default_wallpaper = 0;
         disable_hyprland_logo = true;

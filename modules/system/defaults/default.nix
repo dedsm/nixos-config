@@ -22,6 +22,8 @@ in {
 
   config = {
 
+    system.nixos.tags = [ "hyprland-stable" ];
+
     networking.networkmanager.enable = true;
 
     fonts.packages = with pkgs; [
@@ -177,6 +179,7 @@ in {
 
     programs.hyprland = {
       enable = true;
+      #package = hyprland.packages.${pkgs.system}.hyprland-debug;
       package = hyprland.packages.${pkgs.system}.hyprland;
       portalPackage =
         hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
@@ -187,7 +190,7 @@ in {
 
     virtualisation.docker = {
       enable = true;
-      package = unstablePkgs.docker_24;
+      package = unstablePkgs.docker;
     };
 
     # virtualisation.virtualbox.host.enable = true;
