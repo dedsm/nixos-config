@@ -1,4 +1,4 @@
-attrs@{ system, nixos-hardware, home-manager, lib, overlaidPkgs, hyprland, ... }: {
+attrs@{ system, nixos-hardware, home-manager, lib, overlaidPkgs, hyprland, lix-module, ... }: {
   mkHost = { name, systemConfig ? { }, stateVersion, homeManagerConfig ? { } }:
     lib.nixosSystem {
       inherit system;
@@ -6,6 +6,7 @@ attrs@{ system, nixos-hardware, home-manager, lib, overlaidPkgs, hyprland, ... }
       specialArgs = attrs // { hc = homeManagerConfig; };
 
       modules = [
+        lix-module.nixosModules.default
         (import ../modules/system attrs)
         home-manager.nixosModules.home-manager
         {

@@ -10,12 +10,16 @@
       url = "github:nix-community/home-manager/release-24.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    lix-module = {
+      url = "https://git.lix.systems/lix-project/nixos-module/archive/2.91.0.tar.gz";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     nixos-hardware = { url = "github:NixOS/nixos-hardware"; };
   };
 
   outputs =
-    attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware, ... }:
+    attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware, lix-module, ... }:
     let
       lib = nixpkgs.lib;
       system = "x86_64-linux";
@@ -34,7 +38,7 @@
       };
       util = import ./lib {
         inherit system nixpkgs unstable overlaidPkgs unstablePkgs unfreePkgs
-          home-manager nixos-hardware lib hyprland;
+          home-manager nixos-hardware lib hyprland lix-module;
       };
 
       defaultUser = {
