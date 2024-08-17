@@ -34,10 +34,13 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
           command =
             "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
         }
-        { command = "sleep 5 && systemctl --user restart _1password.service"; }
+        #{ command = "sleep 5 && systemctl --user restart _1password.service"; }
         {
           command =
             "sleep 5 && ${unstablePkgs.synology-drive-client}/bin/synology-drive";
+        }
+        {
+          command = "${pkgs.kdePackages.kwallet-pam}/libexec/pam_kwallet_init";
         }
       ];
       modifier = "Mod4";

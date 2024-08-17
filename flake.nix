@@ -88,8 +88,8 @@
         mako.enable = true;
         network-manager.enable = true;
         bluetooth.enable = true;
-        sway.enable = false;
-        hyprland.enable = true;
+        sway.enable = true;
+        hyprland.enable = false;
         starship.enable = true;
         wayland.enable = true;
         defaults.enable = true;

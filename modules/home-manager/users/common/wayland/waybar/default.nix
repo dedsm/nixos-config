@@ -90,10 +90,10 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
       '';
       settings = {
         mainBar = {
-          layer = "top";
+          layer = "bottom";
           position = "top";
           height = 10;
-          modules-left = [ "hyprland/workspaces" "custom/right-arrow-dark" ];
+          modules-left = [ "sway/workspaces" "custom/right-arrow-dark" ];
           modules-center = [
             "custom/left-arrow-dark"
             "clock#1"
@@ -146,7 +146,7 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
             tooltip = false;
           };
 
-          "hyprland/workspaces" = {
+          "sway/workspaces" = {
             disable-scroll = true;
             format = "{name}";
           };

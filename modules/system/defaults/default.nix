@@ -22,7 +22,7 @@ in {
 
   config = {
 
-    system.nixos.tags = [ "hyprland-stable" ];
+    system.nixos.tags = [ "sway" ];
 
     networking.networkmanager.enable = true;
 
@@ -52,7 +52,7 @@ in {
         options = "caps:super";
       };
     };
-    services.displayManager = { defaultSession = "hyprland"; };
+    services.displayManager = { defaultSession = "sway"; };
 
     console.useXkbConfig = true;
 
@@ -154,7 +154,7 @@ in {
       icons.enable = true;
       portal = {
         enable = true;
-        wlr.enable = false;
+        wlr.enable = true;
         # gtk portal needed to make gtk apps happy
         extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
         gtkUsePortal = false;
@@ -163,7 +163,7 @@ in {
 
     programs.light = { enable = true; };
     programs.sway = {
-      enable = false;
+      enable = true;
       wrapperFeatures = {
         gtk = true;
         base = true;
@@ -178,7 +178,7 @@ in {
     };
 
     programs.hyprland = {
-      enable = true;
+      enable = false;
       #package = hyprland.packages.${pkgs.system}.hyprland-debug;
       package = hyprland.packages.${pkgs.system}.hyprland;
       portalPackage =
