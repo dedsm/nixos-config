@@ -1,4 +1,4 @@
-attrs@{ system, nixos-hardware, home-manager, lib, overlaidPkgs, hyprland, lix-module, ... }: {
+attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPkgs, hyprland, ... }: {
   mkHost = { name, systemConfig ? { }, stateVersion, homeManagerConfig ? { } }:
     lib.nixosSystem {
       inherit system;
@@ -6,7 +6,6 @@ attrs@{ system, nixos-hardware, home-manager, lib, overlaidPkgs, hyprland, lix-m
       specialArgs = attrs // { hc = homeManagerConfig; };
 
       modules = [
-        lix-module.nixosModules.default
         (import ../modules/system attrs)
         home-manager.nixosModules.home-manager
         {
@@ -17,6 +16,10 @@ attrs@{ system, nixos-hardware, home-manager, lib, overlaidPkgs, hyprland, lix-m
             trusted-public-keys = [
               "hyprland.cachix.org-1:a7pgxzMz7+chwVL3/pzj6jIBMioiJM7ypFP8PwtkuGc="
             ];
+          };
+          nix.registry = {
+            nixpkgs.flake = nixpkgs;
+            unstable.flake = unstable;
           };
           system.stateVersion = stateVersion;
         }
