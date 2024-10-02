@@ -53,12 +53,12 @@ cmp.setup({
         { name = 'path' },
     },
     snippet = {
-        expand = function(args) 
+        expand = function(args)
             luasnip.lsp_expand(args.body)
         end
     },
     mapping = cmp.mapping.preset.insert({
-            ["<Tab>"] = cmp.mapping(function(fallback)
+        ["<Tab>"] = cmp.mapping(function(fallback)
             if cmp.visible() then
                 cmp.select_next_item()
                 -- You could replace the expand_or_jumpable() calls with expand_or_locally_jumpable()
@@ -71,7 +71,7 @@ cmp.setup({
                 fallback()
             end
         end, { "i", "s" }),
-            ["<S-Tab>"] = cmp.mapping(function(fallback)
+        ["<S-Tab>"] = cmp.mapping(function(fallback)
             if cmp.visible() then
                 cmp.select_prev_item()
             elseif luasnip.jumpable(-1) then
@@ -80,8 +80,8 @@ cmp.setup({
                 fallback()
             end
         end, { "i", "s" }),
-            ['<C-Space>'] = cmp.mapping.complete(),
-            ['<C-Enter>'] = cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true }),
+        ['<C-Space>'] = cmp.mapping.complete(),
+        ['<C-Enter>'] = cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = true }),
     }),
     preselect = 'none',
     completion = { completeopt = 'menu,menuone,noinsert,noselect' },

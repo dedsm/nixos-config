@@ -10,8 +10,8 @@
 
   boot.initrd = {
     availableKernelModules =
-      [ "xhci_pci" "thunderbolt" "nvme" "usb_storage" "sd_mod" ];
-    kernelModules = [ "dm-snapshot" ];
+      [ "xhci_pci" "xhci_hcd" "thunderbolt" "nvme" "usb_storage" "sd_mod" ];
+    kernelModules = [ "thunderbolt" "xhci_pci" "xhci_hcd" "dm-snapshot" ];
     luks = {
       devices.encrypted = {
         device = "/dev/nvme0n1p1";
