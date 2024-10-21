@@ -21,7 +21,7 @@ mkIf homeManagerConfig.nvim.enable {
       nil
 
       # HTML, CSS, JSON
-      vscode-langservers-extracted
+      unstablePkgs.vscode-langservers-extracted
 
       # LazyVim defaults
       stylua
@@ -108,6 +108,9 @@ mkIf homeManagerConfig.nvim.enable {
 
        # Linting
        nvim-lint
+
+       # open files at last edit position
+       vim-lastplace
 
        # 
 #      telescope-nvim

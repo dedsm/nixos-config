@@ -59,6 +59,7 @@ require("config.conform")
 require("config.mini")
 require("config.colorschemes")
 require('config.lint')
+require('config.treesiter')
 
 require("config.lsp")
 require("config.cmp")
