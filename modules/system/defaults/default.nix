@@ -191,6 +191,7 @@ in {
     virtualisation.docker = {
       enable = true;
       package = unstablePkgs.docker;
+      liveRestore = false;
     };
 
     # virtualisation.virtualbox.host.enable = true;
