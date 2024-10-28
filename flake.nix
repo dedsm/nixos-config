@@ -190,6 +190,9 @@
           nodePackages.prettier
           pandoc
           virt-manager
+
+          # Remarkable Stream
+          unstablePkgs.restream
         ];
       };
 
