@@ -5,14 +5,14 @@ conform.setup({
     python = { "ruff_fix", "ruff_format", "ruff_organize_imports" },
     ruby = { "rubocop" },
     markdown = { "pandoc" },
-    nix = { "alejandra" }
+    nix = { "alejandra" },
   },
   formatters = {
     pandoc = {
       command = "pandoc",
       -- A list of strings, or a function that returns a list of strings
       -- Return a single string instead of a list to run the command in a shell
-      args = { "-f", "gfm", "-t", "gfm", "-s", "$FILENAME"},
+      args = { "-f", "gfm", "-t", "gfm", "-s", "$FILENAME" },
       stdin = true
     },
     rubocop = {

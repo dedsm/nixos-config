@@ -128,6 +128,7 @@
         stateVersion = "22.05";
 
         packages = with overlaidPkgs; [
+
           unstablePkgs.slack
           unstablePkgs.spotify
           (unstablePkgs.google-cloud-sdk.withExtraComponents ([
@@ -193,6 +194,13 @@
 
           # Remarkable Stream
           unstablePkgs.restream
+
+          # 1password CLI
+          unfreePkgs._1password
+
+          # Snyk
+          snyk
+          snyk-ls
         ];
       };
 
