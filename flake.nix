@@ -200,7 +200,6 @@
 
           # Snyk
           snyk
-          snyk-ls
         ];
       };
 

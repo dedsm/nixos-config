@@ -4,7 +4,6 @@ require('config.lsp.servers.python')
 require('config.lsp.servers.markdown')
 require('config.lsp.servers.frontend')
 require('config.lsp.servers.docker')
-require('config.lsp.servers.snyk')
 
 vim.api.nvim_create_autocmd('LspAttach', {
   group = vim.api.nvim_create_augroup('kickstart-lsp-attach', { clear = true }),
