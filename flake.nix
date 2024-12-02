@@ -200,6 +200,9 @@
 
           # Snyk
           snyk
+
+          # Cursor.ai
+          unstablePkgs.code-cursor
         ];
       };
 
