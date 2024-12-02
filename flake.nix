@@ -2,12 +2,12 @@
   description = "David's NixOS configuration";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-24.05";
+    nixpkgs.url = "nixpkgs/nixos-24.11";
     unstable.url = "nixpkgs/nixos-unstable";
     hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&ref=stable_branch";
     #hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&rev=0ac0f32671b949b7bde276f1175bed035fb09fd9";
     home-manager = {
-      url = "github:nix-community/home-manager/release-24.05";
+      url = "github:nix-community/home-manager/release-24.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -135,12 +135,12 @@
             unstablePkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
           ]))
           unstablePkgs.vscode
-          gnome.gnome-themes-extra
-          gnome.adwaita-icon-theme
+          gnome-themes-extra
+          adwaita-icon-theme
           gnome-icon-theme
-          gnome.gnome-calculator
-          gnome.nautilus
-          gnome.eog
+          gnome-calculator
+          nautilus
+          eog
           evince
           swaylock
           polkit_gnome
@@ -196,7 +196,7 @@
           unstablePkgs.restream
 
           # 1password CLI
-          unfreePkgs._1password
+          unfreePkgs._1password-cli
 
           # Snyk
           snyk

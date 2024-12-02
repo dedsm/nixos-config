@@ -12,7 +12,7 @@ in {
 
   config = mkIf cfg.enable {
 
-    systemd.packages = with pkgs.gnome; [ gnome-session ];
+    systemd.packages = with pkgs; [ gnome-session ];
     services.gvfs.enable = true;
 
     services.gnome = {
@@ -26,7 +26,7 @@ in {
 
     services.udev = {
       packages = with pkgs; [
-        gnome.gnome-settings-daemon
+        gnome-settings-daemon
       ];
     };
   };

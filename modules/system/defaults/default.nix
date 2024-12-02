@@ -28,7 +28,7 @@ in {
 
     fonts.packages = with pkgs; [
       noto-fonts
-      noto-fonts-cjk
+      noto-fonts-cjk-sans
       noto-fonts-emoji
       liberation_ttf
       fira-code
@@ -68,7 +68,10 @@ in {
     services.avahi.nssmdns4 = true;
 
     # Open Tablet Driver
-    hardware.opentabletdriver.enable = true;
+    hardware.opentabletdriver = {
+      enable = true;
+      package = unstablePkgs.opentabletdriver;
+    };
 
     # Ledger support
     hardware.ledger.enable = true;
@@ -84,7 +87,6 @@ in {
     hardware.uinput.enable = true;
 
     # Enable sound.
-    sound.enable = true;
     hardware.pulseaudio.enable = false;
 
     # Enable bluetooth
