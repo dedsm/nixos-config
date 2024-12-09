@@ -24,7 +24,12 @@ in {
 
     system.nixos.tags = [ "sway" ];
 
-    networking.networkmanager.enable = true;
+    networking.networkmanager = {
+      enable = true;
+      wifi = {
+        backend = "iwd";
+      };
+    };
 
     fonts.packages = with pkgs; [
       noto-fonts
@@ -182,9 +187,9 @@ in {
     programs.hyprland = {
       enable = false;
       #package = hyprland.packages.${pkgs.system}.hyprland-debug;
-      package = hyprland.packages.${pkgs.system}.hyprland;
-      portalPackage =
-        hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
+      #package = hyprland.packages.${pkgs.system}.hyprland;
+      #portalPackage =
+      #  hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
     };
 
     # Enable touchpad support (enabled default in most desktopManager).

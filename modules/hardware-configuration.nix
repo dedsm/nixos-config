@@ -28,7 +28,8 @@
     cleanOnBoot = true;
   };
 
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxPackages_cachyos;
+  services.scx.enable = false;
   boot.kernelParams = [
     "intel_iommu=on"
   ];

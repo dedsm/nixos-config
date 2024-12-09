@@ -4,6 +4,7 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-24.11";
     unstable.url = "nixpkgs/nixos-unstable";
+    chaotic.url = "github:chaotic-cx/nyx/nyxpkgs-unstable";
     hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&ref=stable_branch";
     #hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&rev=0ac0f32671b949b7bde276f1175bed035fb09fd9";
     home-manager = {
@@ -15,7 +16,7 @@
   };
 
   outputs =
-    attrs@{ nixpkgs, unstable, hyprland, home-manager, nixos-hardware, ... }:
+    attrs@{ nixpkgs, unstable, hyprland, home-manager, chaotic, nixos-hardware, ... }:
     let
       lib = nixpkgs.lib;
       system = "x86_64-linux";
@@ -34,7 +35,7 @@
       };
       util = import ./lib {
         inherit system nixpkgs unstable overlaidPkgs unstablePkgs unfreePkgs
-          home-manager nixos-hardware lib hyprland;
+          home-manager nixos-hardware lib hyprland chaotic;
       };
 
       defaultUser = {
@@ -223,7 +224,7 @@
             laptop.enable = true;
             gnome-programs.enable = true;
             gnome-services.enable = true;
-            fw-fanctrl.enable = true;
+            fw-fanctrl.enable = false;
             defaults.users = users;
           };
           homeManagerConfig = homeManagerConfig;

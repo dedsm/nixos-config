@@ -6,7 +6,7 @@ mkIf homeManagerConfig.hyprland.enable {
     systemd.enable = true;
     systemd.variables = [ "--all" ];
     #package = hyprland.packages.${pkgs.system}.hyprland-debug;
-    package = hyprland.packages.${pkgs.system}.hyprland;
+    #package = hyprland.packages.${pkgs.system}.hyprland;
     settings = {
       "$terminal" = "${pkgs.foot}/bin/foot";
       "$browser" = "firefox-developer-edition";
@@ -30,8 +30,6 @@ mkIf homeManagerConfig.hyprland.enable {
       };
       master = {
         new_status = "slave";
-        #new_is_master = false;
-        no_gaps_when_only = 1;
       };
       decoration = { rounding = 0; };
       input = {
