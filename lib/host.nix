@@ -1,4 +1,4 @@
-attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPkgs, hyprland, chaotic, ... }: {
+attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPkgs, hyprland, ... }: {
   mkHost = { name, systemConfig ? { }, stateVersion, homeManagerConfig ? { } }:
     lib.nixosSystem {
       inherit system;
@@ -26,7 +26,6 @@ attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPk
         nixos-hardware.nixosModules.framework-12th-gen-intel
         ../modules/hardware-configuration.nix
         ../modules/home-manager
-        chaotic.nixosModules.default
       ];
     };
 }
