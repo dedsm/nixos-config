@@ -1,4 +1,4 @@
-attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPkgs, hyprland, ... }: {
+attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPkgs, hyprland, fw-fanctrl, ... }: {
   mkHost = { name, systemConfig ? { }, stateVersion, homeManagerConfig ? { } }:
     lib.nixosSystem {
       inherit system;
@@ -24,6 +24,7 @@ attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPk
           system.stateVersion = stateVersion;
         }
         nixos-hardware.nixosModules.framework-12th-gen-intel
+        fw-fanctrl.nixosModules.default
         ../modules/hardware-configuration.nix
         ../modules/home-manager
       ];
