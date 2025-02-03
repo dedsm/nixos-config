@@ -1,13 +1,20 @@
 # Since I only have one system this is a placeholder for all the configurations I'd use in a laptop
 # It should be split into more detailed modules if the situation ever changes (like having a dedicated desktop for instance)
-{ lib, pkgs, config, unfreePkgs, unstablePkgs, hyprland, ... }:
-with lib;
-let
+{
+  lib,
+  pkgs,
+  config,
+  unfreePkgs,
+  unstablePkgs,
+  hyprland,
+  ...
+}:
+with lib; let
   cfg = config.dedsm.defaults;
   userOpts = _: {
     options = {
-      name = mkOption { type = types.str; };
-      groups = mkOption { type = with types; listOf str; };
+      name = mkOption {type = types.str;};
+      groups = mkOption {type = with types; listOf str;};
     };
   };
   mkUser = k: v: {
@@ -17,12 +24,11 @@ let
   };
 in {
   options.dedsm.defaults = with types; {
-    users = mkOption { type = types.attrsOf (submodule userOpts); };
+    users = mkOption {type = types.attrsOf (submodule userOpts);};
   };
 
   config = {
-
-    system.nixos.tags = [ "sway" ];
+    system.nixos.tags = ["sway"];
 
     networking.networkmanager = {
       enable = true;
@@ -57,7 +63,7 @@ in {
         options = "caps:super";
       };
     };
-    services.displayManager = { defaultSession = "sway"; };
+    services.displayManager = {defaultSession = "sway";};
 
     console.useXkbConfig = true;
 
@@ -66,7 +72,7 @@ in {
       enable = true;
       browsing = true;
       startWhenNeeded = true;
-      drivers = [ unfreePkgs.epson_201207w pkgs.gutenprint ];
+      drivers = [unfreePkgs.epson_201207w pkgs.gutenprint];
     };
 
     services.avahi.enable = true;
@@ -95,13 +101,19 @@ in {
     hardware.pulseaudio.enable = false;
 
     # Enable bluetooth
-    hardware.bluetooth.enable = true;
-    services.blueman.enable = true;
+    hardware.bluetooth = {
+      enable = true;
+      package = unstablePkgs.bluez;
+    };
+
+    services.blueman = {
+      enable = true;
+    };
 
     # Enable scanning
     hardware.sane = {
       enable = true;
-      extraBackends = [ pkgs.sane-airscan ];
+      extraBackends = [pkgs.sane-airscan];
     };
 
     security.polkit.enable = true;
@@ -110,38 +122,11 @@ in {
     security.pam.services.gdm.enableGnomeKeyring = true;
     security.pam.services.gdm.enableKwallet = true;
     security.pam.services.login.enableKwallet = true;
-    security.pam.services.swaylock = { };
+    security.pam.services.swaylock = {};
 
     services.accounts-daemon.enable = true;
 
     environment.etc = {
-      "wireplumber/policy.lua.d/51-bluez-config.lua".text = ''
-
-        bluetooth_policy.policy = {
-          -- Whether to store state on the filesystem.
-          ["use-persistent-storage"] = true,
-
-          -- Whether to use headset profile in the presence of an input stream.
-          ["media-role.use-headset-profile"] = true,
-
-          -- Application names correspond to application.name in stream properties.
-          -- Applications which do not set media.role but which should be considered
-          -- for role based profile switching can be specified here.
-          ["media-role.applications"] = { "Firefox Developer Edition",
-            "Firefox",
-            "Chromium input",
-            "Google Chrome input",
-            "Brave input",
-            "Microsoft Edge input",
-            "Vivaldi input",
-            "ZOOM VoiceEngine",
-            "Telegram Desktop",
-            "telegram-desktop",
-            "linphone",
-            "Mumble" 
-          },
-        }
-      '';
     };
 
     services.pipewire = {
@@ -153,7 +138,7 @@ in {
 
     services.dbus = {
       enable = true;
-      packages = [ pkgs.dconf ];
+      packages = [pkgs.dconf];
     };
 
     xdg = {
@@ -164,11 +149,11 @@ in {
         wlr.enable = true;
         xdgOpenUsePortal = false;
         # gtk portal needed to make gtk apps happy
-        extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+        extraPortals = [pkgs.xdg-desktop-portal-gtk];
       };
     };
 
-    programs.light = { enable = true; };
+    programs.light = {enable = true;};
     programs.sway = {
       enable = true;
       wrapperFeatures = {
@@ -209,7 +194,7 @@ in {
     programs.dconf.enable = true;
 
     nixpkgs.config.allowUnfreePredicate = pkg:
-      builtins.elem (lib.getName pkg) [ "Oracle_VM_VirtualBox_Extension_Pack" ];
+      builtins.elem (lib.getName pkg) ["Oracle_VM_VirtualBox_Extension_Pack"];
 
     # Define a user account. Don't forget to set a password with ‘passwd’.
     users.users = mapAttrs mkUser cfg.users;
@@ -238,11 +223,11 @@ in {
 
     programs._1password-gui = {
       enable = true;
-      polkitPolicyOwners = [ "david" ];
+      polkitPolicyOwners = ["david"];
       package = unfreePkgs._1password-gui;
     };
 
-    programs.ssh = { startAgent = false; };
+    programs.ssh = {startAgent = false;};
     programs.gnupg.agent = {
       enable = true;
       enableSSHSupport = true;
@@ -256,7 +241,7 @@ in {
 
     services.fwupd = {
       enable = true;
-      extraRemotes = [ "lvfs-testing" ];
+      extraRemotes = ["lvfs-testing"];
     };
     environment.etc."fwupd/uefi_capsule.conf".text = lib.mkForce ''
       [uefi_capsule]
@@ -264,8 +249,8 @@ in {
       DisableCapsuleUpdateOnDisk=true
     '';
 
-    services.fprintd = { enable = true; };
-    services.udev = { packages = with pkgs; [ yubikey-personalization ]; };
+    services.fprintd = {enable = true;};
+    services.udev = {packages = with pkgs; [yubikey-personalization];};
 
     services.ddclient = {
       enable = true;

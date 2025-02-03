@@ -29,6 +29,12 @@
   };
 
   boot.kernelPackages = pkgs.linuxPackages_latest;
+  # boot.kernelPackages = pkgs.linuxPackages_latest.extend (lpFinal: lpPrev: {
+  #   cpupower = lpPrev.cpupower.overrideAttrs (old: {
+  #     nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ pkgs.which ];
+  #     makeFlags = (old.makeFlags or []) ++ [ "INSTALL_NO_TRANSLATIONS=1" ];
+  #   });
+  # });
   boot.kernelParams = [
     "intel_iommu=on"
   ];
