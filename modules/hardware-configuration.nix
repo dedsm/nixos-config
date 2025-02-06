@@ -28,7 +28,7 @@
     cleanOnBoot = true;
   };
 
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxPackages_6_12;
   # boot.kernelPackages = pkgs.linuxPackages_latest.extend (lpFinal: lpPrev: {
   #   cpupower = lpPrev.cpupower.overrideAttrs (old: {
   #     nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ pkgs.which ];
