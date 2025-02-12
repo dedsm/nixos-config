@@ -37,14 +37,12 @@
   # });
   boot.kernelParams = [
     "intel_iommu=on"
+    "thunderbolt.host_reset=false"
   ];
 
   boot.kernelModules = ["kvm-intel"];
   boot.extraModulePackages = [];
   boot.blacklistedKernelModules = ["hid_sensor_hub"];
-  boot.extraModprobeConfig = ''
-    options i915 modeset=1 enable_fbc=1
-  '';
   boot.plymouth = {enable = true;};
 
   fileSystems."/" = {
