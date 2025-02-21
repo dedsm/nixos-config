@@ -112,7 +112,7 @@ mkIf homeManagerConfig.nvim.enable {
        # open files at last edit position
        vim-lastplace
 
-       # 
+       #
 #      telescope-nvim
 #      telescope-fzf-native-nvim
 #      nvim-treesitter.withAllGrammars

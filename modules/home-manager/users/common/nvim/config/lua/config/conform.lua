@@ -12,7 +12,7 @@ conform.setup({
       command = "pandoc",
       -- A list of strings, or a function that returns a list of strings
       -- Return a single string instead of a list to run the command in a shell
-      args = { "-f", "markdow", "-t", "markdown", "-s", "$FILENAME" },
+      args = { "-f", "gfm", "-t", "gfm", "-s", "$FILENAME" },
       stdin = true
     },
     rubocop = {
