@@ -33,7 +33,7 @@ in {
     networking.networkmanager = {
       enable = true;
       wifi = {
-        backend = "wpa_supplicant";
+        backend = "iwd";
       };
     };
 

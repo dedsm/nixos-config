@@ -63,3 +63,6 @@ require('config.treesiter')
 
 require("config.lsp")
 require("config.cmp")
+
+require("config.avante")
+require("config.markdown")
