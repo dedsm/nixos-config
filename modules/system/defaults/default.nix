@@ -7,254 +7,267 @@
   unfreePkgs,
   unstablePkgs,
   hyprland,
+  hc,
   ...
 }:
 with lib; let
-  cfg = config.dedsm.defaults;
-  userOpts = _: {
-    options = {
-      name = mkOption {type = types.str;};
-      groups = mkOption {type = with types; listOf str;};
-    };
-  };
-  mkUser = k: v: {
-    isNormalUser = true;
-    name = v.name;
-    extraGroups = v.groups;
-  };
+  # Remove cfg definition as it's no longer used
+  # cfg = config.dedsm.defaults;
+
+  # Helper to check if any user in hc enables a specific HM module
+  anyUserEnables = moduleName: builtins.any (userCfg: userCfg.${moduleName}.enable or false) (builtins.attrValues hc);
+
+  anyUserEnablesSway = anyUserEnables "sway";
+  anyUserEnablesHyprland = anyUserEnables "hyprland";
+
+  # Determine default session based on user enablement
+  defaultSession = if anyUserEnablesHyprland then "hyprland" else if anyUserEnablesSway then "sway" else "gnome"; # Fallback to gnome if neither is enabled?
+
 in {
-  options.dedsm.defaults = with types; {
-    users = mkOption {type = types.attrsOf (submodule userOpts);};
-  };
+  config = mkMerge [
+    {
+      # Use lib.optional for conditional list elements
+      system.nixos.tags = []
+        ++ (lib.optional anyUserEnablesSway "sway")
+        ++ (lib.optional anyUserEnablesHyprland "hyprland");
 
-  config = {
-    system.nixos.tags = ["sway"];
-
-    networking.networkmanager = {
-      enable = true;
-      wifi = {
-        backend = "iwd";
-      };
-    };
-
-    fonts.packages = with pkgs; [
-      noto-fonts
-      noto-fonts-cjk-sans
-      noto-fonts-emoji
-      liberation_ttf
-      fira-code
-      fira-code-symbols
-      dina-font
-      proggyfonts
-      nerdfonts
-    ];
-
-    services.xserver = {
-      enable = true;
-      displayManager = {
-        gdm.enable = true;
-        gdm.wayland = true;
-      };
-
-      xkb = {
-        layout = "us";
-        model = "pc105";
-        variant = "altgr-intl";
-        options = "caps:super";
-      };
-    };
-    services.displayManager = {defaultSession = "sway";};
-
-    console.useXkbConfig = true;
-
-    # Enable CUPS to print documents.
-    services.printing = {
-      enable = true;
-      browsing = true;
-      startWhenNeeded = true;
-      drivers = [unfreePkgs.epson_201207w pkgs.gutenprint];
-    };
-
-    services.avahi.enable = true;
-    services.avahi.nssmdns4 = true;
-
-    # Open Tablet Driver
-    hardware.opentabletdriver = {
-      enable = true;
-      package = unstablePkgs.opentabletdriver;
-    };
-
-    # Ledger support
-    hardware.ledger.enable = true;
-
-    # Logitech control
-    hardware.logitech = {
-      wireless = {
+      networking.networkmanager = {
         enable = true;
-        enableGraphical = true;
+        wifi = {
+          backend = "iwd";
+        };
       };
-    };
-    # solaar needs users to be able to write to uinput
-    hardware.uinput.enable = true;
 
-    # Enable sound.
-    hardware.pulseaudio.enable = false;
+      fonts.packages = with pkgs; [
+        noto-fonts
+        noto-fonts-cjk-sans
+        noto-fonts-emoji
+        liberation_ttf
+        fira-code
+        fira-code-symbols
+        dina-font
+        proggyfonts
+        unstablePkgs.nerd-fonts.inconsolata-go
+      ];
 
-    # Enable bluetooth
-    hardware.bluetooth = {
-      enable = true;
-      package = unstablePkgs.bluez;
-    };
-
-    services.blueman = {
-      enable = true;
-    };
-
-    # Enable scanning
-    hardware.sane = {
-      enable = true;
-      extraBackends = [pkgs.sane-airscan];
-    };
-
-    security.polkit.enable = true;
-    security.rtkit.enable = true;
-
-    security.pam.services.gdm.enableGnomeKeyring = true;
-    security.pam.services.gdm.enableKwallet = true;
-    security.pam.services.login.enableKwallet = true;
-    security.pam.services.swaylock = {};
-
-    services.accounts-daemon.enable = true;
-
-    environment.etc = {
-    };
-
-    services.pipewire = {
-      enable = true;
-      alsa.enable = true;
-      alsa.support32Bit = true;
-      pulse.enable = true;
-    };
-
-    services.dbus = {
-      enable = true;
-      packages = [pkgs.dconf];
-    };
-
-    xdg = {
-      mime.enable = true;
-      icons.enable = true;
-      portal = {
+      services.xserver = {
         enable = true;
-        wlr.enable = true;
-        xdgOpenUsePortal = false;
-        # gtk portal needed to make gtk apps happy
-        extraPortals = [pkgs.xdg-desktop-portal-gtk];
-      };
-    };
+        displayManager = {
+          gdm.enable = true;
+          gdm.wayland = true;
+        };
 
-    programs.light = {enable = true;};
-    programs.sway = {
-      enable = true;
-      wrapperFeatures = {
-        gtk = true;
-        base = true;
+        xkb = {
+          layout = "us";
+          model = "pc105";
+          variant = "altgr-intl";
+          options = "caps:super";
+        };
       };
-      extraSessionCommands = ''
-        export SDL_VIDEODRIVER=wayland
-        export QT_WAYLAND_DISABLE_WINDOWDECORATION="1"
-        export _JAVA_AWT_WM_NONREPARENTING=1
-        export MOZ_ENABLE_WAYLAND=1
-        export NIXOS_OZONE_WL=1
+
+      # Conditionally set default session
+      services.displayManager.defaultSession = defaultSession;
+
+      console.useXkbConfig = true;
+
+      # Enable CUPS to print documents.
+      services.printing = {
+        enable = true;
+        browsing = true;
+        startWhenNeeded = true;
+        drivers = [unfreePkgs.epson_201207w pkgs.gutenprint];
+      };
+
+      services.avahi.enable = true;
+      services.avahi.nssmdns4 = true;
+
+      # Open Tablet Driver
+      hardware.opentabletdriver = {
+        enable = true;
+        package = unstablePkgs.opentabletdriver;
+      };
+
+      # Ledger support
+      hardware.ledger.enable = true;
+
+      # Logitech control
+      hardware.logitech = {
+        wireless = {
+          enable = true;
+          enableGraphical = true;
+        };
+      };
+      # solaar needs users to be able to write to uinput
+      hardware.uinput.enable = true;
+
+      # Enable sound.
+      hardware.pulseaudio.enable = false;
+
+      # Enable bluetooth
+      hardware.bluetooth = {
+        enable = true;
+        package = unstablePkgs.bluez;
+      };
+
+      services.blueman = {
+        enable = true;
+      };
+
+      # Enable scanning
+      hardware.sane = {
+        enable = true;
+        extraBackends = [pkgs.sane-airscan];
+      };
+
+      security.polkit.enable = true;
+      security.rtkit.enable = true;
+
+      security.pam.services.gdm.enableGnomeKeyring = true;
+      security.pam.services.gdm.enableKwallet = true;
+      security.pam.services.login.enableKwallet = true;
+      security.pam.services.swaylock = {};
+
+      services.accounts-daemon.enable = true;
+
+      environment.etc = {
+      };
+
+      services.pipewire = {
+        enable = true;
+        alsa.enable = true;
+        alsa.support32Bit = true;
+        pulse.enable = true;
+      };
+
+      services.dbus = {
+        enable = true;
+        packages = [pkgs.dconf];
+      };
+
+      xdg = {
+        mime.enable = true;
+        icons.enable = true;
+        portal = {
+          enable = true;
+          wlr.enable = true;
+          xdgOpenUsePortal = false;
+          # gtk portal needed to make gtk apps happy
+          extraPortals = [pkgs.xdg-desktop-portal-gtk];
+        };
+      };
+
+      programs.light = {enable = true;};
+    }
+
+    # Conditionally enable Sway system programs if any user enables Sway HM module
+    (mkIf anyUserEnablesSway {
+      programs.sway = {
+        enable = true;
+        wrapperFeatures = {
+          gtk = true;
+          base = true;
+        };
+        extraSessionCommands = ''
+          export SDL_VIDEODRIVER=wayland
+          export QT_WAYLAND_DISABLE_WINDOWDECORATION="1"
+          export _JAVA_AWT_WM_NONREPARENTING=1
+          export MOZ_ENABLE_WAYLAND=1
+          export NIXOS_OZONE_WL=1
+        '';
+      };
+    })
+
+    # Conditionally enable Hyprland system programs if any user enables Hyprland HM module
+    (mkIf anyUserEnablesHyprland {
+      programs.hyprland = {
+        enable = true;
+        package = hyprland.packages.${pkgs.system}.hyprland;
+        # You might want to conditionally enable the hyprland portal too
+        # xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-hyprland ]; # Or use hyprland flake's portalPackage
+      };
+      # Maybe add hyprland package to systemPackages if needed globally?
+      # environment.systemPackages = [ hyprland.packages.${pkgs.system}.hyprland ];
+    })
+
+    {
+      # Enable touchpad support (enabled default in most desktopManager).
+      # services.xserver.libinput.enable = true;
+
+      virtualisation.docker = {
+        enable = true;
+        package = unstablePkgs.docker;
+        liveRestore = false;
+      };
+
+      # virtualisation.virtualbox.host.enable = true;
+      # virtualisation.virtualbox.host.enableExtensionPack = true;
+
+      virtualisation.libvirtd.enable = true;
+      virtualisation.spiceUSBRedirection.enable = true;
+      programs.dconf.enable = true;
+
+      nixpkgs.config.allowUnfreePredicate = pkg:
+        builtins.elem (lib.getName pkg) ["Oracle_VM_VirtualBox_Extension_Pack"];
+
+      # System users are now handled directly in lib/host.nix via config.system.users
+
+      home-manager.useGlobalPkgs = false;
+      home-manager.useUserPackages = true;
+
+      # List packages installed in system profile. To search, run:
+      # $ nix search wget
+      environment.systemPackages = with pkgs; [
+        git
+        any-nix-shell
+        nixfmt-rfc-style
+        qt5.qtwayland
+        plasma5Packages.kwallet
+        kdePackages.kwallet-pam
+        ripgrep
+        virtiofsd # Shared files with virt-manager
+        lm_sensors
+      ];
+      environment.enableAllTerminfo = true;
+
+      # Some programs need SUID wrappers, can be configured further or are
+      # started in user sessions.
+      # programs.mtr.enable = true;
+
+      programs._1password-gui = {
+        enable = true;
+        polkitPolicyOwners = ["david"];
+        package = unstablePkgs._1password-gui;
+      };
+
+      programs.ssh = {startAgent = false;};
+      programs.gnupg.agent = {
+        enable = true;
+        enableSSHSupport = true;
+        pinentryPackage = pkgs.pinentry-gnome3;
+      };
+
+      # List services that you want to enable:
+
+      services.pcscd.enable = true;
+      services.hardware.bolt.enable = true;
+
+      services.fwupd = {
+        enable = true;
+        extraRemotes = ["lvfs-testing"];
+      };
+      environment.etc."fwupd/uefi_capsule.conf".text = lib.mkForce ''
+        [uefi_capsule]
+        OverrideESPMountPoint=${config.boot.loader.efi.efiSysMountPoint}
+        DisableCapsuleUpdateOnDisk=true
       '';
-    };
 
-    programs.hyprland = {
-      enable = false;
-      #package = hyprland.packages.${pkgs.system}.hyprland-debug;
-      #package = hyprland.packages.${pkgs.system}.hyprland;
-      #portalPackage =
-      #  hyprland.packages.${pkgs.system}.xdg-desktop-portal-hyprland;
-    };
+      services.fprintd = {enable = true;};
+      services.udev = {packages = with pkgs; [yubikey-personalization];};
 
-    # Enable touchpad support (enabled default in most desktopManager).
-    # services.xserver.libinput.enable = true;
-
-    virtualisation.docker = {
-      enable = true;
-      package = unstablePkgs.docker;
-      liveRestore = false;
-    };
-
-    # virtualisation.virtualbox.host.enable = true;
-    # virtualisation.virtualbox.host.enableExtensionPack = true;
-
-    virtualisation.libvirtd.enable = true;
-    virtualisation.spiceUSBRedirection.enable = true;
-    programs.dconf.enable = true;
-
-    nixpkgs.config.allowUnfreePredicate = pkg:
-      builtins.elem (lib.getName pkg) ["Oracle_VM_VirtualBox_Extension_Pack"];
-
-    # Define a user account. Don't forget to set a password with ‘passwd’.
-    users.users = mapAttrs mkUser cfg.users;
-
-    home-manager.useGlobalPkgs = false;
-    home-manager.useUserPackages = true;
-
-    # List packages installed in system profile. To search, run:
-    # $ nix search wget
-    environment.systemPackages = with pkgs; [
-      git
-      any-nix-shell
-      nixfmt-rfc-style
-      qt5.qtwayland
-      plasma5Packages.kwallet
-      kdePackages.kwallet-pam
-      ripgrep
-      virtiofsd # Shared files with virt-manager
-      lm_sensors
-    ];
-    environment.enableAllTerminfo = true;
-
-    # Some programs need SUID wrappers, can be configured further or are
-    # started in user sessions.
-    # programs.mtr.enable = true;
-
-    programs._1password-gui = {
-      enable = true;
-      polkitPolicyOwners = ["david"];
-      package = unfreePkgs._1password-gui;
-    };
-
-    programs.ssh = {startAgent = false;};
-    programs.gnupg.agent = {
-      enable = true;
-      enableSSHSupport = true;
-      pinentryPackage = pkgs.pinentry-gnome3;
-    };
-
-    # List services that you want to enable:
-
-    services.pcscd.enable = true;
-    services.hardware.bolt.enable = true;
-
-    services.fwupd = {
-      enable = true;
-      extraRemotes = ["lvfs-testing"];
-    };
-    environment.etc."fwupd/uefi_capsule.conf".text = lib.mkForce ''
-      [uefi_capsule]
-      OverrideESPMountPoint=${config.boot.loader.efi.efiSysMountPoint}
-      DisableCapsuleUpdateOnDisk=true
-    '';
-
-    services.fprintd = {enable = true;};
-    services.udev = {packages = with pkgs; [yubikey-personalization];};
-
-    services.ddclient = {
-      enable = true;
-      configFile = "/etc/nixos/ddclient.conf";
-    };
-  };
+      services.ddclient = {
+        enable = true;
+        configFile = "/etc/nixos/ddclient.conf";
+      };
+    }
+  ];
 }

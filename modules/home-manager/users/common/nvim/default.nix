@@ -20,7 +20,7 @@ with lib;
       withRuby = false;
       enable = true;
       defaultEditor = true;
-      package = unstablePkgs.neovim-unwrapped;
+      package = pkgs.neovim-unwrapped;
       extraPackages = with pkgs; [
         lua-language-server
         # Nix Language server

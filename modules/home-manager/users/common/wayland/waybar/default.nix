@@ -35,6 +35,8 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
         #pulseaudio,
         #memory,
         #cpu,
+        #custom-cpu-temp,
+        #custom-gpu-info,
         #battery,
         #disk,
         #idle_inhibitor,
@@ -71,6 +73,12 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
         #cpu {
             color: #6c71c4;
         }
+        #custom-cpu-temp {
+            color: #cb4b16; /* Orange */
+        }
+        #custom-gpu-info {
+            color: #2aa198; /* Cyan */
+        }
         #battery {
             color: #859900;
         }
@@ -82,6 +90,8 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
         #pulseaudio,
         #memory,
         #cpu,
+        #custom-cpu-temp,
+        #custom-gpu-info,
         #battery,
         #idle_inhibitor,
         #disk {
@@ -118,6 +128,10 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
             "custom/left-arrow-light"
             "custom/left-arrow-dark"
             "cpu"
+            "custom/cpu-temp"
+            "custom/left-arrow-light"
+            "custom/left-arrow-dark"
+            "custom/gpu-info"
             "custom/left-arrow-light"
             "custom/left-arrow-dark"
             "battery"
@@ -197,6 +211,38 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
           cpu = {
             interval = 5;
             format = "CPU {usage:2}%";
+          };
+          "custom/cpu-temp" = {
+            exec = let
+              cpuTempScript = pkgs.writeShellScriptBin "waybar-cpu-temp" ''
+                #!${pkgs.bash}/bin/bash
+                temp=$(${pkgs.lm_sensors}/bin/sensors acpitz-acpi-0 | ${pkgs.gnugrep}/bin/grep '^temp1:' | ${pkgs.gawk}/bin/awk '{print $2}' | ${pkgs.gnused}/bin/sed 's/+//;s/°C//')
+                printf "%.0f" "$temp"
+              '';
+            in "${cpuTempScript}/bin/waybar-cpu-temp";
+            critical-threshold = 80;
+            format = "{} 🌡️";
+            format-critical = "{} <span color=\"red\">🔥</span>";
+            interval = 5;
+          };
+          "custom/gpu-info" = {
+            exec = let
+              gpuInfoScript = pkgs.writeShellScriptBin "waybar-gpu-info" ''
+                #!${pkgs.bash}/bin/bash
+                # Get Temperature
+                temp=$(${pkgs.lm_sensors}/bin/sensors cros_ec-isa-0000 | ${pkgs.gnugrep}/bin/grep F75397_VCCGT | ${pkgs.gawk}/bin/awk '{print $2}' | ${pkgs.gnused}/bin/sed 's/+//;s/°C//')
+                temp_rounded=$(printf "%.0f" "$temp")
+
+                # Get Frequency
+                freq=$(cat /sys/class/drm/card1/gt_act_freq_mhz 2>/dev/null || echo N/A)
+
+                # Output space-separated values
+                echo "GPU $temp_rounded ''${freq}MHz"
+              '';
+            in "${gpuInfoScript}/bin/waybar-gpu-info";
+            format = "{}";
+            interval = 5;
+            tooltip = false;
           };
           battery = {
             states = {

@@ -74,28 +74,10 @@
       ];
     };
 
-    rootHomeManager = {
-      tmux.enable = true;
-      nvim.enable = true;
-      zsh.enable = true;
-      kdeconnect.enable = false;
-      lorri.enable = false;
-      mako.enable = false;
-      network-manager.enable = false;
-      bluetooth.enable = false;
-      sway.enable = false;
-      hyprland.enable = false;
-      wayland.enable = false;
-      git.enable = false;
-      starship.enable = true;
-      defaults.enable = false;
+    inherit (util) host;
 
-      packages = [];
-
-      stateVersion = "22.05";
-    };
-
-    defaultHomeManager = {
+    # Define reusable common user settings
+    davidCommon = {
       tmux.enable = true;
       nvim.enable = true;
       zsh.enable = true;
@@ -104,8 +86,7 @@
       mako.enable = true;
       network-manager.enable = true;
       bluetooth.enable = true;
-      sway.enable = true;
-      hyprland.enable = false;
+      # Sway/Hyprland enablement will be per-host user config
       starship.enable = true;
       wayland.enable = true;
       defaults.enable = true;
@@ -147,15 +128,10 @@
         ];
       };
 
-      stateVersion = "22.05";
+      stateVersion = "22.05"; # Default state version
 
+      # Common packages can go here, host-specific ones below
       packages = with overlaidPkgs; [
-        unstablePkgs.slack
-        unstablePkgs.spotify
-        (unstablePkgs.google-cloud-sdk.withExtraComponents [
-          unstablePkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
-        ])
-        unstablePkgs.vscode
         gnome-themes-extra
         adwaita-icon-theme
         gnome-icon-theme
@@ -163,7 +139,6 @@
         nautilus
         eog
         evince
-        swaylock
         polkit_gnome
         docker-credential-helpers
         (pkgs.writers.writePython3Bin "i3xmonadhelper" {
@@ -202,53 +177,109 @@
         imagemagick
         networkmanagerapplet
         bemenu
-        unstablePkgs.avizo
-        awscli2
         slurp
         grim
-        unstablePkgs.synology-drive-client
-        unstablePkgs.ledger-live-desktop
         marksman
         nodePackages.prettier
         pandoc
         virt-manager
-
         # Remarkable Stream
         unstablePkgs.restream
-
         # 1password CLI
-        unfreePkgs._1password-cli
-
+        unstablePkgs._1password-cli
         # Snyk
         snyk
-
-        # Cursor.ai
-        unstablePkgs.code-cursor
       ];
     };
 
-    homeManagerConfig = {
-      "${defaultUser.name}" = defaultHomeManager;
-      root = rootHomeManager;
+    rootCommon = {
+      tmux.enable = true;
+      nvim.enable = true;
+      zsh.enable = true;
+      kdeconnect.enable = false;
+      lorri.enable = false;
+      mako.enable = false;
+      network-manager.enable = false;
+      bluetooth.enable = false;
+      sway.enable = false;
+      hyprland.enable = false;
+      wayland.enable = false;
+      git.enable = false;
+      starship.enable = true;
+      defaults.enable = false;
+      packages = [];
+      stateVersion = "22.05";
     };
 
-    users = {"${defaultUser.name}" = defaultUser;};
 
-    inherit (util) host;
+    # Define the unified configuration for the 'manwe' host
+    manweConfig = {
+      # Renamed from 'system' to avoid confusion with config.system
+      systemAttrs = { # Corresponds to the old systemConfig flags
+        laptop.enable = true;
+        gnome-programs.enable = true; # Keep this? Or derive from user needs?
+        gnome-services.enable = true; # Keep this? Or derive from user needs?
+        fw-fanctrl.enable = false;
+        # We don't need sway/hyprland flags here anymore if defaults derive them
+        # System users definition moved out
+      };
+
+      # Define system users separately
+      systemUsers = {
+        david = {
+          isNormalUser = true;
+          extraGroups = defaultUser.groups;
+        };
+        # root = { ... };
+      };
+
+      # Renamed from 'users' for clarity
+      homeManagerUsers = { # Home Manager configs specific to 'manwe'
+        david = davidCommon // {
+          # Host-specific overrides/additions for david on manwe
+          sway.enable = true;
+          hyprland.enable = false; # Explicitly false or omit if default is false
+          # Host-specific packages for david on manwe
+          packages = with overlaidPkgs; [
+            swaylock # Example sway specific package
+            unstablePkgs.slack
+            unstablePkgs.spotify
+            (unstablePkgs.google-cloud-sdk.withExtraComponents [
+              unstablePkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
+            ])
+            unstablePkgs.vscode
+            # Cursor.ai
+            unstablePkgs.code-cursor
+            unstablePkgs.synology-drive-client
+            unstablePkgs.ledger-live-desktop
+            unstablePkgs.avizo
+            awscli2
+          ];
+        };
+        root = rootCommon;
+      };
+      stateVersion = "21.05"; # System state version
+    };
+
   in {
     nixosConfigurations = {
       manwe = host.mkHost {
         name = "manwe";
-        stateVersion = "21.05";
-        systemConfig = {
-          laptop.enable = true;
-          gnome-programs.enable = true;
-          gnome-services.enable = true;
-          fw-fanctrl.enable = true;
-          defaults.users = users;
-        };
-        homeManagerConfig = homeManagerConfig;
+        # Pass the unified config instead of separate ones
+        config = manweConfig;
       };
+      # Example for a future host:
+      # tower = host.mkHost {
+      #   name = "tower";
+      #   config = {
+      #     system = { laptop.enable = false; /* ... */ };
+      #     users = {
+      #       david = davidCommon // { hyprland.enable = true; /* ... */ };
+      #       anotherUser = { /* ... */ };
+      #     };
+      #     stateVersion = "24.05";
+      #   };
+      # };
     };
   };
 }

@@ -1,15 +1,19 @@
 attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPkgs, hyprland, fw-fanctrl, ... }: {
-  mkHost = { name, systemConfig ? { }, stateVersion, homeManagerConfig ? { } }:
+  mkHost = { name, config }:
     lib.nixosSystem {
       inherit system;
 
-      specialArgs = attrs // { hc = homeManagerConfig; };
+      specialArgs = attrs // {
+        hc = config.homeManagerUsers or {};
+        hostSystemConfig = config.systemAttrs or {};
+      };
 
       modules = [
         (import ../modules/system attrs)
         home-manager.nixosModules.home-manager
         {
-          dedsm = systemConfig;
+          dedsm = config.systemAttrs or {};
+          users.users = config.systemUsers or {};
           networking.hostName = name;
           nix.settings = {
             substituters = [ "https://hyprland.cachix.org" ];
@@ -21,7 +25,7 @@ attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPk
             nixpkgs.flake = nixpkgs;
             unstable.flake = unstable;
           };
-          system.stateVersion = stateVersion;
+          system.stateVersion = config.stateVersion;
         }
         nixos-hardware.nixosModules.framework-12th-gen-intel
         fw-fanctrl.nixosModules.default
