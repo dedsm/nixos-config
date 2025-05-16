@@ -3,11 +3,14 @@ with lib;
 mkIf homeManagerConfig.mako.enable {
   services.mako = {
     enable = true;
-    defaultTimeout = 5000;
     package = unstablePkgs.mako;
-    extraConfig = ''
-      [mode=do-not-disturb]
-      invisible=1
-    '';
+    criteria = {
+      "mode=do-not-disturb" = {
+        invisible = "1";
+      };
+    };
+    settings = {
+      default-timeout = 5000;
+    };
   };
 }

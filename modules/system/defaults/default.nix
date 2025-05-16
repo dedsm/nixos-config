@@ -8,28 +8,21 @@
   unstablePkgs,
   hyprland,
   hc,
+  # Add args for the pre-calculated booleans from specialArgs
+  anySway,
+  anyHyprland,
   ...
 }:
 with lib; let
-  # Remove cfg definition as it's no longer used
-  # cfg = config.dedsm.defaults;
-
-  # Helper to check if any user in hc enables a specific HM module
-  anyUserEnables = moduleName: builtins.any (userCfg: userCfg.${moduleName}.enable or false) (builtins.attrValues hc);
-
-  anyUserEnablesSway = anyUserEnables "sway";
-  anyUserEnablesHyprland = anyUserEnables "hyprland";
-
-  # Determine default session based on user enablement
-  defaultSession = if anyUserEnablesHyprland then "hyprland" else if anyUserEnablesSway then "sway" else "gnome"; # Fallback to gnome if neither is enabled?
+  defaultSession = if anyHyprland then "hyprland" else "sway";
 
 in {
   config = mkMerge [
     {
-      # Use lib.optional for conditional list elements
+      # Use lib.optional for conditional list elements (use args directly)
       system.nixos.tags = []
-        ++ (lib.optional anyUserEnablesSway "sway")
-        ++ (lib.optional anyUserEnablesHyprland "hyprland");
+        ++ (lib.optional anySway "sway")
+        ++ (lib.optional anyHyprland "hyprland");
 
       networking.networkmanager = {
         enable = true;
@@ -65,7 +58,7 @@ in {
         };
       };
 
-      # Conditionally set default session
+      # Conditionally set default session (already uses defaultSession variable)
       services.displayManager.defaultSession = defaultSession;
 
       console.useXkbConfig = true;
@@ -101,7 +94,7 @@ in {
       hardware.uinput.enable = true;
 
       # Enable sound.
-      hardware.pulseaudio.enable = false;
+      services.pulseaudio.enable = false;
 
       # Enable bluetooth
       hardware.bluetooth = {
@@ -159,8 +152,8 @@ in {
       programs.light = {enable = true;};
     }
 
-    # Conditionally enable Sway system programs if any user enables Sway HM module
-    (mkIf anyUserEnablesSway {
+    # Conditionally enable Sway system programs (use args directly)
+    (mkIf anySway {
       programs.sway = {
         enable = true;
         wrapperFeatures = {
@@ -177,11 +170,10 @@ in {
       };
     })
 
-    # Conditionally enable Hyprland system programs if any user enables Hyprland HM module
-    (mkIf anyUserEnablesHyprland {
+    # Conditionally enable Hyprland system programs (use args directly)
+    (mkIf anyHyprland {
       programs.hyprland = {
         enable = true;
-        package = hyprland.packages.${pkgs.system}.hyprland;
         # You might want to conditionally enable the hyprland portal too
         # xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-hyprland ]; # Or use hyprland flake's portalPackage
       };

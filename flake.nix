@@ -2,12 +2,12 @@
   description = "David's NixOS configuration";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-24.11";
+    nixpkgs.url = "nixpkgs/nixos-unstable";
     unstable.url = "nixpkgs/nixos-unstable";
     hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&ref=stable_branch";
     #hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&rev=0ac0f32671b949b7bde276f1175bed035fb09fd9";
     home-manager = {
-      url = "github:nix-community/home-manager/release-24.11";
+      url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     fw-fanctrl = {
@@ -240,8 +240,8 @@
           sway.enable = true;
           hyprland.enable = false; # Explicitly false or omit if default is false
           # Host-specific packages for david on manwe
-          packages = with overlaidPkgs; [
-            swaylock # Example sway specific package
+          packages = davidCommon.packages ++ (with overlaidPkgs; [
+            swaylock
             unstablePkgs.slack
             unstablePkgs.spotify
             (unstablePkgs.google-cloud-sdk.withExtraComponents [
@@ -254,7 +254,7 @@
             unstablePkgs.ledger-live-desktop
             unstablePkgs.avizo
             awscli2
-          ];
+          ]);
         };
         root = rootCommon;
       };

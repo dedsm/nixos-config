@@ -29,7 +29,7 @@ mkIf homeManagerConfig.zsh.enable {
       share = true;
       size = 100000;
     };
-    initExtra = ''
+    initContent = ''
       if [ $EUID -ne 0 ]; then
         export GPG_TTY="$(tty)"
         gpg-connect-agent /bye
