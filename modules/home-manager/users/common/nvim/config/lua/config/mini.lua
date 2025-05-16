@@ -18,6 +18,9 @@ require("mini.trailspace").setup()
 
 vim.api.nvim_create_autocmd({ "InsertLeave" }, {
   callback = function ()
+    if not vim.bo.modifiable then
+      return
+    end
     MiniTrailspace.trim()
     MiniTrailspace.trim_last_lines()
   end
