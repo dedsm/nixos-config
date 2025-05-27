@@ -249,7 +249,7 @@
             ])
             unstablePkgs.vscode
             # Cursor.ai
-            unstablePkgs.code-cursor
+            cursor-appimage
             unstablePkgs.synology-drive-client
             unstablePkgs.ledger-live-desktop
             unstablePkgs.avizo
