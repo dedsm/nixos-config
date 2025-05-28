@@ -61,6 +61,8 @@ require("config.colorschemes")
 require('config.lint')
 require('config.treesiter')
 
+require("config.diagnostics")
+
 require("config.lsp")
 require("config.cmp")
 

@@ -6,7 +6,6 @@ vim.keymap.set({ "n", "i", "v" }, "<left>", "<nop>")
 vim.keymap.set({ "n", "i", "v" }, "<right>", "<nop>")
 
 vim.keymap.set({ "n" }, "<leader><space>", vim.cmd.noh, { desc = "<space> Clear Search Highlights" })
-vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
 -- Highlight when yanking (copying) text
 --  Try it with `yap` in normal mode
