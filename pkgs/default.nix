@@ -34,43 +34,51 @@
       name = "cursor-${version}.AppImage";
       sha256 = "sha256-DUWIgQYD3Wj6hF7NBb00OGRynKmXcFldWFUA6W8CZeM=";
     };
-
-    appimageContents = super.appimageTools.extractType2 { 
-      inherit pname version src;
-    };
   in
     super.appimageTools.wrapType2 {
       inherit pname version src;
 
-      extraInstallCommands = ''
-        # Install the desktop file if it exists
-        if [ -f ${appimageContents}/cursor.desktop ]; then
-          install -Dm644 ${appimageContents}/cursor.desktop $out/share/applications/cursor.desktop
-          substituteInPlace $out/share/applications/cursor.desktop \
-            --replace 'Exec=AppRun' 'Exec=${pname} --no-sandbox'
-        else
-          # Create our own desktop file
-          mkdir -p $out/share/applications
-          cat > $out/share/applications/cursor.desktop << EOF
+      nativeBuildInputs = [ super.makeWrapper ];
+
+      extraInstallCommands =
+        let
+          contents = super.appimageTools.extract { inherit pname version src; };
+        in
+        ''
+          wrapProgram $out/bin/${pname} \
+            --add-flags "--no-sandbox" \
+            --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations --enable-wayland-ime=true}}"
+
+          # Install the desktop file if it exists
+          if [ -f ${contents}/${pname}.desktop ]; then
+            install -m 444 -D ${contents}/${pname}.desktop -t $out/share/applications
+            substituteInPlace $out/share/applications/${pname}.desktop \
+              --replace-warn 'Exec=AppRun' 'Exec=${pname}'
+          else
+            # Create our own desktop file
+            mkdir -p $out/share/applications
+            cat > $out/share/applications/${pname}.desktop << EOF
 [Desktop Entry]
 Name=Cursor
 Comment=The AI Code Editor
-Exec=${pname} --no-sandbox %F
+Exec=${pname} %F
 Icon=cursor
 Type=Application
 Categories=Development;TextEditor;
 StartupNotify=true
 MimeType=text/plain;inode/directory;
 EOF
-        fi
+          fi
 
-        # Install icon if it exists, otherwise use a fallback
-        if [ -f ${appimageContents}/cursor.png ]; then
-          install -Dm644 ${appimageContents}/cursor.png $out/share/pixmaps/cursor.png
-        elif [ -f ${appimageContents}/usr/share/icons/hicolor/256x256/apps/cursor.png ]; then
-          install -Dm644 ${appimageContents}/usr/share/icons/hicolor/256x256/apps/cursor.png $out/share/pixmaps/cursor.png
-        fi
-      '';
+          # Install icons
+          if [ -d ${contents}/usr/share/icons ]; then
+            cp -r ${contents}/usr/share/icons $out/share
+          elif [ -f ${contents}/cursor.png ]; then
+            install -m 444 -D ${contents}/cursor.png $out/share/pixmaps/cursor.png
+          elif [ -f ${contents}/usr/share/icons/hicolor/256x256/apps/cursor.png ]; then
+            install -m 444 -D ${contents}/usr/share/icons/hicolor/256x256/apps/cursor.png $out/share/pixmaps/cursor.png
+          fi
+        '';
 
       meta = with super.lib; {
         description = "The AI Code Editor";
