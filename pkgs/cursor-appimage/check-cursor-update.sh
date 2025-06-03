@@ -66,24 +66,21 @@ if [ -z "$newSha256" ]; then
     exit 1
 fi
 
-echo -e "
-${GREEN}Updating $NIX_FILE with the new version details...${NC}"
+echo -e "\n${GREEN}Updating $NIX_FILE with the new version details...${NC}"
 
-# Update version
-sed -i "s/version = ".*"/version = "${latestVersion}"/" "$NIX_FILE"
+# Update version: from 'version = "old.version"' to 'version = "new.version.string"'
+sed -i -E 's~^([[:space:]]*version[[:space:]]*=[[:space:]]*)"[^"]*"([[:space:]]*;)~\1"'"${latestVersion}"'"\2~' "$NIX_FILE"
 echo -e "${GREEN}Updated version to: $latestVersion${NC}"
 
-# Update URL
-# Using a different sed delimiter because the URL contains slashes
-sed -i "s|url = ".*"|url = "${latestUrl}"|" "$NIX_FILE"
+# Update URL: from 'url = "old_url"' to 'url = "https://new..."'
+sed -i -E 's~^([[:space:]]*url[[:space:]]*=[[:space:]]*)"[^"]*"([[:space:]]*;)~\1"'"${latestUrl}"'"\2~' "$NIX_FILE"
 echo -e "${GREEN}Updated URL to: $latestUrl${NC}"
 
-# Update sha256
-sed -i "s/sha256 = ".*"/sha256 = "${newSha256}"/" "$NIX_FILE"
+# Update sha256: from 'sha256 = "oldhash"' to 'sha256 = "newhash"'
+sed -i -E 's~^([[:space:]]*sha256[[:space:]]*=[[:space:]]*)"[^"]*"([[:space:]]*;)~\1"'"${newSha256}"'"\2~' "$NIX_FILE"
 echo -e "${GREEN}Updated sha256 to: $newSha256${NC}"
 
-echo -e "
-${GREEN}=== Automatic Update Complete ===${NC}"
+echo -e "\n${GREEN}=== Automatic Update Complete ===${NC}"
 echo -e "The file ${YELLOW}$NIX_FILE${NC} has been updated with:"
 echo -e "  version = "${GREEN}$latestVersion${NC}";"
 echo -e "  url     = "${GREEN}$latestUrl${NC}";"
