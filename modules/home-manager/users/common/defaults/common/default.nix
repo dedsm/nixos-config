@@ -2,7 +2,7 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, unstablePkgs, pkgs, ... }: {
   programs = {
     firefox = {
       enable = true;
-      package = pkgs.firefox-devedition-bin;
+      package = unfreePkgs.firefox-devedition-bin;
     };
 
     autojump = {
