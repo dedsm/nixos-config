@@ -29,7 +29,7 @@ in {
     services.tlp = {
       enable = true;
       settings = {
-        CPU_SCALING_GOVERNOR_ON_AC = "powersave";
+        CPU_SCALING_GOVERNOR_ON_AC = "performance";
         INTEL_GPU_MIN_FREQ_ON_AC = 500;
         INTEL_GPU_MAX_FREQ_ON_AC = 1450;
         INTEL_GPU_BOOST_FREQ_ON_AC = 1450;
