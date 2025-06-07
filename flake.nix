@@ -237,8 +237,8 @@
       homeManagerUsers = { # Home Manager configs specific to 'manwe'
         david = davidCommon // {
           # Host-specific overrides/additions for david on manwe
-          sway.enable = true;
-          hyprland.enable = false; # Explicitly false or omit if default is false
+          sway.enable = false;
+          hyprland.enable = true; # Explicitly false or omit if default is false
           # Host-specific packages for david on manwe
           packages = davidCommon.packages ++ (with overlaidPkgs; [
             swaylock
