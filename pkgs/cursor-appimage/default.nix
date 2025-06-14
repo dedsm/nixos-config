@@ -28,26 +28,17 @@ appimageTools.wrapType2 {
         --add-flags "--no-sandbox" \
         --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations --enable-wayland-ime=true}}"
 
-      # Install the desktop file if it exists
-      if [ -f ${contents}/${pname}.desktop ]; then
-        install -m 444 -D ${contents}/${pname}.desktop -t $out/share/applications
-        substituteInPlace $out/share/applications/${pname}.desktop \
-          --replace-warn 'Exec=AppRun' 'Exec=${pname}'
-      else
-        # Create our own desktop file
-        mkdir -p $out/share/applications
-        cat > $out/share/applications/${pname}.desktop << EOF
-[Desktop Entry]
-Name=Cursor
-Comment=The AI Code Editor
-Exec=${pname} %F
-Icon=cursor
-Type=Application
-Categories=Development;TextEditor;
-StartupNotify=true
-MimeType=text/plain;inode/directory;
-EOF
-      fi
+      # Find and install all desktop files
+      find "${contents}" -name "*.desktop" -print0 | while IFS= read -r -d $'\0' f; do
+        if [ ! -e "$f" ]; then continue; fi
+
+        local desktop_file_name=$(basename "$f")
+        install -m 444 -D "$f" "$out/share/applications/$desktop_file_name"
+
+        # Replace the executable in all Exec= lines with our wrapped binary,
+        # preserving any arguments.
+        sed -i -E "s/^(Exec=)[^ ]+/\1${pname}/" "$out/share/applications/$desktop_file_name"
+      done
 
       # Install icons
       if [ -d ${contents}/usr/share/icons ]; then
@@ -69,4 +60,4 @@ EOF
     platforms = [ "x86_64-linux" ];
     mainProgram = "cursor";
   };
-} 
+}

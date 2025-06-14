@@ -1,4 +1,11 @@
-attrs@{ lib, homeManagerConfig, unfreePkgs, unstablePkgs, pkgs, ... }: {
+attrs @ {
+  lib,
+  homeManagerConfig,
+  unfreePkgs,
+  unstablePkgs,
+  pkgs,
+  ...
+}: {
   programs = {
     firefox = {
       enable = true;
@@ -15,7 +22,7 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, unstablePkgs, pkgs, ... }: {
       enableZshIntegration = true;
       nix-direnv.enable = true;
       stdlib = builtins.readFile ./direnvrc;
-      config = { global = { warn_timeout = "3000h"; }; };
+      config = {global = {warn_timeout = "3000h";};};
     };
 
     fzf = {
@@ -50,11 +57,11 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, unstablePkgs, pkgs, ... }: {
           dpi-aware = "no";
         };
 
-        scrollback = { lines = 10000; };
+        scrollback = {lines = 10000;};
 
-        mouse = { hide-when-typing = "yes"; };
+        mouse = {hide-when-typing = "yes";};
 
-        cursor = { color = "fdf6e3 586e75"; };
+        cursor = {color = "fdf6e3 586e75";};
 
         colors = {
           background = "fdf6e3";
@@ -107,7 +114,10 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, unstablePkgs, pkgs, ... }: {
 
   xsession.preferStatusNotifierItems = true;
 
-  xdg = { mime = { enable = true; }; };
+  xdg = {
+    mime = {enable = true;};
+    enable = true;
+  };
 
   home = {
     file = {
@@ -118,7 +128,7 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, unstablePkgs, pkgs, ... }: {
     };
     pointerCursor = {
       package = pkgs.vanilla-dmz;
-      gtk = { enable = true; };
+      gtk = {enable = true;};
       name = "Vanilla-DMZ";
       size = 24;
     };
@@ -126,11 +136,11 @@ attrs@{ lib, homeManagerConfig, unfreePkgs, unstablePkgs, pkgs, ... }: {
 
   systemd.user.services = {
     _1password = {
-      Install = { WantedBy = lib.mkForce [ "graphical-session.target" ]; };
+      Install = {WantedBy = lib.mkForce ["graphical-session.target"];};
       Unit = {
-        After = lib.mkForce [ "graphical-session.target" "waybar.service" ];
-        PartOf = lib.mkForce [ "graphical-session.target" ];
-        Requires = lib.mkForce [ "graphical-session.target" "waybar.service" ];
+        After = lib.mkForce ["graphical-session.target" "waybar.service"];
+        PartOf = lib.mkForce ["graphical-session.target"];
+        Requires = lib.mkForce ["graphical-session.target" "waybar.service"];
       };
       Service = {
         Restart = "Always";
