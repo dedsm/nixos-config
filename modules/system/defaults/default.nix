@@ -14,13 +14,16 @@
   ...
 }:
 with lib; let
-  defaultSession = if anyHyprland then "hyprland" else "sway";
-
+  defaultSession =
+    if anyHyprland
+    then "hyprland"
+    else "sway";
 in {
   config = mkMerge [
     {
       # Use lib.optional for conditional list elements (use args directly)
-      system.nixos.tags = []
+      system.nixos.tags =
+        []
         ++ (lib.optional anySway "sway")
         ++ (lib.optional anyHyprland "hyprland");
 
@@ -123,6 +126,12 @@ in {
       services.accounts-daemon.enable = true;
 
       environment.etc = {
+        "1password/custom_allowed_browsers" = {
+          text = ''
+            firefox-devedition
+          '';
+          mode = "0755";
+        };
       };
 
       services.pipewire = {
@@ -228,6 +237,7 @@ in {
       programs._1password-gui = {
         enable = true;
         polkitPolicyOwners = ["david"];
+        package = unfreePkgs._1password-gui;
       };
 
       programs.ssh = {startAgent = false;};

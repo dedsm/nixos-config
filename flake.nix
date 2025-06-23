@@ -186,7 +186,7 @@
         # Remarkable Stream
         unstablePkgs.restream
         # 1password CLI
-        _1password-cli
+        unfreePkgs._1password-cli
         # Snyk
         snyk
       ];
