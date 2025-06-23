@@ -9,7 +9,7 @@ attrs @ {
   programs = {
     firefox = {
       enable = true;
-      package = unfreePkgs.firefox-devedition-bin;
+      package = unfreePkgs.firefox-devedition;
     };
 
     autojump = {

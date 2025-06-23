@@ -17,7 +17,7 @@ with lib;
       #package = hyprland.packages.${pkgs.system}.hyprland;
       settings = {
         "$terminal" = "${pkgs.foot}/bin/foot";
-        "$browser" = "firefox-developer-edition";
+        "$browser" = "firefox-devedition";
         "$mod" = "SUPER";
         exec-once = [
           "mako"

@@ -120,9 +120,6 @@ with lib;
         # open files at last edit position
         vim-lastplace
 
-        # ai editor
-        avante-nvim
-
         # markdown goodies
         render-markdown-nvim
       ];
