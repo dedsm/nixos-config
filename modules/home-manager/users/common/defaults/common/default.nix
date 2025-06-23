@@ -144,7 +144,7 @@ attrs @ {
       };
       Service = {
         Restart = "Always";
-        ExecStart = "${unstablePkgs._1password-gui}/bin/1password --silent";
+        ExecStart = "${pkgs._1password-gui}/bin/1password --silent";
       };
     };
   };

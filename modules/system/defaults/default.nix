@@ -228,7 +228,6 @@ in {
       programs._1password-gui = {
         enable = true;
         polkitPolicyOwners = ["david"];
-        package = unstablePkgs._1password-gui;
       };
 
       programs.ssh = {startAgent = false;};
