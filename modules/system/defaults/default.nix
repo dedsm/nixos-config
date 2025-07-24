@@ -234,6 +234,10 @@ in {
       # started in user sessions.
       # programs.mtr.enable = true;
 
+      programs._1password = {
+        enable = true;
+        package = unfreePkgs._1password-cli;
+      };
       programs._1password-gui = {
         enable = true;
         polkitPolicyOwners = ["david"];
