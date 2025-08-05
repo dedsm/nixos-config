@@ -25,15 +25,12 @@ in {
 
     # Power management
     services.upower = { enable = true; };
+    services.power-profiles-daemon.enable = true;
 
-    services.tlp = {
-      enable = true;
-      settings = {
-        CPU_SCALING_GOVERNOR_ON_AC = "powersave";
-        INTEL_GPU_MIN_FREQ_ON_AC = 500;
-        INTEL_GPU_MAX_FREQ_ON_AC = 1450;
-        INTEL_GPU_BOOST_FREQ_ON_AC = 1450;
-      };
+    hardware.amdgpu = {
+      initrd.enable = true;
+      opencl.enable = true;
+      amdvlk.enable = true;
     };
   };
 }

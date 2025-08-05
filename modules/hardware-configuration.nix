@@ -36,12 +36,9 @@
   #     makeFlags = (old.makeFlags or []) ++ [ "INSTALL_NO_TRANSLATIONS=1" ];
   #   });
   # });
-  boot.kernelParams = [
-    "intel_iommu=on"
-    "thunderbolt.host_reset=false"
-  ];
+  boot.kernelParams = [ "amdgpu.abmlevel=0" ];
 
-  boot.kernelModules = ["kvm-intel"];
+  boot.kernelModules = [ ];
   boot.extraModulePackages = [];
   boot.blacklistedKernelModules = ["hid_sensor_hub"];
   boot.plymouth = {enable = true;};
@@ -70,8 +67,6 @@
   # still possible to use this option, but it's recommended to use it in conjunction
   # with explicit per-interface declarations with `networking.interfaces.<interface>.useDHCP`.
   networking.useDHCP = lib.mkDefault true;
-
-  powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
 
   hardware.enableRedistributableFirmware = true;
   hardware.cpu.intel.updateMicrocode =

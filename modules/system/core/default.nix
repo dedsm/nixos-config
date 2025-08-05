@@ -36,6 +36,11 @@ in {
     nix.settings.auto-optimise-store = true;
     networking.firewall.enable = false;
 
+    # Environment variables
+    environment.variables = {
+      VDPAU_DRIVER = "radeonsi";
+    };
+
     # Enable the OpenSSH daemon.
     services.openssh.enable = true;
 

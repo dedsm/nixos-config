@@ -116,6 +116,7 @@ with lib;
             "$mod, Z, exec, playerctl previous"
             "$mod, C, exec, playerctl next"
             "$mod, T, togglefloating"
+            "$mod, F, fullscreen"
             ", XF86AudioPlay, exec, playerctl play-pause"
             ", XF86AudioPrev, exec, playerctl previous"
             ", XF86AudioNext, exec, playerctl next"

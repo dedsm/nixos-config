@@ -46,7 +46,7 @@ attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPk
             }
           ];
         }
-        nixos-hardware.nixosModules.framework-12th-gen-intel
+        nixos-hardware.nixosModules.framework-amd-ai-300-series
         fw-fanctrl.nixosModules.default
         ../modules/hardware-configuration.nix
         ../modules/home-manager
