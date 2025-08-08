@@ -36,7 +36,7 @@
   #     makeFlags = (old.makeFlags or []) ++ [ "INSTALL_NO_TRANSLATIONS=1" ];
   #   });
   # });
-  boot.kernelParams = [ "amdgpu.abmlevel=0" ];
+  boot.kernelParams = [ "amdgpu.abmlevel=0" "amdgpu.gttsize=102400" ];
 
   boot.kernelModules = [ ];
   boot.extraModulePackages = [];
