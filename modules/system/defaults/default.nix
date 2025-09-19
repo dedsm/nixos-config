@@ -121,7 +121,7 @@ in {
       security.pam.services.gdm.enableGnomeKeyring = true;
       security.pam.services.gdm.enableKwallet = true;
       security.pam.services.login.enableKwallet = true;
-      security.pam.services.swaylock = {};
+      security.pam.services.hyprlock = {};
 
       services.accounts-daemon.enable = true;
 

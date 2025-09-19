@@ -110,7 +110,7 @@ with lib;
             "ALT SHIFT, S, exec, slack"
             "ALT SHIFT, P, exec, nautilus"
             "ALT SHIFT, C, exec, gnome-calculator"
-            "CTRL ALT, L, exec, swaylock -fF -c 000000"
+            "CTRL ALT, L, exec, ${pkgs.systemd}/bin/loginctl lock-session"
             "$mod, P, exec, bemenu-run"
             "$mod, X, exec, playerctl play-pause"
             "$mod, Z, exec, playerctl previous"

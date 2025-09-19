@@ -241,7 +241,6 @@
           hyprland.enable = true; # Explicitly false or omit if default is false
           # Host-specific packages for david on manwe
           packages = davidCommon.packages ++ (with overlaidPkgs; [
-            swaylock
             unstablePkgs.slack
             unstablePkgs.spotify
             (unstablePkgs.google-cloud-sdk.withExtraComponents [
