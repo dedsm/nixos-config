@@ -199,6 +199,7 @@ in {
         enable = true;
         package = unstablePkgs.docker;
         liveRestore = false;
+        enableOnBoot = false; # Don't start Docker on boot - start on-demand via socket activation
       };
 
       # virtualisation.virtualbox.host.enable = true;
