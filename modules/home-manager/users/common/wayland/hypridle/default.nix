@@ -10,11 +10,11 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
       };
       listener = [
         {
-          timeout = 30; # 5 minutes
+          timeout = 300; # 5 minutes
           on-timeout = "${pkgs.systemd}/bin/loginctl lock-session";
         }
         {
-          timeout = 60; # 10 minutes
+          timeout = 600; # 10 minutes
           on-timeout = "${pkgs.hyprland}/bin/hyprctl dispatch dpms off";
           on-resume = "${pkgs.hyprland}/bin/hyprctl dispatch dpms on";
         }
