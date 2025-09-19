@@ -11,8 +11,7 @@ with lib;
   mkIf homeManagerConfig.hyprland.enable {
     wayland.windowManager.hyprland = {
       enable = true;
-      systemd.enable = true;
-      systemd.variables = ["--all"];
+      systemd.enable = false;
       #package = hyprland.packages.${pkgs.system}.hyprland-debug;
       #package = hyprland.packages.${pkgs.system}.hyprland;
       settings = {
@@ -20,14 +19,14 @@ with lib;
         "$browser" = "firefox-devedition";
         "$mod" = "SUPER";
         exec-once = [
-          "mako"
-          "dropbox"
-          "avizo-service"
-          "solaar -w hide"
-          "wl-paste -t text --watch clipman store --no-persist"
-          "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
-          "sleep 5 && ${unstablePkgs.synology-drive-client}/bin/synology-drive"
-          "${pkgs.kdePackages.kwallet-pam}/libexec/pam_kwallet_init"
+          "uwsm app -- mako"
+          "uwsm app -- dropbox"
+          "uwsm app -- avizo-service"
+          "uwsm app -- solaar -w hide"
+          "uwsm app -- wl-paste -t text --watch clipman store --no-persist"
+          "uwsm app -- ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
+          "uwsm app -- sh -c 'sleep 5 && ${unstablePkgs.synology-drive-client}/bin/synology-drive'"
+          "uwsm app -- ${pkgs.kdePackages.kwallet-pam}/libexec/pam_kwallet_init"
         ];
         misc = {
           force_default_wallpaper = 0;
@@ -105,24 +104,24 @@ with lib;
         ];
         bind =
           [
-            "ALT SHIFT, W, exec, $browser"
-            "ALT SHIFT, F, exec, chromium"
-            "ALT SHIFT, S, exec, slack"
-            "ALT SHIFT, P, exec, nautilus"
-            "ALT SHIFT, C, exec, gnome-calculator"
-            "CTRL ALT, L, exec, ${pkgs.systemd}/bin/loginctl lock-session"
-            "$mod, P, exec, bemenu-run"
-            "$mod, X, exec, playerctl play-pause"
-            "$mod, Z, exec, playerctl previous"
-            "$mod, C, exec, playerctl next"
+            "ALT SHIFT, W, exec, uwsm app -- $browser"
+            "ALT SHIFT, F, exec, uwsm app -- chromium"
+            "ALT SHIFT, S, exec, uwsm app -- slack"
+            "ALT SHIFT, P, exec, uwsm app -- nautilus"
+            "ALT SHIFT, C, exec, uwsm app -- gnome-calculator"
+            "CTRL ALT, L, exec, uwsm app -- ${pkgs.systemd}/bin/loginctl lock-session"
+            "$mod, P, exec, uwsm app -- bemenu-run"
+            "$mod, X, exec, uwsm app -- playerctl play-pause"
+            "$mod, Z, exec, uwsm app -- playerctl previous"
+            "$mod, C, exec, uwsm app -- playerctl next"
             "$mod, T, togglefloating"
             "$mod, F, fullscreen"
-            ", XF86AudioPlay, exec, playerctl play-pause"
-            ", XF86AudioPrev, exec, playerctl previous"
-            ", XF86AudioNext, exec, playerctl next"
-            ", Print, exec, grimblast copy area"
-            ", XF86AudioMute, exec, volumectl %"
-            "$mod SHIFT, RETURN, exec, $terminal"
+            ", XF86AudioPlay, exec, uwsm app -- playerctl play-pause"
+            ", XF86AudioPrev, exec, uwsm app -- playerctl previous"
+            ", XF86AudioNext, exec, uwsm app -- playerctl next"
+            ", Print, exec, uwsm app -- grimblast copy area"
+            ", XF86AudioMute, exec, uwsm app -- volumectl %"
+            "$mod SHIFT, RETURN, exec, uwsm app -- $terminal"
             "$mod SHIFT, C, killactive"
             "$mod SHIFT, Q, exit"
             "$mod, RETURN, layoutmsg, swapwithmaster"

@@ -16,7 +16,7 @@
 with lib; let
   defaultSession =
     if anyHyprland
-    then "hyprland"
+    then "hyprland-uwsm"
     else "sway";
 in {
   config = mkMerge [
@@ -183,6 +183,7 @@ in {
     (mkIf anyHyprland {
       programs.hyprland = {
         enable = true;
+        withUWSM = true;
         # You might want to conditionally enable the hyprland portal too
         # xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-hyprland ]; # Or use hyprland flake's portalPackage
       };

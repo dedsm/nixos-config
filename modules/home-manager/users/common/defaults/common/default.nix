@@ -138,12 +138,12 @@ attrs @ {
     _1password = {
       Install = {WantedBy = lib.mkForce ["graphical-session.target"];};
       Unit = {
-        After = lib.mkForce ["graphical-session.target" "waybar.service"];
+        After = lib.mkForce ["graphical-session.target"];
         PartOf = lib.mkForce ["graphical-session.target"];
-        Requires = lib.mkForce ["graphical-session.target" "waybar.service"];
+        Requires = lib.mkForce ["graphical-session.target"];
       };
       Service = {
-        Restart = "Always";
+        Restart = "on-failure";
         ExecStart = "${unfreePkgs._1password-gui}/bin/1password --silent";
       };
     };
