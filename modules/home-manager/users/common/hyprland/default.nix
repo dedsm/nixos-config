@@ -1,5 +1,6 @@
 {
   lib,
+  config,
   hyprland,
   homeManagerConfig,
   unstablePkgs,
@@ -9,6 +10,18 @@
 }:
 with lib;
   mkIf homeManagerConfig.hyprland.enable {
+    # UWSM-specific environment file for Hyprland
+    xdg.configFile."uwsm/env-hyprland".text = ''
+      # Wayland toolkit backend variables
+      export GDK_SCALE=2
+      export GDK_BACKEND=wayland,x11
+      export SDL_VIDEODRIVER=wayland
+      export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+      export _JAVA_AWT_WM_NONREPARENTING=1
+      export MOZ_ENABLE_WAYLAND=1
+      export NIXOS_OZONE_WL=1
+    '';
+    
     wayland.windowManager.hyprland = {
       enable = true;
       systemd.enable = false;
@@ -85,15 +98,6 @@ with lib;
             "workspaces, 1, 5, wind"
           ];
         };
-        env = [
-          "GDK_SCALE,2"
-          "GDK_BACKEND,wayland,x11"
-          "SDL_VIDEODRIVER,wayland"
-          "QT_WAYLAND_DISABLE_WINDOWDECORATION,1"
-          "_JAVA_AWT_WM_NONREPARENTING,1"
-          "MOZ_ENABLE_WAYLAND,1"
-          "NIXOS_OZONE_WL,1"
-        ];
         bindm = ["$mod, mouse:272, movewindow" "$mod, mouse:273, resizewindow"];
         binde = [
           ", XF86MonBrightnessDown, exec, lightctl down 1"
