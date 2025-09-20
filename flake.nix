@@ -37,7 +37,10 @@
       inherit system;
       config = {allowUnfree = true;};
     };
-    localpkgs = import ./pkgs {hyprlandPkgs = hyprland;};
+    localpkgs = import ./pkgs {
+      hyprlandPkgs = hyprland;
+      unstablePkgs = unstablePkgs;
+    };
     overlaidPkgs = import nixpkgs {
       inherit system;
       overlays = [localpkgs];
@@ -141,8 +144,8 @@
         evince
         polkit_gnome
         docker-credential-helpers
-        (pkgs.writers.writePython3Bin "i3xmonadhelper" {
-          libraries = [pkgs.python3Packages.i3ipc];
+        (overlaidPkgs.writers.writePython3Bin "i3xmonadhelper" {
+          libraries = [overlaidPkgs.python3Packages.i3ipc];
         } (builtins.readFile ./custom/david/i3xmonadhelper.py))
         wl-clipboard
         moonlight-qt
@@ -241,7 +244,7 @@
           hyprland.enable = true; # Explicitly false or omit if default is false
           # Host-specific packages for david on manwe
           packages = davidCommon.packages ++ (with overlaidPkgs; [
-            unstablePkgs.slack
+            slack
             unstablePkgs.spotify
             (unstablePkgs.google-cloud-sdk.withExtraComponents [
               unstablePkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
