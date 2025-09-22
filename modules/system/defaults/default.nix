@@ -120,8 +120,11 @@ in {
 
       security.pam.services.gdm.enableGnomeKeyring = true;
       security.pam.services.gdm.enableKwallet = true;
+      security.pam.services.gdm.fprintAuth = false;
       security.pam.services.login.enableKwallet = true;
+      security.pam.services.login.fprintAuth = false;
       security.pam.services.hyprlock = {};
+      security.pam.services.gdm-fingerprint.text = lib.mkForce "";
 
       services.accounts-daemon.enable = true;
 
