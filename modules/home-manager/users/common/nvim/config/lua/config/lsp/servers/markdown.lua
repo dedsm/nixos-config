@@ -1,3 +1,1 @@
-local lspconfig = require('lspconfig')
-
-lspconfig.marksman.setup {}
+vim.lsp.enable('marksman')

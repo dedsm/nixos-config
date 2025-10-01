@@ -1,7 +1,4 @@
-local lspconfig = require('lspconfig')
-
-lspconfig.html.setup {}
-lspconfig.cssls.setup {}
-
-lspconfig.ts_ls.setup {}
-lspconfig.svelte.setup {}
+vim.lsp.enable('html')
+vim.lsp.enable('cssls')
+vim.lsp.enable('ts_ls')
+vim.lsp.enable('svelte')

@@ -1,6 +1,5 @@
-local lspconfig = require('lspconfig')
+vim.lsp.enable('lua_ls')
 
-lspconfig.lua_ls.setup {}
 lazydev = require('lazydev').setup({
   library = {
     "luvit-meta/library"
