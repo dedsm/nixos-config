@@ -135,6 +135,7 @@
 
       # Common packages can go here, host-specific ones below
       packages = with overlaidPkgs; [
+        gnumake
         gnome-themes-extra
         adwaita-icon-theme
         gnome-icon-theme
