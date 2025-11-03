@@ -6,12 +6,12 @@
 
 let
   pname = "cursor";
-  version = "1.7.54";
+  version = "2.0.43";
 
   src = fetchurl {
-    url = "https://downloads.cursor.com/production/5c17eb2968a37f66bc6662f48d6356a100b67be8/linux/x64/Cursor-1.7.54-x86_64.AppImage";
+    url = "https://downloads.cursor.com/production/8e4da76ad196925accaa169efcae28c45454cce3/linux/x64/Cursor-2.0.43-x86_64.AppImage";
     name = "cursor-${version}.AppImage";
-    sha256 = "sha256-BKxFrfKFMWmJhed+lB5MjYHbCR9qZM3yRcs7zWClYJE=";
+    sha256 = "sha256-ok+7uBlI9d3a5R5FvMaWlbPM6tX2eCse7jZ7bmlPExY=";
   };
 in
 appimageTools.wrapType2 {
