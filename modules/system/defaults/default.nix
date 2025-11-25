@@ -256,6 +256,10 @@ in {
         pinentryPackage = pkgs.pinentry-gnome3;
       };
 
+      # Allowing compiled binaries to run if configured correctly
+
+      programs.nix-ld.enable = true;
+
       # List services that you want to enable:
 
       services.pcscd.enable = true;
