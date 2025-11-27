@@ -1,1 +1,1 @@
-vim.lsp.enable('jedi_language_server')
+vim.lsp.enable('basedpyright')
