@@ -20,7 +20,7 @@ attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPk
       };
 
       modules = [
-        (import ../modules/system attrs)
+        (import ../modules/nixos attrs)
         home-manager.nixosModules.home-manager
         {
           dedsm = config.systemAttrs or {};
@@ -49,7 +49,7 @@ attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPk
         nixos-hardware.nixosModules.framework-amd-ai-300-series
         fw-fanctrl.nixosModules.default
         ../modules/hardware-configuration.nix
-        ../modules/home-manager
+        ../modules/common
       ];
     };
 }

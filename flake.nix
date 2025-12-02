@@ -16,6 +16,11 @@
     };
 
     nixos-hardware = {url = "github:NixOS/nixos-hardware";};
+    
+    darwin = {
+      url = "github:lnl7/nix-darwin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = attrs @ {
@@ -25,6 +30,7 @@
     home-manager,
     nixos-hardware,
     fw-fanctrl,
+    darwin,
     ...
   }: let
     lib = nixpkgs.lib;
@@ -58,9 +64,12 @@
         lib
         hyprland
         fw-fanctrl
+        darwin
         ;
     };
 
+    inherit (util) nixosHost darwinHost;
+    
     defaultUser = {
       name = "david";
       groups = [
@@ -80,19 +89,11 @@
     inherit (util) host;
 
     # Define reusable common user settings
-    davidCommon = {
+    davidShared = {
       tmux.enable = true;
       nvim.enable = true;
       zsh.enable = true;
-      kdeconnect.enable = true;
-      lorri.enable = true;
-      mako.enable = true;
-      network-manager.enable = true;
-      bluetooth.enable = true;
-      # Sway/Hyprland enablement will be per-host user config
       starship.enable = true;
-      wayland.enable = true;
-      defaults.enable = true;
       git = {
         enable = true;
         lfs = {
@@ -133,9 +134,37 @@
 
       stateVersion = "22.05"; # Default state version
 
-      # Common packages can go here, host-specific ones below
+      # Common packages
       packages = with overlaidPkgs; [
         gnumake
+        docker-credential-helpers
+        httpie
+        kubectl
+        stern
+        p7zip
+        sops
+        docker-credential-gcr
+        amazon-ecr-credential-helper
+        jq
+        yq
+        krew
+        nodePackages.prettier
+        pandoc
+        # Snyk
+        snyk
+      ];
+    };
+
+    davidNixos = davidShared // {
+      kdeconnect.enable = true;
+      lorri.enable = true;
+      mako.enable = true;
+      network-manager.enable = true;
+      bluetooth.enable = true;
+      wayland.enable = true;
+      defaults.enable = true;
+      
+      packages = davidShared.packages ++ (with overlaidPkgs; [
         gnome-themes-extra
         adwaita-icon-theme
         gnome-icon-theme
@@ -144,7 +173,6 @@
         eog
         evince
         polkit_gnome
-        docker-credential-helpers
         (overlaidPkgs.writers.writePython3Bin "i3xmonadhelper" {
           libraries = [overlaidPkgs.python3Packages.i3ipc];
         } (builtins.readFile ./custom/david/i3xmonadhelper.py))
@@ -152,29 +180,19 @@
         moonlight-qt
         clipman
         playerctl
-        httpie
         gimp
         scrot
         grobi
         chromium
         libreoffice
         ffmpeg
-        kubectl
-        stern
-        p7zip
         unfreePkgs.dropbox
         vlc
         ntfs3g
         kubernetes-helm
-        sops
-        docker-credential-gcr
-        amazon-ecr-credential-helper
-        jq
-        yq
         digikam
         exiftool
         wireshark
-        krew
         pavucontrol
         pamixer
         xsane
@@ -184,16 +202,17 @@
         slurp
         grim
         marksman
-        nodePackages.prettier
-        pandoc
         virt-manager
-        # Remarkable Stream
         unstablePkgs.restream
-        # 1password CLI
         unfreePkgs._1password-cli
-        # Snyk
-        snyk
-      ];
+      ]);
+    };
+
+    davidDarwin = davidShared // {
+      # Darwin specific settings
+      packages = davidShared.packages ++ (with overlaidPkgs; [
+        # Darwin specific packages
+      ]);
     };
 
     rootCommon = {
@@ -239,12 +258,12 @@
 
       # Renamed from 'users' for clarity
       homeManagerUsers = { # Home Manager configs specific to 'manwe'
-        david = davidCommon // {
+        david = davidNixos // {
           # Host-specific overrides/additions for david on manwe
           sway.enable = false;
           hyprland.enable = true; # Explicitly false or omit if default is false
           # Host-specific packages for david on manwe
-          packages = davidCommon.packages ++ (with overlaidPkgs; [
+          packages = davidNixos.packages ++ (with overlaidPkgs; [
             slack
             unstablePkgs.spotify
             (unstablePkgs.google-cloud-sdk.withExtraComponents [
@@ -267,7 +286,7 @@
 
   in {
     nixosConfigurations = {
-      manwe = host.mkHost {
+      manwe = nixosHost.mkHost {
         name = "manwe";
         # Pass the unified config instead of separate ones
         config = manweConfig;
@@ -282,6 +301,17 @@
       #       anotherUser = { /* ... */ };
       #     };
       #     stateVersion = "24.05";
+      #   };
+      # };
+    };
+
+    darwinConfigurations = {
+      # Example mac host
+      # macbook = darwinHost.mkDarwinHost {
+      #   name = "macbook";
+      #   config = {
+      #     user = "david";
+      #     homeManagerConfig = davidDarwin;
       #   };
       # };
     };

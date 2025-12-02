@@ -1,3 +1,4 @@
 attrs@{ system, ... }: rec {
-  host = import ./host.nix attrs;
+  nixosHost = import ./nixos-host.nix attrs;
+  darwinHost = import ./darwin-host.nix attrs;
 }
