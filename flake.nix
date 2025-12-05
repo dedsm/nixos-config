@@ -284,6 +284,13 @@
       stateVersion = "21.05"; # System state version
     };
 
+    morgothConfig = {
+      user = "david.de.sousa";
+      homeManagerUsers = {
+        "david.de.sousa" = davidDarwin;
+      };
+    };
+
   in {
     nixosConfigurations = {
       manwe = nixosHost.mkHost {
@@ -306,14 +313,10 @@
     };
 
     darwinConfigurations = {
-      # Example mac host
-      # macbook = darwinHost.mkDarwinHost {
-      #   name = "macbook";
-      #   config = {
-      #     user = "david";
-      #     homeManagerConfig = davidDarwin;
-      #   };
-      # };
+      morgoth = darwinHost.mkDarwinHost {
+        name = "morgoth";
+        config = morgothConfig;
+      };
     };
   };
 }
