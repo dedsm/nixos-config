@@ -1,5 +1,5 @@
-{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }:
+{ lib, homeManagerConfig, pkgs, ... }:
 with lib;
-mkIf homeManagerConfig.bluetooth.enable {
+mkIf (homeManagerConfig.bluetooth.enable or false) {
   services.blueman-applet.enable = true;
 }

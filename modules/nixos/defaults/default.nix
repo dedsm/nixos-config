@@ -4,8 +4,6 @@
   lib,
   pkgs,
   config,
-  unfreePkgs,
-  unstablePkgs,
   hyprland,
   hc,
   # Add args for the pre-calculated booleans from specialArgs
@@ -32,33 +30,36 @@ in {
         wifi = {
           backend = "wpa_supplicant";
         };
+        plugins = with pkgs; [
+          networkmanager-openvpn
+        ];
       };
 
       fonts.packages = with pkgs; [
         noto-fonts
         noto-fonts-cjk-sans
-        noto-fonts-emoji
+        noto-fonts-color-emoji
         liberation_ttf
         fira-code
         fira-code-symbols
         dina-font
         proggyfonts
-        unstablePkgs.nerd-fonts.inconsolata-go
+        pkgs.unstable.nerd-fonts.inconsolata-go
       ];
 
       services.xserver = {
         enable = true;
-        displayManager = {
-          gdm.enable = true;
-          gdm.wayland = true;
-        };
-
         xkb = {
           layout = "us";
           model = "pc105";
           variant = "altgr-intl";
           options = "caps:super";
         };
+      };
+
+      services.displayManager = {
+        gdm.enable = true;
+        gdm.wayland = true;
       };
 
       # Conditionally set default session (already uses defaultSession variable)
@@ -71,7 +72,7 @@ in {
         enable = true;
         browsing = true;
         startWhenNeeded = true;
-        drivers = [unfreePkgs.epson_201207w pkgs.gutenprint];
+        drivers = [pkgs.unfree.epson_201207w pkgs.gutenprint];
       };
 
       services.avahi.enable = true;
@@ -80,7 +81,7 @@ in {
       # Open Tablet Driver
       hardware.opentabletdriver = {
         enable = true;
-        package = unstablePkgs.opentabletdriver;
+        package = pkgs.unstable.opentabletdriver;
       };
 
       # Ledger support
@@ -102,7 +103,7 @@ in {
       # Enable bluetooth
       hardware.bluetooth = {
         enable = true;
-        package = unstablePkgs.bluez;
+        package = pkgs.unstable.bluez;
       };
 
       services.blueman = {
@@ -200,7 +201,7 @@ in {
 
       virtualisation.docker = {
         enable = true;
-        package = unstablePkgs.docker;
+        package = pkgs.unstable.docker;
         liveRestore = false;
         enableOnBoot = false; # Don't start Docker on boot - start on-demand via socket activation
       };
@@ -211,9 +212,6 @@ in {
       virtualisation.libvirtd.enable = true;
       virtualisation.spiceUSBRedirection.enable = true;
       programs.dconf.enable = true;
-
-      nixpkgs.config.allowUnfreePredicate = pkg:
-        builtins.elem (lib.getName pkg) ["Oracle_VM_VirtualBox_Extension_Pack"];
 
       # System users are now handled directly in lib/host.nix via config.system.users
 
@@ -241,12 +239,12 @@ in {
 
       programs._1password = {
         enable = true;
-        package = unfreePkgs._1password-cli;
+        package = pkgs.unfree._1password-cli;
       };
       programs._1password-gui = {
         enable = true;
         polkitPolicyOwners = ["david"];
-        package = unfreePkgs._1password-gui;
+        package = pkgs.unfree._1password-gui;
       };
 
       programs.ssh = {startAgent = false;};

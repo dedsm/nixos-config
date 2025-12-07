@@ -1,6 +1,6 @@
 { lib, homeManagerConfig, ... }:
 with lib;
-mkIf homeManagerConfig.zsh.enable {
+mkIf (homeManagerConfig.zsh.enable or false) {
   programs.zsh = {
     enable = true;
     enableCompletion = true;
@@ -30,13 +30,30 @@ mkIf homeManagerConfig.zsh.enable {
       size = 100000;
     };
     initContent = ''
-      if [ $EUID -ne 0 ]; then
-        export GPG_TTY="$(tty)"
-        gpg-connect-agent /bye
-        export SSH_AUTH_SOCK="/run/user/$UID/gnupg/S.gpg-agent.ssh"
-        export PATH="$PATH:$HOME/.krew/bin"
-      fi
+      ${homeManagerConfig.zsh.initContent or ""}
       any-nix-shell zsh --info-right | source /dev/stdin
+      ${if (homeManagerConfig.zoxide.enable or false) then ''
+        export _ZO_FZF_OPTS="--scheme=path --tiebreak=end,chunk,index --bind=ctrl-z:ignore,btab:up,tab:down --cycle --keep-right --border=sharp --height=45% --info=inline --layout=reverse --tabstop=1 --exit-0 --select-1"
+        eval "$(zoxide init zsh --cmd j)"
+
+        # Override the default z function to use fzf for fuzzy matching
+        function __zoxide_z() {
+          __zoxide_doctor
+          if [[ "$#" -eq 0 ]]; then
+            __zoxide_cd ~
+          elif [[ "$#" -eq 1 ]] && { [[ -d "$1" ]] || [[ "$1" = '-' ]] || [[ "$1" =~ ^[-+][0-9]$ ]]; }; then
+            __zoxide_cd "$1"
+          elif [[ "$#" -eq 2 ]] && [[ "$1" = "--" ]]; then
+            __zoxide_cd "$2"
+          else
+            \builtin local result
+            result="$(\command zoxide query --list | fzf --filter="$*" | head -n1)"
+            if [[ -n "$result" ]]; then
+              __zoxide_cd "$result"
+            fi
+          fi
+        }
+      '' else ""}
     '';
   };
 }

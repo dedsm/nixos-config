@@ -9,8 +9,11 @@ let
         commonModule
         {
           home.stateVersion = v.stateVersion;
-          home.packages = v.packages;
+          home.packages = v.packages pkgs;
         }
+        (lib.mkIf (v ? home && v.home ? homeDirectory) {
+          home.homeDirectory = v.home.homeDirectory;
+        })
       ];
     };
 in lib.mkMerge (lib.mapAttrsToList mkHomeManager hc)

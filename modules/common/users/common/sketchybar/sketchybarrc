@@ -1,0 +1,87 @@
+#!/bin/bash
+
+source "$CONFIG_DIR/colors.sh"
+
+ITEM_DIR="$CONFIG_DIR/items" # We might add separate item files later, simplified for now
+PLUGIN_DIR="$CONFIG_DIR/plugins"
+
+FONT="Hack Nerd Font" # Default, or user preferred nerd font
+
+SAFE_PADDING=10
+
+# --- Bar Setup ---
+sketchybar --bar \
+  height=32 \
+  color=$BAR_COLOR \
+  border_color=$BAR_BORDER_COLOR \
+  border_width=2 \
+  position=top \
+  topmost=true \
+  sticky=on \
+  padding_left=$SAFE_PADDING \
+  padding_right=$SAFE_PADDING \
+  corner_radius=9 \
+  y_offset=5 \
+  margin=10 \
+  blur_radius=20 \
+  notch_width=188
+
+# --- Defaults ---
+sketchybar --default \
+  icon.font="$FONT:Bold:14.0" \
+  icon.color=$ICON_COLOR \
+  label.font="$FONT:Bold:14.0" \
+  label.color=$LABEL_COLOR \
+  padding_left=5 \
+  padding_right=5 \
+  label.padding_left=4 \
+  label.padding_right=4 \
+  icon.padding_left=4 \
+  icon.padding_right=4
+
+# --- Aerospace Workspaces ---
+# We generally rely on an event to update these
+sketchybar --add event aerospace_workspace_change
+
+for sid in $(aerospace list-workspaces --all); do
+    sketchybar --add item space.$sid left \
+        --subscribe space.$sid aerospace_workspace_change \
+        --set space.$sid \
+        background.color=$BACKGROUND_1 \
+        background.corner_radius=5 \
+        background.height=20 \
+        background.drawing=off \
+        label="$sid" \
+        click_script="aerospace workspace $sid" \
+        script="$PLUGIN_DIR/aerospace.sh $sid"
+done
+
+# --- Front App ---
+sketchybar --add item front_app left \
+           --set front_app       background.color=$BACKGROUND_1 \
+                                 icon.color=$COLOR_GREEN \
+                                 icon.font="sketchybar-app-font:Regular:16.0" \
+                                 label.color=$COLOR_BASE1 \
+                                 script="$PLUGIN_DIR/front_app.sh" \
+           --subscribe front_app front_app_switched
+
+# --- Clock ---
+sketchybar --add item clock right \
+           --set clock   update_freq=10 \
+                         icon= \
+                         icon.color=$COLOR_BLUE \
+                         script="$PLUGIN_DIR/clock.sh"
+
+# --- Volume ---
+sketchybar --add item volume right \
+           --set volume  script="$PLUGIN_DIR/volume.sh" \
+           --subscribe volume volume_change
+
+# --- Battery ---
+sketchybar --add item battery right \
+           --set battery update_freq=120 \
+                         script="$PLUGIN_DIR/battery.sh" \
+           --subscribe battery system_woke power_source_change
+
+# Update everything once
+sketchybar --update

@@ -13,6 +13,13 @@ let
   wayland = import ./wayland attrs;
   starship = import ./starship attrs;
   git = import ./git attrs;
+  direnv = import ./direnv attrs;
+  fzf = import ./fzf attrs;
+  zoxide = import ./zoxide attrs;
+  ssh = import ./ssh attrs;
+  ghostty = import ./ghostty attrs;
+  sketchybar = import ./sketchybar attrs;
+
   defaults = import ./defaults attrs;
 in lib.mkMerge [
   tmux
@@ -28,5 +35,12 @@ in lib.mkMerge [
   wayland
   starship
   git
+  direnv
+  fzf
+  zoxide
+  ssh
+  ghostty
+  sketchybar
+
   defaults
 ]

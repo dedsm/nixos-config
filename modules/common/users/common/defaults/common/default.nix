@@ -1,51 +1,23 @@
 attrs @ {
   lib,
   homeManagerConfig,
-  unfreePkgs,
-  unstablePkgs,
   pkgs,
   ...
 }: {
   programs = {
     firefox = {
       enable = true;
-      package = unstablePkgs.firefox-devedition;
+      package = pkgs.unstable.firefox-devedition;
     };
 
-    autojump = {
-      enable = true;
-      enableZshIntegration = true;
-    };
 
-    direnv = {
-      enable = true;
-      enableZshIntegration = true;
-      nix-direnv.enable = true;
-      stdlib = builtins.readFile ./direnvrc;
-      config = {global = {warn_timeout = "3000h";};};
-    };
 
-    fzf = {
-      enable = true;
-      enableZshIntegration = true;
-    };
 
     nix-index = {
       enable = true;
       enableZshIntegration = true;
     };
 
-    ssh = {
-      enable = true;
-      controlMaster = "auto";
-      controlPath = "~/.ssh/sockets/%r@%h-%p";
-      controlPersist = "60";
-      hashKnownHosts = true;
-      extraConfig = ''
-        UseRoaming no
-        SetEnv TERM=xterm-256color
-      '';
-    };
 
     foot = {
       enable = true;
@@ -120,12 +92,6 @@ attrs @ {
   };
 
   home = {
-    file = {
-      ssh_sockets = {
-        target = ".ssh/sockets/.nixkeep";
-        text = "SSH sockets directory";
-      };
-    };
     pointerCursor = {
       package = pkgs.vanilla-dmz;
       gtk = {enable = true;};
@@ -144,7 +110,7 @@ attrs @ {
       };
       Service = {
         Restart = "on-failure";
-        ExecStart = "${unfreePkgs._1password-gui}/bin/1password --silent";
+        ExecStart = "${pkgs.unfree._1password-gui}/bin/1password --silent";
       };
     };
   };

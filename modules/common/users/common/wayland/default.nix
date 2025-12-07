@@ -1,4 +1,4 @@
-attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }:
+attrs@{ lib, homeManagerConfig, pkgs, ... }:
 let
   waybar = import ./waybar attrs;
   kanshi = import ./kanshi attrs;
@@ -6,4 +6,4 @@ let
   hyprlock = import ./hyprlock attrs;
   flameshot = import ./flameshot attrs;
 in with lib;
-mkIf homeManagerConfig.wayland.enable (mkMerge [ waybar kanshi hypridle hyprlock flameshot ])
+mkIf (homeManagerConfig.wayland.enable or false) (mkMerge [ waybar kanshi hypridle hyprlock flameshot ])

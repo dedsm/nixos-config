@@ -2,12 +2,12 @@
   description = "David's NixOS configuration";
 
   inputs = {
-    nixpkgs.url = "nixpkgs/nixos-25.05";
+    nixpkgs.url = "nixpkgs/nixos-25.11";
     unstable.url = "nixpkgs/nixos-unstable";
     hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&ref=stable_branch";
     #hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&rev=0ac0f32671b949b7bde276f1175bed035fb09fd9";
     home-manager = {
-      url = "github:nix-community/home-manager/release-25.05";
+      url = "github:nix-community/home-manager/release-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     fw-fanctrl = {
@@ -16,9 +16,9 @@
     };
 
     nixos-hardware = {url = "github:NixOS/nixos-hardware";};
-    
+
     darwin = {
-      url = "github:lnl7/nix-darwin/nix-darwin-25.05";
+      url = "github:lnl7/nix-darwin/nix-darwin-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -34,31 +34,37 @@
     ...
   }: let
     lib = nixpkgs.lib;
-    system = "x86_64-linux";
-    unstablePkgs = import unstable {
-      inherit system;
-      config = {allowUnfree = true;};
-    };
-    unfreePkgs = import nixpkgs {
-      inherit system;
-      config = {allowUnfree = true;};
-    };
-    localpkgs = import ./pkgs {
-      hyprlandPkgs = hyprland;
-      unstablePkgs = unstablePkgs;
-    };
-    overlaidPkgs = import nixpkgs {
-      inherit system;
-      overlays = [localpkgs];
-    };
+
+    mkPkgs = system: let
+      unstablePkgs = import unstable {
+        inherit system;
+        config = {
+          allowUnfree = true;
+        };
+      };
+      unfreePkgs = import nixpkgs {
+        inherit system;
+        config = {allowUnfree = true;};
+      };
+      localpkgs = import ./pkgs {
+        hyprlandPkgs = hyprland;
+        unstablePkgs = unstablePkgs;
+      };
+      overlay = final: prev: {
+        unstable = unstablePkgs;
+        unfree = unfreePkgs;
+        local = localpkgs final prev;
+      };
+    in
+      import nixpkgs {
+        inherit system;
+        overlays = [overlay];
+      };
     util = import ./lib {
       inherit
-        system
         nixpkgs
         unstable
-        overlaidPkgs
-        unstablePkgs
-        unfreePkgs
+        mkPkgs
         home-manager
         nixos-hardware
         lib
@@ -69,7 +75,7 @@
     };
 
     inherit (util) nixosHost darwinHost;
-    
+
     defaultUser = {
       name = "david";
       groups = [
@@ -89,20 +95,34 @@
     inherit (util) host;
 
     # Define reusable common user settings
-    davidShared = {
+    davidShared = pkgs: {
       tmux.enable = true;
       nvim.enable = true;
       zsh.enable = true;
       starship.enable = true;
+
+      # Defaults for modules not enabled on all platforms
+      kdeconnect.enable = false;
+      lorri.enable = false;
+      mako.enable = false;
+      network-manager.enable = false;
+      bluetooth.enable = false;
+      wayland.enable = false;
+      sway.enable = false;
+      hyprland.enable = false;
+      defaults.enable = false;
+      direnv.enable = true;
+      fzf.enable = true;
+      zoxide.enable = true;
+      ssh.enable = true;
+      ghostty.enable = false;
+
       git = {
         enable = true;
         lfs = {
           enable = true;
           skipSmudge = true;
         };
-        userEmail = "davidesousa@gmail.com";
-        userName = "David De Sousa";
-
         ignores = [
           ".envrc"
           ".python-version"
@@ -111,109 +131,123 @@
           ".tool-versions"
           "shell.nix"
         ];
-
-        signing = {
-          key = "8655217C8614EB611CF2259DF287187DBA42E303";
-          signByDefault = true;
-        };
-
-        extraConfig = {
+        settings = {
+          user = {
+            email = "davidesousa@gmail.com";
+            name = "David De Sousa";
+            signingkey = "8655217C8614EB611CF2259DF287187DBA42E303";
+          };
+          commit.gpgsign = true;
           push = {default = "simple";};
           diff = {tool = "vimdiff";};
           pull = {ff = "only";};
           init = {defaultBranch = "master";};
         };
-
-        includes = [
-          {
-            path = "~/Develop/DealMaker/.gitconfig";
-            condition = "gitdir:~/Develop/DealMaker/";
-          }
-        ];
       };
 
       stateVersion = "22.05"; # Default state version
 
       # Common packages
-      packages = with overlaidPkgs; [
-        gnumake
-        docker-credential-helpers
-        httpie
-        kubectl
-        stern
-        p7zip
-        sops
-        docker-credential-gcr
-        amazon-ecr-credential-helper
-        jq
-        yq
-        krew
-        nodePackages.prettier
-        pandoc
-        # Snyk
-        snyk
-      ];
+      packages = pkgs:
+        with pkgs; [
+          gnumake
+          docker-credential-helpers
+          httpie
+          kubectl
+          stern
+          p7zip
+          sops
+          docker-credential-gcr
+          amazon-ecr-credential-helper
+          jq
+          yq
+          fzf
+          krew
+          nodePackages.prettier
+          pandoc
+          # Snyk
+          snyk
+        ];
     };
 
-    davidNixos = davidShared // {
-      kdeconnect.enable = true;
-      lorri.enable = true;
-      mako.enable = true;
-      network-manager.enable = true;
-      bluetooth.enable = true;
-      wayland.enable = true;
-      defaults.enable = true;
-      
-      packages = davidShared.packages ++ (with overlaidPkgs; [
-        gnome-themes-extra
-        adwaita-icon-theme
-        gnome-icon-theme
-        gnome-calculator
-        nautilus
-        eog
-        evince
-        polkit_gnome
-        (overlaidPkgs.writers.writePython3Bin "i3xmonadhelper" {
-          libraries = [overlaidPkgs.python3Packages.i3ipc];
-        } (builtins.readFile ./custom/david/i3xmonadhelper.py))
-        wl-clipboard
-        moonlight-qt
-        clipman
-        playerctl
-        gimp
-        scrot
-        grobi
-        chromium
-        libreoffice
-        ffmpeg
-        unfreePkgs.dropbox
-        vlc
-        ntfs3g
-        kubernetes-helm
-        digikam
-        exiftool
-        wireshark
-        pavucontrol
-        pamixer
-        xsane
-        imagemagick
-        networkmanagerapplet
-        bemenu
-        slurp
-        grim
-        marksman
-        virt-manager
-        unstablePkgs.restream
-        unfreePkgs._1password-cli
-      ]);
-    };
+    davidNixos = pkgs:
+      (davidShared pkgs)
+      // {
+        kdeconnect.enable = true;
+        lorri.enable = true;
+        mako.enable = true;
+        network-manager.enable = true;
+        bluetooth.enable = true;
+        wayland.enable = true;
+        defaults.enable = true;
 
-    davidDarwin = davidShared // {
-      # Darwin specific settings
-      packages = davidShared.packages ++ (with overlaidPkgs; [
-        # Darwin specific packages
-      ]);
-    };
+        # zsh.initContent = ''
+        #   if [ $EUID -ne 0 ]; then
+        #     export PATH="$PATH:$HOME/.krew/bin"
+        # '';
+
+        packages = pkgs:
+          ((davidShared pkgs).packages pkgs)
+          ++ (with pkgs; [
+            gnome-themes-extra
+            adwaita-icon-theme
+            gnome-icon-theme
+            gnome-calculator
+            nautilus
+            eog
+            evince
+            polkit_gnome
+            (pkgs.writers.writePython3Bin "i3xmonadhelper" {
+              libraries = [pkgs.python3Packages.i3ipc];
+            } (builtins.readFile ./custom/david/i3xmonadhelper.py))
+            wl-clipboard
+            moonlight-qt
+            clipman
+            playerctl
+            gimp
+            scrot
+            grobi
+            chromium
+            libreoffice
+            ffmpeg
+            pkgs.unfree.dropbox
+            vlc
+            ntfs3g
+            kubernetes-helm
+            digikam
+            exiftool
+            wireshark
+            pavucontrol
+            pamixer
+            xsane
+            imagemagick
+            networkmanagerapplet
+            bemenu
+            slurp
+            grim
+            marksman
+            virt-manager
+            pkgs.unstable.restream
+            pkgs.unfree._1password-cli
+          ]);
+      };
+
+    davidDarwin = pkgs:
+      (davidShared pkgs)
+      // {
+        # Darwin specific settings
+        ghostty.enable = true;
+        sketchybar.enable = false;
+        stateVersion = "25.11";
+        packages = pkgs:
+          ((davidShared pkgs).packages pkgs)
+          ++ (with pkgs; [
+            ripgrep
+            gnupg
+            pkgs.unstable.antigravity
+            any-nix-shell
+          ]);
+      };
 
     rootCommon = {
       tmux.enable = true;
@@ -230,73 +264,96 @@
       git.enable = false;
       starship.enable = true;
       defaults.enable = false;
-      packages = [];
+      packages = pkgs: [];
       stateVersion = "22.05";
     };
 
-
     # Define the unified configuration for the 'manwe' host
-    manweConfig = {
-      # Renamed from 'system' to avoid confusion with config.system
-      systemAttrs = { # Corresponds to the old systemConfig flags
-        laptop.enable = true;
-        gnome-programs.enable = true; # Keep this? Or derive from user needs?
-        gnome-services.enable = true; # Keep this? Or derive from user needs?
-        fw-fanctrl.enable = false;
-        # We don't need sway/hyprland flags here anymore if defaults derive them
-        # System users definition moved out
-      };
+    manweSystemConfig = {
+      laptop.enable = true;
+      gnome-programs.enable = true;
+      gnome-services.enable = true;
+      fw-fanctrl.enable = false;
 
-      # Define system users separately
       systemUsers = {
         david = {
           isNormalUser = true;
           extraGroups = defaultUser.groups;
         };
-        # root = { ... };
       };
-
-      # Renamed from 'users' for clarity
-      homeManagerUsers = { # Home Manager configs specific to 'manwe'
-        david = davidNixos // {
-          # Host-specific overrides/additions for david on manwe
+      stateVersion = "21.05";
+    };
+    manweUserConfig = pkgs: {
+      david =
+        (davidNixos pkgs)
+        // {
           sway.enable = false;
-          hyprland.enable = true; # Explicitly false or omit if default is false
-          # Host-specific packages for david on manwe
-          packages = davidNixos.packages ++ (with overlaidPkgs; [
-            slack
-            unstablePkgs.spotify
-            (unstablePkgs.google-cloud-sdk.withExtraComponents [
-              unstablePkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
-            ])
-            unstablePkgs.vscode
-            # Cursor.ai
-            cursor-appimage
-            unstablePkgs.antigravity
-            unstablePkgs.synology-drive-client
-            unstablePkgs.ledger-live-desktop
-            unstablePkgs.avizo
-            awscli2
-          ]);
+          hyprland.enable = true;
+          packages = pkgs:
+            (davidNixos pkgs).packages pkgs
+            ++ (with pkgs; [
+              pkgs.local.slack
+              pkgs.unstable.spotify
+              pkgs.unstable.vscode
+              # Cursor.ai
+              pkgs.local.cursor-appimage
+              pkgs.unstable.antigravity
+              pkgs.unstable.synology-drive-client
+              pkgs.unstable.ledger-live-desktop
+              pkgs.unstable.avizo
+              awscli2
+            ]);
         };
-        root = rootCommon;
-      };
-      stateVersion = "21.05"; # System state version
+      root = rootCommon;
     };
 
-    morgothConfig = {
-      user = "david.de.sousa";
-      homeManagerUsers = {
-        "david.de.sousa" = davidDarwin;
-      };
+    morgothSystemConfig = {
+      # Darwin system config if any
+      stateVersion = "25.11";
+      aerospace.enable = true;
     };
 
+    morgothUserConfig = pkgs: {
+      "david.de.sousa" =
+        (davidDarwin pkgs)
+        // {
+          home.homeDirectory = "/Users/david.de.sousa";
+          home.stateVersion = "25.11";
+
+          git =
+            (davidDarwin pkgs).git
+            // {
+              includes = [
+                {
+                  path = "~/Develop/Carv/.gitconfig";
+                  condition = "gitdir:~/Develop/Carv/";
+                }
+              ];
+            };
+
+          zsh =
+            (davidDarwin pkgs).zsh
+            // {
+              initContent = ''
+                eval "$(/opt/homebrew/bin/brew shellenv)"
+                eval "$(docker completion zsh)"
+              '';
+            };
+
+          packages = pkgs:
+            (davidDarwin pkgs).packages pkgs
+            ++ (with pkgs; [
+              pkgs.unstable.claude-code
+            ]);
+        };
+    };
   in {
     nixosConfigurations = {
       manwe = nixosHost.mkHost {
         name = "manwe";
-        # Pass the unified config instead of separate ones
-        config = manweConfig;
+        system = "x86_64-linux";
+        systemConfig = manweSystemConfig;
+        userConfigFn = manweUserConfig;
       };
       # Example for a future host:
       # tower = host.mkHost {
@@ -315,7 +372,10 @@
     darwinConfigurations = {
       morgoth = darwinHost.mkDarwinHost {
         name = "morgoth";
-        config = morgothConfig;
+        system = "aarch64-darwin";
+        user = "david.de.sousa";
+        systemConfig = morgothSystemConfig;
+        userConfigFn = morgothUserConfig;
       };
     };
   };

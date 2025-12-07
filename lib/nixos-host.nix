@@ -1,20 +1,22 @@
-attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPkgs, hyprland, fw-fanctrl, ... }: {
-  mkHost = { name, config }:
+attrs@{ nixos-hardware, nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, fw-fanctrl, ... }: {
+  mkHost = { name, system, systemConfig, userConfigFn }:
     let
+      pkgs = mkPkgs system;
+      userConfig = userConfigFn pkgs;
       # Helper to check if any user in the HM config enables a specific module
-      anyUserEnables = moduleName: hostConfig:
-        builtins.any (userCfg: userCfg.${moduleName}.enable or false) (builtins.attrValues (hostConfig.homeManagerUsers or {}));
+      anyUserEnables = moduleName:
+        builtins.any (userCfg: userCfg.${moduleName}.enable or false) (builtins.attrValues userConfig);
 
-      anySway = anyUserEnables "sway" config;
-      anyHyprland = anyUserEnables "hyprland" config;
+      anySway = anyUserEnables "sway";
+      anyHyprland = anyUserEnables "hyprland";
 
     in
     lib.nixosSystem {
-      inherit system;
+      # inherit system; # System is set via nixpkgs.pkgs
 
       specialArgs = attrs // {
-        hc = config.homeManagerUsers or {};
-        hostSystemConfig = config.systemAttrs or {};
+        hc = userConfig;
+        hostSystemConfig = systemConfig;
         # Pass the original values down
         inherit anySway anyHyprland;
       };
@@ -22,9 +24,13 @@ attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPk
       modules = [
         (import ../modules/nixos attrs)
         home-manager.nixosModules.home-manager
+        ({ modulesPath, ... }: {
+          imports = [ (modulesPath + "/misc/nixpkgs/read-only.nix") ];
+          nixpkgs.pkgs = pkgs;
+        })
         {
-          dedsm = config.systemAttrs or {};
-          users.users = config.systemUsers or {};
+          dedsm = builtins.removeAttrs systemConfig [ "stateVersion" "systemUsers" ];
+          users.users = systemConfig.systemUsers or {};
           networking.hostName = name;
           nix.settings = {
             substituters = [ "https://hyprland.cachix.org" ];
@@ -36,7 +42,7 @@ attrs@{ system, nixos-hardware, nixpkgs, unstable, home-manager, lib, overlaidPk
             nixpkgs.flake = nixpkgs;
             unstable.flake = unstable;
           };
-          system.stateVersion = config.stateVersion;
+          system.stateVersion = systemConfig.stateVersion;
 
           # Define assertions using the standard mechanism
           assertions = [

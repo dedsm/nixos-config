@@ -1,3 +1,3 @@
-{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }:
+{ lib, homeManagerConfig, pkgs, ... }:
 with lib;
-mkIf homeManagerConfig.git.enable { programs.git = homeManagerConfig.git; }
+mkIf (homeManagerConfig.git.enable or false) { programs.git = homeManagerConfig.git; }

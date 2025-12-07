@@ -4,3 +4,4 @@ result
 .cursorindexingignore
 # SpecStory explanation file
 .specstory/.what-is-this.md
+modules/common/users/common/.DS_Store

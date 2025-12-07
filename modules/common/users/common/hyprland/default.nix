@@ -3,13 +3,13 @@
   config,
   hyprland,
   homeManagerConfig,
-  unstablePkgs,
-  overlaidPkgs,
+
+
   pkgs,
   ...
 }:
 with lib;
-  mkIf homeManagerConfig.hyprland.enable {
+  mkIf (homeManagerConfig.hyprland.enable or false) {
     # UWSM-specific environment file for Hyprland
     xdg.configFile."uwsm/env-hyprland".text = ''
       # Wayland toolkit backend variables
@@ -38,7 +38,7 @@ with lib;
           "uwsm app -- solaar -w hide"
           "uwsm app -- wl-paste -t text --watch clipman store --no-persist"
           "uwsm app -- ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
-          "uwsm app -- sh -c 'sleep 5 && ${unstablePkgs.synology-drive-client}/bin/synology-drive'"
+          "uwsm app -- sh -c 'sleep 5 && ${pkgs.unstable.synology-drive-client}/bin/synology-drive'"
           "uwsm app -- ${pkgs.kdePackages.kwallet-pam}/libexec/pam_kwallet_init"
         ];
         misc = {

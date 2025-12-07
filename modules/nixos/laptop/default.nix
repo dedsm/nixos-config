@@ -14,10 +14,10 @@ in {
 
   config = mkIf cfg.enable {
     # Hibernation rules
-    services.logind = {
-      lidSwitch = "suspend-then-hibernate";
-      lidSwitchDocked = "ignore";
-      lidSwitchExternalPower = "suspend";
+    services.logind.settings.Login = {
+      HandleLidSwitch = "suspend-then-hibernate";
+      HandleLidSwitchDocked = "ignore";
+      HandleLidSwitchExternalPower = "suspend";
     };
     systemd.sleep.extraConfig = "HibernateDelaySec=1800";
 
@@ -30,7 +30,6 @@ in {
     hardware.amdgpu = {
       initrd.enable = true;
       opencl.enable = true;
-      amdvlk.enable = true;
     };
   };
 }

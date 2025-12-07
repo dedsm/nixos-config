@@ -1,6 +1,6 @@
 { lib, homeManagerConfig, ... }:
 with lib;
-mkIf homeManagerConfig.tmux.enable {
+mkIf (homeManagerConfig.tmux.enable or false) {
   programs.tmux = {
     enable = true;
     baseIndex = 1;

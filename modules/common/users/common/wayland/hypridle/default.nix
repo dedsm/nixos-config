@@ -1,4 +1,4 @@
-attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
+attrs@{ lib, homeManagerConfig, pkgs, ... }: {
   services.hypridle = {
     enable = true;
     settings = {

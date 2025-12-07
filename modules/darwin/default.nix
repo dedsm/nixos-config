@@ -1,17 +1,105 @@
-{ pkgs, ... }: {
+{
+  pkgs,
+  user,
+  ...
+}: {
   imports = [
     # Add darwin specific modules here
+    ./aerospace
   ];
+
+  nix.optimise.automatic = true;
+
+  nix.settings = {
+    experimental-features = [ "nix-command" "flakes" ];
+  };
+
+  homebrew = {
+    enable = true;
+    global = {
+      autoUpdate = false;
+    };
+    onActivation = {
+      cleanup = "zap";
+      autoUpdate = false;
+      upgrade = false;
+    };
+    casks = [
+      "middleclick"
+    ];
+  };
 
   # Basic Darwin defaults
   system.defaults = {
-    dock.autohide = true;
-    finder.AppleShowAllExtensions = true;
-    NSGlobalDomain.AppleShowAllExtensions = true;
+    dock = {
+      autohide = true;
+      expose-group-apps = true;
+    };
+    screencapture = {
+      location = "~/Downloads/";
+    };
+    spaces = {
+      spans-displays = false;
+    };
+    finder = {
+      AppleShowAllExtensions = true;
+      CreateDesktop = false;
+    };
+    NSGlobalDomain = {
+      AppleShowAllExtensions = true;
+      AppleInterfaceStyleSwitchesAutomatically = true;
+      AppleScrollerPagingBehavior = true;
+      KeyRepeat = 4;
+      "com.apple.keyboard.fnState" = true;
+      "com.apple.trackpad.scaling" = 2.0;
+      "com.apple.sound.beep.feedback" = 0;
+    };
+
+    WindowManager = {
+      HideDesktop = true;
+      StandardHideDesktopIcons = true;
+    };
+
+    trackpad = {
+      TrackpadRightClick = true;
+      Clicking = true;
+      TrackpadThreeFingerDrag = false;
+      TrackpadThreeFingerTapGesture = 2;
+    };
+
+    controlcenter = {
+      BatteryShowPercentage = true;
+      Bluetooth = true;
+      Sound = true;
+    };
   };
 
+  system.startup.chime = false;
+
+  system.primaryUser = user;
+
   programs.zsh.enable = true;
-  
-  # Auto upgrade nix package and the daemon service.
-  services.nix-daemon.enable = true;
+
+  programs.gnupg.agent = {
+    enable = true;
+    enableSSHSupport = true;
+  };
+
+  # this is broken now so manually installing for now
+  # services.karabiner-elements = {
+  #   enable = true;
+  # };
+
+  services.jankyborders = {
+    enable = true;
+    inactive_color = "0xffab387";
+    active_color = "0xff1e1e2e";
+    width = 2.0;
+  };
+
+  security.pam.services.sudo_local = {
+    enable = true;
+    touchIdAuth = true;
+    reattach = true;
+  };
 }

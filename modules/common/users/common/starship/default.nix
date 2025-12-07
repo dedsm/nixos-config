@@ -1,6 +1,6 @@
 { lib, homeManagerConfig, ... }:
 with lib;
-mkIf homeManagerConfig.starship.enable {
+mkIf (homeManagerConfig.starship.enable or false) {
   programs.starship = {
     enable = true;
     enableZshIntegration = true;

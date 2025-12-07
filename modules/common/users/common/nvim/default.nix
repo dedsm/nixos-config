@@ -1,12 +1,12 @@
 {
   lib,
   homeManagerConfig,
-  unstablePkgs,
+
   pkgs,
   ...
 }:
 with lib;
-  mkIf homeManagerConfig.nvim.enable {
+  mkIf (homeManagerConfig.nvim.enable or false) {
     xdg.configFile.nvim = {
       recursive = true;
       source = ./config;
@@ -22,12 +22,12 @@ with lib;
       defaultEditor = true;
       package = pkgs.neovim-unwrapped;
       extraPackages = with pkgs; [
-        lua-language-server
+        pkgs.unstable.lua-language-server
         # Nix Language server
         nil
 
         # HTML, CSS, JSON
-        unstablePkgs.vscode-langservers-extracted
+        pkgs.unstable.vscode-langservers-extracted
 
         # LazyVim defaults
         stylua
@@ -38,7 +38,8 @@ with lib;
         marksman
 
         # Docker extra
-        nodePackages.dockerfile-language-server-nodejs
+        pkgs.unstable.nodePackages.typescript-language-server
+        pkgs.dockerfile-language-server
         hadolint
         docker-compose-language-service
 
@@ -51,7 +52,7 @@ with lib;
       #    extraLuaPackages = ps: [
       #      ps.tiktoken_core
       #    ];
-      plugins = with unstablePkgs.vimPlugins; [
+      plugins = with pkgs.unstable.vimPlugins; [
         vim-sleuth
         gitsigns-nvim
         which-key-nvim
@@ -73,6 +74,7 @@ with lib;
         telescope-nvim
         telescope-fzf-native-nvim
         telescope-ui-select-nvim
+        pkgs.unstable.nixfmt-rfc-style
         nvim-web-devicons
 
         # Colorscheme
@@ -80,12 +82,12 @@ with lib;
         catppuccin-nvim
         (pkgs.vimUtils.buildVimPlugin {
           pname = "solarized-nvim";
-          version = "3.4.0";
+          version = "3.6.0";
           src = pkgs.fetchFromGitHub {
             owner = "maxmx03";
             repo = "solarized.nvim";
-            rev = "a6383a31a1326acbf43d7144035b59de5e1a9d1f";
-            sha256 = "sha256-beSloeMBXuEIMBobjWgVWGUnjjiu23MZ9hZEZh97/1E=";
+            rev = "v3.6.0";
+            sha256 = "sha256-fNytlDlYHqX1W1pqt8xLoud+AtMQDlmtUkbwZArj4bs=";
           };
           meta.homepage = "https://github.com/maxmx03/solarized.nvim/";
         })
@@ -119,9 +121,6 @@ with lib;
 
         # open files at last edit position
         vim-lastplace
-
-        # markdown goodies
-        render-markdown-nvim
       ];
     };
   }

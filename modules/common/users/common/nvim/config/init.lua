@@ -26,7 +26,7 @@ vim.opt.swapfile = false
 
 -- Undo
 
-vim.opt.undodir = "/home/david/.local/share/nvim/undodir"
+vim.opt.undodir = vim.fn.stdpath("data") .. "/undodir"
 vim.opt.undofile = true
 vim.opt.undolevels = 1000
 vim.opt.undoreload = 10000
@@ -65,5 +65,3 @@ require("config.diagnostics")
 
 require("config.lsp")
 require("config.cmp")
-
-require("config.markdown")

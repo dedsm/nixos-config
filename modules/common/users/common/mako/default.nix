@@ -1,9 +1,9 @@
-{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }:
+{ lib, homeManagerConfig, pkgs, ... }:
 with lib;
-mkIf homeManagerConfig.mako.enable {
+mkIf (homeManagerConfig.mako.enable or false) {
   services.mako = {
     enable = true;
-    package = unstablePkgs.mako;
+    package = pkgs.unstable.mako;
     settings = {
       default-timeout = 5000;
       "mode=do-not-disturb" = {

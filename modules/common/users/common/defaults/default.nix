@@ -1,5 +1,5 @@
-attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }:
+attrs@{ lib, homeManagerConfig, pkgs, ... }:
 let
   common = import ./common attrs;
 in with lib;
-mkIf homeManagerConfig.defaults.enable (mkMerge [ common ])
+mkIf (homeManagerConfig.defaults.enable or false) (mkMerge [ common ])
