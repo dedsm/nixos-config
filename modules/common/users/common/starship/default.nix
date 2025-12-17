@@ -1,4 +1,4 @@
-{ lib, homeManagerConfig, ... }:
+{ lib, pkgs, homeManagerConfig, ... }:
 with lib;
 mkIf (homeManagerConfig.starship.enable or false) {
   programs.starship = {
@@ -55,7 +55,9 @@ mkIf (homeManagerConfig.starship.enable or false) {
         style = "yellow bold";
         show_milliseconds = true;
         disabled = false;
-        show_notifications = true;
+        # Notifications cause shell to hang on macOS after long-running commands
+        # https://github.com/starship/starship/issues/7128
+        show_notifications = !pkgs.stdenv.isDarwin;
         min_time_to_notify = 45000;
       };
 
