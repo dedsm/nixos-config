@@ -65,3 +65,4 @@ require("config.diagnostics")
 
 require("config.lsp")
 require("config.cmp")
+require("config.claude-code")

@@ -101,9 +101,11 @@ in {
 
            # --- App Launching (Hyprland Equivalents) ---
            "alt-shift-w" = "exec-and-forget open -a Firefox";
+           "alt-shift-f" = "exec-and-forget open -a 'Google Chrome'";
            "alt-shift-s" = "exec-and-forget open -a Slack";
            "alt-shift-p" = "exec-and-forget open -a Finder";
            "alt-shift-c" = "exec-and-forget open -a Calculator";
+           "cmd-alt-ctrl-p" = "exec-and-forget osascript -e 'tell application \"System Events\" to keystroke \" \" using {command down}'";
 
           # --- Monitor Focus & Movement ---
           "cmd-alt-ctrl-w" = "focus-monitor 1";

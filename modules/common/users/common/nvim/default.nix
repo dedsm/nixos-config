@@ -121,6 +121,9 @@ with lib;
 
         # open files at last edit position
         vim-lastplace
+
+        # Claude Code integration
+        pkgs.unstable.vimPlugins.claude-code-nvim
       ];
     };
   }
