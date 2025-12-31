@@ -24,6 +24,9 @@
       autoUpdate = false;
       upgrade = false;
     };
+    brews = [
+      "cormacrelf/tap/dark-notify"
+    ];
     casks = [
       "middleclick"
     ];

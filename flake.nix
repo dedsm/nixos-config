@@ -157,6 +157,7 @@
           stern
           p7zip
           sops
+          google-cloud-sdk
           docker-credential-gcr
           amazon-ecr-credential-helper
           jq

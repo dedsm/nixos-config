@@ -5,6 +5,9 @@
   pkgs,
   ...
 }:
+let
+  isDarwin = pkgs.stdenv.isDarwin;
+in
 with lib;
   mkIf (homeManagerConfig.nvim.enable or false) {
     xdg.configFile.nvim = {
@@ -124,6 +127,19 @@ with lib;
 
         # Claude Code integration
         pkgs.unstable.vimPlugins.claude-code-nvim
+      ] ++ lib.optionals isDarwin [
+        # dark-notify neovim plugin (uses dark-notify binary from homebrew)
+        (pkgs.vimUtils.buildVimPlugin {
+          pname = "dark-notify";
+          version = "0.1.3";
+          src = pkgs.fetchFromGitHub {
+            owner = "cormacrelf";
+            repo = "dark-notify";
+            rev = "v0.1.3";
+            sha256 = "sha256-TZuuXeolzx3kby2qO9e/FTf+1g39gKk9NzXQxmjN/UA=";
+          };
+          meta.homepage = "https://github.com/cormacrelf/dark-notify";
+        })
       ];
     };
   }
