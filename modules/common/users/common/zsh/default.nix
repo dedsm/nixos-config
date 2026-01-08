@@ -1,4 +1,4 @@
-{ lib, homeManagerConfig, ... }:
+{ lib, pkgs, homeManagerConfig, ... }:
 with lib;
 mkIf (homeManagerConfig.zsh.enable or false) {
   programs.zsh = {
@@ -8,6 +8,13 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       enable = true;
     };
     enableVteIntegration = true;
+    plugins = [
+      {
+        name = "zsh-completion-sync";
+        src = pkgs.zsh-completion-sync;
+        file = "share/zsh-completion-sync/zsh-completion-sync.plugin.zsh";
+      }
+    ];
     oh-my-zsh = {
       enable = true;
       plugins = [
@@ -30,6 +37,9 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       size = 100000;
     };
     initContent = ''
+      # Enable PATH-based discovery for nix-shell compatibility
+      zstyle ':completion-sync:path' enabled true
+
       ${homeManagerConfig.zsh.initContent or ""}
       any-nix-shell zsh --info-right | source /dev/stdin
       ${if (homeManagerConfig.zoxide.enable or false) then ''
