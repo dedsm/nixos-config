@@ -223,7 +223,7 @@ in {
       environment.systemPackages = with pkgs; [
         git
         any-nix-shell
-        nixfmt-rfc-style
+        nixfmt
         qt5.qtwayland
         plasma5Packages.kwallet
         kdePackages.kwallet-pam

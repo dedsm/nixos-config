@@ -77,7 +77,7 @@ with lib;
         telescope-nvim
         telescope-fzf-native-nvim
         telescope-ui-select-nvim
-        pkgs.unstable.nixfmt-rfc-style
+        pkgs.unstable.nixfmt
         nvim-web-devicons
 
         # Colorscheme
