@@ -51,6 +51,9 @@ with lib;
 
         # Nix formatter
         alejandra
+
+        # Tree-sitter CLI for nvim-treesitter
+        tree-sitter
       ];
       #    extraLuaPackages = ps: [
       #      ps.tiktoken_core
@@ -111,7 +114,7 @@ with lib;
         mini-nvim
 
         # Syntax coloring
-        nvim-treesitter.withAllGrammars
+        pkgs.unstable.vimPlugins.nvim-treesitter.withAllGrammars
 
         # LSP
         nvim-lspconfig
