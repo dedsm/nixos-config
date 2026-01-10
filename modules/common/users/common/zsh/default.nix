@@ -57,7 +57,7 @@ mkIf (homeManagerConfig.zsh.enable or false) {
             __zoxide_cd "$2"
           else
             \builtin local result
-            result="$(\command zoxide query --list | fzf --filter="$*" | head -n1)"
+            result="$(\command zoxide query --list --exclude "$(__zoxide_pwd)" | fzf --filter="$*" --no-sort | head -n1)"
             if [[ -n "$result" ]]; then
               __zoxide_cd "$result"
             fi
