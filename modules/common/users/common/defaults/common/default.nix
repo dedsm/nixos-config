@@ -33,9 +33,8 @@ attrs @ {
 
         mouse = {hide-when-typing = "yes";};
 
-        cursor = {color = "fdf6e3 586e75";};
-
         colors = {
+          cursor = "fdf6e3 586e75";
           background = "fdf6e3";
           foreground = "657b83";
           regular0 = "eee8d5";
