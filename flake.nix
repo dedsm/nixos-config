@@ -53,7 +53,7 @@
       overlay = final: prev: {
         unstable = unstablePkgs;
         unfree = unfreePkgs;
-        local = localpkgs final unfreePkgs;
+        local = localpkgs final prev;
       };
     in
       import nixpkgs {
@@ -299,7 +299,7 @@
               # Cursor.ai
               pkgs.local.cursor-appimage
               pkgs.unstable.antigravity
-              pkgs.local.synology-drive-client
+              pkgs.unstable.synology-drive-client
               pkgs.unstable.ledger-live-desktop
               pkgs.unstable.avizo
               awscli2

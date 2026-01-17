@@ -8,6 +8,4 @@ in
   cursor-appimage = super.callPackage ./cursor-appimage { };
 
   slack = super.callPackage ./slack { slack = unstablePkgs.slack; };
-
-  synology-drive-client = super.callPackage ./synology-drive-client { };
 }
