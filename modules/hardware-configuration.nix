@@ -36,7 +36,12 @@
   #     makeFlags = (old.makeFlags or []) ++ [ "INSTALL_NO_TRANSLATIONS=1" ];
   #   });
   # });
-  boot.kernelParams = [ "amdgpu.abmlevel=0" "amdgpu.gttsize=102400" ];
+  boot.kernelParams = [
+    "amdgpu.abmlevel=0"
+    "amdgpu.gttsize=102400"
+    "amdgpu.sg_display=0" # Fix black screen on resume
+    # "amdgpu.dcdebugmask=0x10" # Disable PSR, use if experiencing screen stutter or flicker
+  ];
 
   boot.kernelModules = [ ];
   boot.extraModulePackages = [];
