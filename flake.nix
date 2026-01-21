@@ -166,8 +166,6 @@
           krew
           nodePackages.prettier
           pandoc
-          # Snyk
-          snyk
         ];
     };
 

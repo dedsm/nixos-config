@@ -27,7 +27,7 @@ with lib;
       extraPackages = with pkgs; [
         pkgs.unstable.lua-language-server
         # Nix Language server
-        nil
+        # nil
 
         # HTML, CSS, JSON
         pkgs.unstable.vscode-langservers-extracted
@@ -41,7 +41,7 @@ with lib;
         marksman
 
         # Docker extra
-        pkgs.unstable.nodePackages.typescript-language-server
+        nodePackages.typescript-language-server
         pkgs.dockerfile-language-server
         hadolint
         docker-compose-language-service
