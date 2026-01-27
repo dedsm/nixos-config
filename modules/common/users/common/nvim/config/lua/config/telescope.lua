@@ -26,18 +26,6 @@ require('telescope').setup {
   -- You can put your default mappings / updates / etc. in here
   --  All the info you're looking for is in `:help telescope.setup()`
   --
-  defaults = {
-    vimgrep_arguments = {
-      'rg',
-      '--color=never',
-      '--no-heading',
-      '--with-filename',
-      '--line-number',
-      '--column',
-      '--smart-case',
-      '--hidden',
-    },
-  },
   pickers = {
     find_files = {
       find_command = { 'rg', '--files', '--hidden', '--glob', '!.git' },
