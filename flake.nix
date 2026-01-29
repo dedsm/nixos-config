@@ -245,6 +245,7 @@
             gnupg
             pkgs.unstable.antigravity
             any-nix-shell
+            terminal-notifier
           ]);
       };
 
