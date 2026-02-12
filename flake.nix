@@ -36,11 +36,22 @@
     lib = nixpkgs.lib;
 
     mkPkgs = system: let
+      claudeCodeOverlay = final: prev: {
+        claude-code = prev.claude-code.overrideAttrs (old: rec {
+          version = "2.1.39";
+          src = prev.fetchzip {
+            url = "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${version}.tgz";
+            hash = "sha256-NLLiaJkU91ZnEcQUWIAX9oUTt+C5fnWXFFPelTtWmdo=";
+          };
+          npmDepsHash = "sha256-VWw1bYkFch95JDlOwKoTAQYOr8R80ICJ8QUI4E64W7o=";
+        });
+      };
       unstablePkgs = import unstable {
         inherit system;
         config = {
           allowUnfree = true;
         };
+        overlays = [claudeCodeOverlay];
       };
       unfreePkgs = import nixpkgs {
         inherit system;
@@ -157,7 +168,7 @@
           stern
           p7zip
           sops
-          google-cloud-sdk
+          pkgs.unstable.google-cloud-sdk
           docker-credential-gcr
           amazon-ecr-credential-helper
           jq

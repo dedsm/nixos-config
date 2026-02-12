@@ -29,10 +29,19 @@ let
     '';
   };
 
-  # Path to solarized theme files from the plugin
+  # Solarized themes with custom pane styling overlays
   solarizedPlugin = pkgs.tmuxPlugins.tmux-colors-solarized;
-  solarizedLightTheme = "${solarizedPlugin}/share/tmux-plugins/tmuxcolors/tmuxcolors-light.conf";
-  solarizedDarkTheme = "${solarizedPlugin}/share/tmux-plugins/tmuxcolors/tmuxcolors-dark.conf";
+  solarizedBaseLightTheme = "${solarizedPlugin}/share/tmux-plugins/tmuxcolors/tmuxcolors-light.conf";
+  solarizedBaseDarkTheme = "${solarizedPlugin}/share/tmux-plugins/tmuxcolors/tmuxcolors-dark.conf";
+
+  solarizedLightTheme = pkgs.writeText "solarized-light-combined.conf" ''
+    source-file ${solarizedBaseLightTheme}
+    source-file ${./solarized-light-custom.conf}
+  '';
+  solarizedDarkTheme = pkgs.writeText "solarized-dark-combined.conf" ''
+    source-file ${solarizedBaseDarkTheme}
+    source-file ${./solarized-dark-custom.conf}
+  '';
 
   # Base plugins for all systems
   basePlugins = with pkgs.tmuxPlugins; [

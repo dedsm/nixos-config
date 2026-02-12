@@ -5,7 +5,7 @@ mkIf (homeManagerConfig.direnv.enable or false) {
     enable = true;
     enableZshIntegration = true;
     nix-direnv.enable = true;
-    stdlib = builtins.readFile ./direnvrc;
+    #stdlib = builtins.readFile ./direnvrc;
     config = {global = {warn_timeout = "3000h";};};
   };
 }
