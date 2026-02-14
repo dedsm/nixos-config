@@ -45,7 +45,6 @@ let
 
   # Base plugins for all systems
   basePlugins = with pkgs.tmuxPlugins; [
-    tmux-colors-solarized
     vim-tmux-navigator
   ];
 
@@ -78,7 +77,7 @@ let
       "source-file ~/.local/state/tmux/tmux-dark-notify-theme.conf"
   '' else ''
     # Default to solarized light on non-Darwin systems
-    set -g @colors-solarized 'light'
+    source-file ${solarizedLightTheme}
   '';
 in
 with lib;

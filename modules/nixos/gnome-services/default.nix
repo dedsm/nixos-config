@@ -14,6 +14,19 @@ in {
 
     systemd.packages = with pkgs; [ gnome-session ];
     services.gvfs.enable = true;
+    services.avahi.enable = true;
+    services.geoclue2 = {
+      enable = true;
+      enableDemoAgent = true;
+      enableWifi = true;
+      geoProviderUrl = "https://api.beacondb.net/v1/geolocate";
+      whitelistedAgents = [ "darkman" ];
+      appConfig.darkman = {
+        isAllowed = true;
+        isSystem = true;
+      };
+    };
+    services.automatic-timezoned.enable = true;
 
     services.gnome = {
       gnome-keyring = { enable = true; };

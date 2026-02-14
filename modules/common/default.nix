@@ -2,7 +2,10 @@ attrs@{ config, pkgs, lib, hc, ... }:
 let
   mkHomeManager = k: v:
     let
-      homeAttrs = attrs // { homeManagerConfig = v; };
+      homeAttrs = attrs // { 
+        homeManagerConfig = v;
+        username = k;
+      };
       commonModule = import ./users/common homeAttrs;
     in {
       home-manager.users.${k} = lib.mkMerge [

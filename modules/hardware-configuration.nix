@@ -39,10 +39,10 @@
   boot.kernelParams = [
     "amdgpu.abmlevel=0"
     "amdgpu.gttsize=102400"
-    "amdgpu.sg_display=0" # Fix black screen on resume
+    # "amdgpu.sg_display=0" # Fix black screen on resume
     # Fix mes_kiq timeout/GPU hang on resume: https://github.com/ROCm/ROCm/issues/5724
-    "amdgpu.cwsr_enable=0"
-    # "amdgpu.dcdebugmask=0x10" # Disable PSR, use if experiencing screen stutter or flicker
+    # "amdgpu.cwsr_enable=0"
+    "amdgpu.dcdebugmask=0x10" # Disable PSR, use if experiencing screen stutter or flicker
   ];
 
   boot.kernelModules = [ ];

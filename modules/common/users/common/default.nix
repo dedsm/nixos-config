@@ -19,6 +19,7 @@ let
   ssh = import ./ssh attrs;
   ghostty = import ./ghostty attrs;
   sketchybar = import ./sketchybar attrs;
+  theme = import ./theme attrs;
 
   defaults = import ./defaults attrs;
 in lib.mkMerge [
@@ -41,6 +42,7 @@ in lib.mkMerge [
   ssh
   ghostty
   sketchybar
+  theme
 
   defaults
 ]

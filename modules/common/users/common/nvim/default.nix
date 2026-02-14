@@ -130,8 +130,8 @@ with lib;
 
         # Claude Code integration
         pkgs.unstable.vimPlugins.claude-code-nvim
-      ] ++ lib.optionals isDarwin [
-        # dark-notify neovim plugin (uses dark-notify binary from homebrew)
+
+        # dark-notify neovim plugin (uses dark-notify binary on macOS, darkman on Linux)
         (pkgs.vimUtils.buildVimPlugin {
           pname = "dark-notify";
           version = "0.1.3";

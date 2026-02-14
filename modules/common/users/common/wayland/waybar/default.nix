@@ -31,7 +31,6 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         #clock.1,
         #clock.2,
         #clock.3,
-        #clock.toronto,
         #pulseaudio,
         #memory,
         #cpu,
@@ -42,6 +41,11 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         #idle_inhibitor,
         #tray {
             background: #1a1a1a;
+        }
+
+        #custom-home-clock.traveling {
+            background: #1a1a1a;
+            padding: 0 10px;
         }
 
         #workspaces button {
@@ -118,7 +122,7 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             "custom/left-arrow-light"
             "custom/left-arrow-dark"
             "clock#2"
-            "clock#toronto"
+            "custom/home-clock"
             "custom/right-arrow-dark"
             "custom/right-arrow-light"
             "clock#3"
@@ -197,10 +201,24 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             tooltip = false;
             interval = 1;
           };
-          "clock#toronto" = {
-            format = "CA: {:%H:%M}";
+          "custom/home-clock" = let
+            homeTZ = "Europe/Amsterdam";
+            homeClockScript = pkgs.writeShellScript "home-clock" ''
+              current_tz=$(${pkgs.coreutils}/bin/readlink /etc/localtime | ${pkgs.gnused}/bin/sed 's|.*zoneinfo/||')
+              if [ "$current_tz" != "${homeTZ}" ]; then
+                # If NOT in Amsterdam, show Amsterdam time
+                time=$(TZ="${homeTZ}" ${pkgs.coreutils}/bin/date +"%H:%M")
+                echo "{\"text\": \"🏠 $time\", \"class\": \"traveling\"}"
+              else
+                # If IN Amsterdam, show nothing
+                echo "{\"text\": \"\", \"class\": \"home\"}"
+              fi
+            '';
+          in {
+            exec = "${homeClockScript}";
+            interval = 1;
+            return-type = "json";
             tooltip = false;
-            timezone = "America/Toronto";
           };
           "clock#3" = {
             format = "{:%m-%d}";

@@ -121,6 +121,7 @@
       wayland.enable = false;
       sway.enable = false;
       hyprland.enable = false;
+      theme.enable = true;
       defaults.enable = false;
       direnv.enable = true;
       fzf.enable = true;
@@ -272,6 +273,7 @@
       sway.enable = false;
       hyprland.enable = false;
       wayland.enable = false;
+      theme.enable = false;
       git.enable = false;
       starship.enable = true;
       defaults.enable = false;

@@ -22,7 +22,7 @@ in {
     i18n = { defaultLocale = cfg.defaultLocale; };
 
     time = {
-      timeZone = cfg.timeZone;
+      timeZone = mkIf (!config.services.automatic-timezoned.enable or false) cfg.timeZone;
       hardwareClockInLocalTime = false;
     };
 

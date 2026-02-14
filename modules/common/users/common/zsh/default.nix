@@ -37,6 +37,15 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       size = 100000;
     };
     initContent = ''
+      # If running in foot, ensure the correct theme is applied on startup
+      if [[ "$TERM" == "foot" ]]; then
+        if [[ "$(${pkgs.darkman}/bin/darkman get)" == "dark" ]]; then
+          kill -USR2 $PPID
+        else
+          kill -USR1 $PPID
+        fi
+      fi
+
       # Enable PATH-based discovery for nix-shell compatibility
       zstyle ':completion-sync:path' enabled true
 
