@@ -143,8 +143,6 @@ in {
           executable = true;
           text = ''
             #!/bin/bash
-            # Foot
-            ${pkgs.procps}/bin/pkill -x -USR2 foot || true
             # Tmux
             find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
               ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
@@ -155,8 +153,6 @@ in {
           executable = true;
           text = ''
             #!/bin/bash
-            # Foot
-            ${pkgs.procps}/bin/pkill -x -USR1 foot || true
             # Tmux
             find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
               ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
