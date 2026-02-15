@@ -87,6 +87,13 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             color: #b58900;
         }
 
+        #idle_inhibitor.activated {
+            color: #d33682;
+        }
+        #idle_inhibitor.deactivated {
+            color: #586e75;
+        }
+
         #custom-theme {
             color: #b58900; /* Yellow */
         }
@@ -187,8 +194,8 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
           idle_inhibitor = {
             format = "{icon}";
             format-icons = {
-              activated = "";
-              deactivated = "";
+              activated = "󰅶";
+              deactivated = "󰒲";
             };
           };
 
