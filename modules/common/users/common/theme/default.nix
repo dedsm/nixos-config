@@ -103,6 +103,10 @@ in {
           ${pkgs.procps}/bin/pkill -x -USR2 foot || true
         '';
         tmux-theme = ''
+          # Update symlink for initial startup
+          mkdir -p ~/.local/state/tmux
+          ln -sf ${solarizedDarkTheme} ~/.local/state/tmux/current-theme.conf
+
           # Find all tmux sockets for the current user and update them
           find /run/user/$(id -u) /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
             ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
@@ -123,6 +127,10 @@ in {
           ${pkgs.procps}/bin/pkill -x -USR1 foot || true
         '';
         tmux-theme = ''
+          # Update symlink for initial startup
+          mkdir -p ~/.local/state/tmux
+          ln -sf ${solarizedLightTheme} ~/.local/state/tmux/current-theme.conf
+
           # Find all tmux sockets for the current user and update them
           find /run/user/$(id -u) /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
             ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
@@ -138,11 +146,6 @@ in {
     # (The plugin handles this automatically if darkman is running)
     
     # We can also export these colors as environment variables or files if needed
-    home.sessionVariables = {
-      TMUX_SOLARIZED_DARK = "${solarizedDarkTheme}";
-      TMUX_SOLARIZED_LIGHT = "${solarizedLightTheme}";
-    };
-
     home.file = mkMerge [
       {
         ".colorscheme-palette".text = builtins.toJSON colors;
@@ -152,6 +155,10 @@ in {
           executable = true;
           text = ''
             #!/bin/bash
+            # Update symlink for initial startup
+            mkdir -p ~/.local/state/tmux
+            ln -sf ${solarizedDarkTheme} ~/.local/state/tmux/current-theme.conf
+
             # Tmux
             find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
               ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
@@ -162,6 +169,10 @@ in {
           executable = true;
           text = ''
             #!/bin/bash
+            # Update symlink for initial startup
+            mkdir -p ~/.local/state/tmux
+            ln -sf ${solarizedLightTheme} ~/.local/state/tmux/current-theme.conf
+
             # Tmux
             find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
               ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true

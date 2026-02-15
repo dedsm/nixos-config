@@ -54,8 +54,8 @@ let
       plugin = tmux-dark-notify;
       extraConfig = ''
         # tmux-dark-notify configuration (must be set before plugin loads)
-        set -g @dark-notify-theme-path-light "$TMUX_SOLARIZED_LIGHT"
-        set -g @dark-notify-theme-path-dark "$TMUX_SOLARIZED_DARK"
+        set -g @dark-notify-theme-path-light "~/.local/state/tmux/current-theme.conf"
+        set -g @dark-notify-theme-path-dark "~/.local/state/tmux/current-theme.conf"
       '';
     }
   ] else [];
@@ -76,10 +76,9 @@ let
     if-shell "test -e ~/.local/state/tmux/tmux-dark-notify-theme.conf" \
       "source-file ~/.local/state/tmux/tmux-dark-notify-theme.conf"
   '' else ''
-    # Check current theme on startup via unified theme-get script
-    if-shell '[ "$(theme-get)" = "dark" ]' \
-      'source-file "$TMUX_SOLARIZED_DARK"' \
-      'source-file "$TMUX_SOLARIZED_LIGHT"'
+    # Source the managed theme symlink (created/updated by theme scripts)
+    if-shell "test -e ~/.local/state/tmux/current-theme.conf" \
+      "source-file ~/.local/state/tmux/current-theme.conf"
   '';
 in
 with lib;
