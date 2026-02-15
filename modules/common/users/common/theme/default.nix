@@ -199,9 +199,15 @@ in {
     };
 
     # Initialize the tmux symlink on activation
-    home.activation.initTmuxTheme = ''
+    home.activation.initTmuxTheme = let
+      themeCheckCmd = if isLinux then 
+        ''$(${pkgs.darkman}/bin/darkman get 2>/dev/null)''
+      else 
+        ''$(defaults read -g AppleInterfaceStyle 2>/dev/null)'';
+      darkValue = if isLinux then "dark" else "Dark";
+    in ''
       $DRY_RUN_CMD mkdir -p $HOME/.local/state/tmux
-      if [[ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" == "Dark" ]] || [[ "$(${pkgs.darkman}/bin/darkman get 2>/dev/null)" == "dark" ]]; then
+      if [[ "${themeCheckCmd}" == "${darkValue}" ]]; then
         $DRY_RUN_CMD ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
       else
         $DRY_RUN_CMD ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
