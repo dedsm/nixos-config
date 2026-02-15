@@ -76,8 +76,8 @@ let
     if-shell "test -e ~/.local/state/tmux/tmux-dark-notify-theme.conf" \
       "source-file ~/.local/state/tmux/tmux-dark-notify-theme.conf"
   '' else ''
-    # Check current theme on startup via darkman
-    if-shell '[ "$(${pkgs.darkman}/bin/darkman get)" = "dark" ]' \
+    # Check current theme on startup via unified theme-get script
+    if-shell '[ "$(theme-get)" = "dark" ]' \
       'source-file ${solarizedDarkTheme}' \
       'source-file ${solarizedLightTheme}'
   '';

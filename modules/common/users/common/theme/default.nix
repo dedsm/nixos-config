@@ -61,6 +61,26 @@ in {
   };
 
   config = mkIf cfg.enable {
+    # Unified theme-get script
+    home.packages = [
+      (pkgs.writeShellScriptBin "theme-get" (if isLinux then ''
+        ${pkgs.darkman}/bin/darkman get
+      '' else ''
+        if defaults read -g AppleInterfaceStyle >/dev/null 2>&1; then
+          echo "dark"
+        else
+          echo "light"
+        fi
+      ''))
+
+      # Unified theme-toggle script
+      (pkgs.writeShellScriptBin "theme-toggle" (if isLinux then ''
+        ${pkgs.darkman}/bin/darkman toggle
+      '' else ''
+        osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to not dark mode'
+      ''))
+    ];
+
     # Linux-specific: Darkman for automation
     services.darkman = mkIf isLinux {
       enable = true;
@@ -114,6 +134,36 @@ in {
     # (The plugin handles this automatically if darkman is running)
     
     # We can also export these colors as environment variables or files if needed
-    home.file.".colorscheme-palette".text = builtins.toJSON colors;
+    home.file = mkMerge [
+      {
+        ".colorscheme-palette".text = builtins.toJSON colors;
+      }
+      (mkIf (!isLinux) {
+        ".local/bin/theme-apply-dark" = {
+          executable = true;
+          text = ''
+            #!/bin/bash
+            # Foot
+            ${pkgs.procps}/bin/pkill -x -USR2 foot || true
+            # Tmux
+            find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+              ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
+            done
+          '';
+        };
+        ".local/bin/theme-apply-light" = {
+          executable = true;
+          text = ''
+            #!/bin/bash
+            # Foot
+            ${pkgs.procps}/bin/pkill -x -USR1 foot || true
+            # Tmux
+            find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+              ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
+            done
+          '';
+        };
+      })
+    ];
   };
 }
