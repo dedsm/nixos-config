@@ -38,12 +38,12 @@ let
 
   # Custom tmux overlays (mirrored from tmux/default.nix)
   tmuxLightCustom = pkgs.writeText "solarized-light-custom.conf" ''
-    # set -g window-style 'bg=${colors.base2}'
-    # set -g window-active-style 'bg=${colors.base3}'
+    set -g window-style 'bg=${colors.base2}'
+    set -g window-active-style 'bg=${colors.base3}'
   '';
   tmuxDarkCustom = pkgs.writeText "solarized-dark-custom.conf" ''
-    # set -g window-style 'bg=${colors.base02}'
-    # set -g window-active-style 'bg=${colors.base03}'
+    set -g window-style 'bg=${colors.base02}'
+    set -g window-active-style 'bg=${colors.base03}'
   '';
 
   solarizedLightTheme = pkgs.writeText "solarized-light-combined.conf" ''
