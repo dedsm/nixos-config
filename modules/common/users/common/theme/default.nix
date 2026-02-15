@@ -41,11 +41,13 @@ let
     set -g window-style 'bg=${colors.base2}'
     set -g window-active-style 'bg=${colors.base3}'
     set -g status-style fg=${colors.base01},bg=${colors.base2}
+    set -g window-status-current-style fg=${colors.orange},bg=${colors.base3}
   '';
   tmuxDarkCustom = pkgs.writeText "solarized-dark-custom.conf" ''
     set -g window-style 'bg=${colors.base02}'
     set -g window-active-style 'bg=${colors.base03}'
     set -g status-style fg=${colors.base1},bg=${colors.base02}
+    set -g window-status-current-style fg=${colors.orange},bg=${colors.base03}
   '';
 
   solarizedLightTheme = pkgs.writeText "solarized-light-combined.conf" ''
