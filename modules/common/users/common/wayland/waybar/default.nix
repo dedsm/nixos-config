@@ -38,6 +38,7 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         #battery,
         #disk,
         #idle_inhibitor,
+        #custom-theme,
         #tray {
             background: #1a1a1a;
         }
@@ -84,6 +85,10 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         }
         #disk {
             color: #b58900;
+        }
+
+        #custom-theme {
+            color: #b58900; /* Yellow */
         }
 
         #clock,
@@ -142,6 +147,9 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             "custom/left-arrow-light"
             "custom/left-arrow-dark"
             "disk"
+            "custom/left-arrow-light"
+            "custom/left-arrow-dark"
+            "custom/theme"
             "custom/left-arrow-light"
             "custom/left-arrow-dark"
             "tray"
@@ -265,6 +273,18 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             path = "/";
           };
           tray = { icon-size = 16; };
+          "custom/theme" = {
+            exec = pkgs.writeShellScript "waybar-darkman" ''
+              if [[ "$(${pkgs.darkman}/bin/darkman get)" == "dark" ]]; then
+                echo "🌙"
+              else
+                echo "☀️"
+              fi
+            '';
+            interval = 5;
+            on-click = "${pkgs.darkman}/bin/darkman toggle";
+            tooltip = false;
+          };
         };
       };
     };
