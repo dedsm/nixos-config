@@ -70,7 +70,8 @@ in {
       (pkgs.writeShellScriptBin "theme-get" (if isLinux then ''
         ${pkgs.darkman}/bin/darkman get
       '' else ''
-        if defaults read -g AppleInterfaceStyle >/dev/null 2>&1; then
+        mode=$(defaults read -g AppleInterfaceStyle 2>/dev/null)
+        if [[ "$mode" == "Dark" ]]; then
           echo "dark"
         else
           echo "light"
@@ -201,7 +202,7 @@ in {
     # Initialize the tmux symlink on activation
     home.activation.initTmuxTheme = ''
       $DRY_RUN_CMD mkdir -p $HOME/.local/state/tmux
-      if ${if isLinux then "${pkgs.darkman}/bin/darkman get 2>/dev/null | grep -q dark" else "/usr/bin/defaults read -g AppleInterfaceStyle >/dev/null 2>&1"}; then
+      if ${if isLinux then "${pkgs.darkman}/bin/darkman get 2>/dev/null | grep -q dark" else ''[[ "$(/usr/bin/defaults read -g AppleInterfaceStyle 2>/dev/null)" == "Dark" ]]''}; then
         $DRY_RUN_CMD ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
       else
         $DRY_RUN_CMD ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
