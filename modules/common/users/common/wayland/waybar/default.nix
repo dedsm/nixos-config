@@ -91,7 +91,7 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             color: #d33682;
         }
         #idle_inhibitor.deactivated {
-            color: #586e75;
+            color: #fdf6e3;
         }
 
         #custom-theme {
