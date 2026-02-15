@@ -37,12 +37,14 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       size = 100000;
     };
     initContent = ''
-      # If running in foot, ensure the correct theme is applied on startup
-      if [[ "$TERM" == "foot" ]]; then
-        if [[ "$(${pkgs.darkman}/bin/darkman get)" == "dark" ]]; then
-          kill -USR2 $PPID
-        else
-          kill -USR1 $PPID
+      # If running in foot, ensure the correct theme is applied on startup (interactive only)
+      if [[ -o interactive ]] && [[ "$TERM" == "foot" ]]; then
+        if [[ "$(ps -p $PPID -o comm= 2>/dev/null | tr -d ' ')" == "foot" ]]; then
+          if [[ "$(${pkgs.darkman}/bin/darkman get)" == "dark" ]]; then
+            kill -USR2 $PPID
+          else
+            kill -USR1 $PPID
+          fi
         fi
       fi
 

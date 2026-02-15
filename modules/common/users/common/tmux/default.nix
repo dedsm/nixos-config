@@ -76,8 +76,10 @@ let
     if-shell "test -e ~/.local/state/tmux/tmux-dark-notify-theme.conf" \
       "source-file ~/.local/state/tmux/tmux-dark-notify-theme.conf"
   '' else ''
-    # Default to solarized light on non-Darwin systems
-    source-file ${solarizedLightTheme}
+    # Check current theme on startup via darkman
+    if-shell '[ "$(${pkgs.darkman}/bin/darkman get)" = "dark" ]' \
+      'source-file ${solarizedDarkTheme}' \
+      'source-file ${solarizedLightTheme}'
   '';
 in
 with lib;

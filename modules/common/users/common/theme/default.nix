@@ -38,12 +38,12 @@ let
 
   # Custom tmux overlays (mirrored from tmux/default.nix)
   tmuxLightCustom = pkgs.writeText "solarized-light-custom.conf" ''
-    set -g window-style 'bg=${colors.base2}'
-    set -g window-active-style 'bg=${colors.base3}'
+    # set -g window-style 'bg=${colors.base2}'
+    # set -g window-active-style 'bg=${colors.base3}'
   '';
   tmuxDarkCustom = pkgs.writeText "solarized-dark-custom.conf" ''
-    set -g window-style 'bg=${colors.base02}'
-    set -g window-active-style 'bg=${colors.base03}'
+    # set -g window-style 'bg=${colors.base02}'
+    # set -g window-active-style 'bg=${colors.base03}'
   '';
 
   solarizedLightTheme = pkgs.writeText "solarized-light-combined.conf" ''
@@ -76,10 +76,13 @@ in {
         '';
         foot-theme = ''
           # Signal SIGUSR2 to all foot instances to switch to [colors2] (dark)
-          ${pkgs.procps}/bin/pkill -USR2 foot || true
+          ${pkgs.procps}/bin/pkill -x -USR2 foot || true
         '';
         tmux-theme = ''
-          ${pkgs.tmux}/bin/tmux source-file ${solarizedDarkTheme} || true
+          # Find all tmux sockets for the current user and update them
+          find /run/user/$(id -u) /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+            ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
+          done
         '';
         hyprland-theme = mkIf homeManagerConfig.hyprland.enable ''
           ${pkgs.hyprland}/bin/hyprctl keyword general:col.active_border "0xff${builtins.substring 1 6 colors.blue}" || true
@@ -93,10 +96,13 @@ in {
         '';
         foot-theme = ''
           # Signal SIGUSR1 to all foot instances to switch to [colors] (light)
-          ${pkgs.procps}/bin/pkill -USR1 foot || true
+          ${pkgs.procps}/bin/pkill -x -USR1 foot || true
         '';
         tmux-theme = ''
-          ${pkgs.tmux}/bin/tmux source-file ${solarizedLightTheme} || true
+          # Find all tmux sockets for the current user and update them
+          find /run/user/$(id -u) /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+            ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
+          done
         '';
         hyprland-theme = mkIf homeManagerConfig.hyprland.enable ''
           ${pkgs.hyprland}/bin/hyprctl keyword general:col.active_border "0xff${builtins.substring 1 6 colors.red}" || true
