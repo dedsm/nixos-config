@@ -54,8 +54,8 @@ let
       plugin = tmux-dark-notify;
       extraConfig = ''
         # tmux-dark-notify configuration (must be set before plugin loads)
-        set -g @dark-notify-theme-path-light "~/.local/state/tmux/current-theme.conf"
-        set -g @dark-notify-theme-path-dark "~/.local/state/tmux/current-theme.conf"
+        set -g @dark-notify-theme-path-light "$HOME/.local/state/tmux/current-theme.conf"
+        set -g @dark-notify-theme-path-dark "$HOME/.local/state/tmux/current-theme.conf"
       '';
     }
   ] else [];
@@ -71,11 +71,7 @@ let
   '';
 
   # Theme configuration
-  themeConfig = if isDarwin then ''
-    # Fallback: source the theme symlink created by dark-notify (needed for initial load)
-    if-shell "test -e ~/.local/state/tmux/tmux-dark-notify-theme.conf" \
-      "source-file ~/.local/state/tmux/tmux-dark-notify-theme.conf"
-  '' else ''
+  themeConfig = ''
     # Source the managed theme symlink (created/updated by theme scripts)
     if-shell "test -e ~/.local/state/tmux/current-theme.conf" \
       "source-file ~/.local/state/tmux/current-theme.conf"

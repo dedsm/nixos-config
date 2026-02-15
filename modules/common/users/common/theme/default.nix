@@ -181,5 +181,31 @@ in {
         };
       })
     ];
+
+    # Launch dark-notify on Darwin
+    launchd.agents.dark-notify = mkIf (!isLinux) {
+      enable = true;
+      config = {
+        ProgramArguments = [
+          "${pkgs.unstable.dark-notify}/bin/dark-notify"
+          "-c"
+          "${homeDir}/.local/bin/theme-apply-dark"
+          "-l"
+          "${homeDir}/.local/bin/theme-apply-light"
+        ];
+        RunAtLoad = true;
+        KeepAlive = true;
+      };
+    };
+
+    # Initialize the tmux symlink on activation
+    home.activation.initTmuxTheme = ''
+      $DRY_RUN_CMD mkdir -p $HOME/.local/state/tmux
+      if [[ "$(defaults read -g AppleInterfaceStyle 2>/dev/null)" == "Dark" ]] || [[ "$(${pkgs.darkman}/bin/darkman get 2>/dev/null)" == "dark" ]]; then
+        $DRY_RUN_CMD ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
+      else
+        $DRY_RUN_CMD ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
+      fi
+    '';
   };
 }
