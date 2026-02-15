@@ -66,24 +66,13 @@ in {
 
   config = mkIf cfg.enable {
     # Unified theme-get script
-    home.packages = [
-      (pkgs.writeShellScriptBin "theme-get" (if isLinux then ''
+    home.packages = mkIf isLinux [
+      (pkgs.writeShellScriptBin "theme-get" ''
         ${pkgs.darkman}/bin/darkman get
-      '' else ''
-        mode=$(defaults read -g AppleInterfaceStyle 2>/dev/null)
-        if [[ "$mode" == "Dark" ]]; then
-          echo "dark"
-        else
-          echo "light"
-        fi
-      ''))
-
-      # Unified theme-toggle script
-      (pkgs.writeShellScriptBin "theme-toggle" (if isLinux then ''
+      '')
+      (pkgs.writeShellScriptBin "theme-toggle" ''
         ${pkgs.darkman}/bin/darkman toggle
-      '' else ''
-        osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to not dark mode'
-      ''))
+      '')
     ];
 
     # Linux-specific: Darkman for automation
@@ -152,31 +141,26 @@ in {
         ".colorscheme-palette".text = builtins.toJSON colors;
       }
       (mkIf (!isLinux) {
-        ".local/bin/theme-apply-dark" = {
+        ".local/bin/theme-apply" = {
           executable = true;
           text = ''
             #!/bin/bash
-            # Update symlink for initial startup
+            # Called by dark-notify with "dark" or "light" as $1
+            MODE="$1"
             ${pkgs.coreutils}/bin/mkdir -p $HOME/.local/state/tmux
-            ${pkgs.coreutils}/bin/ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
 
-            # Tmux - search in /tmp and $TMPDIR
-            ${pkgs.findutils}/bin/find /tmp ''${TMPDIR:-/tmp} -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
-              ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
-            done
-          '';
-        };
-        ".local/bin/theme-apply-light" = {
-          executable = true;
-          text = ''
-            #!/bin/bash
-            # Update symlink for initial startup
-            ${pkgs.coreutils}/bin/mkdir -p $HOME/.local/state/tmux
-            ${pkgs.coreutils}/bin/ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
+            if [ "$MODE" = "dark" ]; then
+              THEME="${solarizedDarkTheme}"
+            else
+              THEME="${solarizedLightTheme}"
+            fi
 
-            # Tmux - search in /tmp and $TMPDIR
-            ${pkgs.findutils}/bin/find /tmp ''${TMPDIR:-/tmp} -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
-              ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
+            # Update symlink for tmux startup
+            ${pkgs.coreutils}/bin/ln -sf "$THEME" $HOME/.local/state/tmux/current-theme.conf
+
+            # Reload all running tmux sessions (/private/tmp because Nix find doesn't follow /tmp symlink on macOS)
+            ${pkgs.findutils}/bin/find /private/tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+              ${pkgs.tmux}/bin/tmux -S "$sock" source-file "$THEME" || true
             done
           '';
         };
@@ -190,9 +174,7 @@ in {
         ProgramArguments = [
           "/opt/homebrew/bin/dark-notify"
           "-c"
-          "${homeDir}/.local/bin/theme-apply-dark"
-          "-l"
-          "${homeDir}/.local/bin/theme-apply-light"
+          "${homeDir}/.local/bin/theme-apply"
         ];
         RunAtLoad = true;
         KeepAlive = true;
