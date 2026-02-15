@@ -138,6 +138,11 @@ in {
     # (The plugin handles this automatically if darkman is running)
     
     # We can also export these colors as environment variables or files if needed
+    home.sessionVariables = {
+      TMUX_SOLARIZED_DARK = "${solarizedDarkTheme}";
+      TMUX_SOLARIZED_LIGHT = "${solarizedLightTheme}";
+    };
+
     home.file = mkMerge [
       {
         ".colorscheme-palette".text = builtins.toJSON colors;
