@@ -159,8 +159,8 @@ in {
             ${pkgs.coreutils}/bin/mkdir -p $HOME/.local/state/tmux
             ${pkgs.coreutils}/bin/ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
 
-            # Tmux
-            ${pkgs.findutils}/bin/find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+            # Tmux - search in /tmp and $TMPDIR
+            ${pkgs.findutils}/bin/find /tmp ''${TMPDIR:-/tmp} -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
               ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
             done
           '';
@@ -173,8 +173,8 @@ in {
             ${pkgs.coreutils}/bin/mkdir -p $HOME/.local/state/tmux
             ${pkgs.coreutils}/bin/ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
 
-            # Tmux
-            ${pkgs.findutils}/bin/find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+            # Tmux - search in /tmp and $TMPDIR
+            ${pkgs.findutils}/bin/find /tmp ''${TMPDIR:-/tmp} -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
               ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
             done
           '';
@@ -201,7 +201,7 @@ in {
     # Initialize the tmux symlink on activation
     home.activation.initTmuxTheme = ''
       $DRY_RUN_CMD mkdir -p $HOME/.local/state/tmux
-      if ${if isLinux then "${pkgs.darkman}/bin/darkman get 2>/dev/null | grep -q dark" else "defaults read -g AppleInterfaceStyle >/dev/null 2>&1"}; then
+      if ${if isLinux then "${pkgs.darkman}/bin/darkman get 2>/dev/null | grep -q dark" else "/usr/bin/defaults read -g AppleInterfaceStyle >/dev/null 2>&1"}; then
         $DRY_RUN_CMD ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
       else
         $DRY_RUN_CMD ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf

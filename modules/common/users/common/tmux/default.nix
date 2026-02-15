@@ -1,6 +1,8 @@
-{ lib, pkgs, homeManagerConfig, ... }:
+{ lib, pkgs, homeManagerConfig, username, ... }:
 let
   isDarwin = pkgs.stdenv.isDarwin;
+  isLinux = pkgs.stdenv.isLinux;
+  homeDir = if isLinux then "/home/${username}" else "/Users/${username}";
 
   # Base plugins for all systems
   basePlugins = with pkgs.tmuxPlugins; [
@@ -23,8 +25,8 @@ let
   # Theme configuration
   themeConfig = ''
     # Source the managed theme symlink (created/updated by theme scripts)
-    if-shell "test -e ~/.local/state/tmux/current-theme.conf" \
-      "source-file ~/.local/state/tmux/current-theme.conf"
+    if-shell "test -e ${homeDir}/.local/state/tmux/current-theme.conf" \
+      "source-file ${homeDir}/.local/state/tmux/current-theme.conf"
   '';
 in
 with lib;
