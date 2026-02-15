@@ -176,6 +176,7 @@
           yq
           fzf
           krew
+          pkgs.unstable.claude-code
           nodePackages.prettier
           pandoc
         ];
@@ -356,7 +357,6 @@
           packages = pkgs:
             (davidDarwin pkgs).packages pkgs
             ++ (with pkgs; [
-              pkgs.unstable.claude-code
             ]);
         };
     };
