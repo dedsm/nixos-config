@@ -104,11 +104,11 @@ in {
         '';
         tmux-theme = ''
           # Update symlink for initial startup
-          mkdir -p ~/.local/state/tmux
-          ln -sf ${solarizedDarkTheme} ~/.local/state/tmux/current-theme.conf
+          ${pkgs.coreutils}/bin/mkdir -p $HOME/.local/state/tmux
+          ${pkgs.coreutils}/bin/ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
 
           # Find all tmux sockets for the current user and update them
-          find /run/user/$(id -u) /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+          ${pkgs.findutils}/bin/find /run/user/$(id -u) /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
             ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
           done
         '';
@@ -128,11 +128,11 @@ in {
         '';
         tmux-theme = ''
           # Update symlink for initial startup
-          mkdir -p ~/.local/state/tmux
-          ln -sf ${solarizedLightTheme} ~/.local/state/tmux/current-theme.conf
+          ${pkgs.coreutils}/bin/mkdir -p $HOME/.local/state/tmux
+          ${pkgs.coreutils}/bin/ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
 
           # Find all tmux sockets for the current user and update them
-          find /run/user/$(id -u) /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+          ${pkgs.findutils}/bin/find /run/user/$(id -u) /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
             ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
           done
         '';
@@ -156,11 +156,11 @@ in {
           text = ''
             #!/bin/bash
             # Update symlink for initial startup
-            mkdir -p ~/.local/state/tmux
-            ln -sf ${solarizedDarkTheme} ~/.local/state/tmux/current-theme.conf
+            ${pkgs.coreutils}/bin/mkdir -p $HOME/.local/state/tmux
+            ${pkgs.coreutils}/bin/ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
 
             # Tmux
-            find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+            ${pkgs.findutils}/bin/find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
               ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
             done
           '';
@@ -170,11 +170,11 @@ in {
           text = ''
             #!/bin/bash
             # Update symlink for initial startup
-            mkdir -p ~/.local/state/tmux
-            ln -sf ${solarizedLightTheme} ~/.local/state/tmux/current-theme.conf
+            ${pkgs.coreutils}/bin/mkdir -p $HOME/.local/state/tmux
+            ${pkgs.coreutils}/bin/ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
 
             # Tmux
-            find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
+            ${pkgs.findutils}/bin/find /tmp -maxdepth 3 -name "default" -type s 2>/dev/null | while read sock; do
               ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
             done
           '';
@@ -199,15 +199,9 @@ in {
     };
 
     # Initialize the tmux symlink on activation
-    home.activation.initTmuxTheme = let
-      themeCheckCmd = if isLinux then 
-        ''$(${pkgs.darkman}/bin/darkman get 2>/dev/null)''
-      else 
-        ''$(defaults read -g AppleInterfaceStyle 2>/dev/null)'';
-      darkValue = if isLinux then "dark" else "Dark";
-    in ''
+    home.activation.initTmuxTheme = ''
       $DRY_RUN_CMD mkdir -p $HOME/.local/state/tmux
-      if [[ "${themeCheckCmd}" == "${darkValue}" ]]; then
+      if ${if isLinux then "${pkgs.darkman}/bin/darkman get 2>/dev/null | grep -q dark" else "defaults read -g AppleInterfaceStyle >/dev/null 2>&1"}; then
         $DRY_RUN_CMD ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
       else
         $DRY_RUN_CMD ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf

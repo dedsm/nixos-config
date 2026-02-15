@@ -2,63 +2,13 @@
 let
   isDarwin = pkgs.stdenv.isDarwin;
 
-  # Custom tmux-dark-notify plugin with patched paths for homebrew
-  tmux-dark-notify = pkgs.tmuxPlugins.mkTmuxPlugin {
-    pluginName = "dark-notify";
-    rtpFilePath = "main.tmux";
-    version = "unstable-2024-06-12";
-    src = pkgs.fetchFromGitHub {
-      owner = "erikw";
-      repo = "tmux-dark-notify";
-      rev = "v0.1.1";
-      sha256 = "sha256-naOIotyAgUHZ2qSPmvLMkxGeU0/vfQYrFPjO7Coig0g=";
-    };
-    postInstall = ''
-      # Patch the runner script to use full path to brew
-      substituteInPlace $out/share/tmux-plugins/dark-notify/scripts/tmux-dark-notify-runner.sh \
-        --replace 'program_is_in_path brew' 'test -x /opt/homebrew/bin/brew' \
-        --replace 'eval "$(brew shellenv)"' 'eval "$(/opt/homebrew/bin/brew shellenv)"'
-
-      # Patch the while loop to exit when tmux server is no longer running
-      substituteInPlace $out/share/tmux-plugins/dark-notify/scripts/tmux-dark-notify-runner.sh \
-        --replace 'while :; do' 'while tmux list-sessions >/dev/null 2>&1; do'
-
-      # Patch main.tmux to properly detach the runner process
-      substituteInPlace $out/share/tmux-plugins/dark-notify/main.tmux \
-        --replace '$RUNNER &' 'nohup $RUNNER >/dev/null 2>&1 &'
-    '';
-  };
-
-  # Solarized themes with custom pane styling overlays
-  solarizedPlugin = pkgs.tmuxPlugins.tmux-colors-solarized;
-  solarizedBaseLightTheme = "${solarizedPlugin}/share/tmux-plugins/tmuxcolors/tmuxcolors-light.conf";
-  solarizedBaseDarkTheme = "${solarizedPlugin}/share/tmux-plugins/tmuxcolors/tmuxcolors-dark.conf";
-
-  solarizedLightTheme = pkgs.writeText "solarized-light-combined.conf" ''
-    source-file ${solarizedBaseLightTheme}
-    source-file ${./solarized-light-custom.conf}
-  '';
-  solarizedDarkTheme = pkgs.writeText "solarized-dark-combined.conf" ''
-    source-file ${solarizedBaseDarkTheme}
-    source-file ${./solarized-dark-custom.conf}
-  '';
-
   # Base plugins for all systems
   basePlugins = with pkgs.tmuxPlugins; [
     vim-tmux-navigator
   ];
 
-  # Darwin-only plugins with extraConfig that loads BEFORE the plugin
-  darwinPlugins = if isDarwin then [
-    {
-      plugin = tmux-dark-notify;
-      extraConfig = ''
-        # tmux-dark-notify configuration (must be set before plugin loads)
-        set -g @dark-notify-theme-path-light "$HOME/.local/state/tmux/current-theme.conf"
-        set -g @dark-notify-theme-path-dark "$HOME/.local/state/tmux/current-theme.conf"
-      '';
-    }
-  ] else [];
+  # Darwin-only plugins
+  darwinPlugins = [];
 
   # Platform-specific terminal configuration
   terminalConfig = if isDarwin then ''
