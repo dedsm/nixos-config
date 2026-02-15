@@ -187,7 +187,7 @@ in {
       enable = true;
       config = {
         ProgramArguments = [
-          "${pkgs.unstable.dark-notify}/bin/dark-notify"
+          "/opt/homebrew/bin/dark-notify"
           "-c"
           "${homeDir}/.local/bin/theme-apply-dark"
           "-l"
