@@ -169,7 +169,9 @@
           stern
           p7zip
           sops
-          pkgs.unstable.google-cloud-sdk
+          (pkgs.unstable.google-cloud-sdk.withExtraComponents( with pkgs.unstable.google-cloud-sdk.components; [
+              gke-gcloud-auth-plugin
+            ]))
           docker-credential-gcr
           amazon-ecr-credential-helper
           jq
