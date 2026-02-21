@@ -134,6 +134,7 @@ attrs @ {
       };
       Service = {
         Restart = "on-failure";
+        ExecStartPre = "${pkgs.coreutils}/bin/sleep 3";
         ExecStart = "${pkgs.unfree._1password-gui}/bin/1password --silent";
       };
     };

@@ -35,6 +35,8 @@ in {
         ];
       };
 
+      systemd.services.NetworkManager-wait-online.enable = false;
+
       fonts.packages = with pkgs; [
         noto-fonts
         noto-fonts-cjk-sans
@@ -57,13 +59,17 @@ in {
         };
       };
 
-      services.displayManager = {
-        gdm.enable = true;
-        gdm.wayland = true;
+      services.greetd = {
+        enable = true;
+        settings = {
+          default_session = {
+            command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --remember-user-session --asterisks --user-menu --cmd 'uwsm start hyprland-uwsm.desktop'";
+            user = "greeter";
+          };
+        };
       };
 
-      # Conditionally set default session (already uses defaultSession variable)
-      services.displayManager.defaultSession = defaultSession;
+      security.pam.services.greetd.fprintAuth = false;
 
       console.useXkbConfig = true;
 
@@ -119,13 +125,9 @@ in {
       security.polkit.enable = true;
       security.rtkit.enable = true;
 
-      security.pam.services.gdm.enableGnomeKeyring = true;
-      security.pam.services.gdm.enableKwallet = true;
-      security.pam.services.gdm.fprintAuth = false;
       security.pam.services.login.enableKwallet = true;
       security.pam.services.login.fprintAuth = false;
       security.pam.services.hyprlock = {};
-      security.pam.services.gdm-fingerprint.text = lib.mkForce "";
 
       services.accounts-daemon.enable = true;
 
