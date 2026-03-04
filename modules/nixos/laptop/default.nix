@@ -15,11 +15,10 @@ in {
   config = mkIf cfg.enable {
     # Hibernation rules
     services.logind.settings.Login = {
-      HandleLidSwitch = "suspend-then-hibernate";
+      HandleLidSwitch = "hibernate";
       HandleLidSwitchDocked = "ignore";
-      HandleLidSwitchExternalPower = "suspend";
+      HandleLidSwitchExternalPower = "hibernate";
     };
-    systemd.sleep.extraConfig = "HibernateDelaySec=1800";
 
     systemd.tmpfiles.rules = [ "w /sys/power/image_size - - - - 0" ];
 

@@ -40,8 +40,10 @@
     "amdgpu.abmlevel=0"
     "amdgpu.gttsize=102400"
     "amdgpu.sg_display=0" # Fix black screen on resume
-    "amdgpu.mes=0" # Fix MES failed to respond/GPU hang on resume
-    # Fix mes_kiq timeout/GPU hang on resume: https://github.com/ROCm/ROCm/issues/5724
+    # MES fix landed in 6.17.2+ (with firmware >= 0x7f), mes=0 no longer needed
+    # "amdgpu.mes=0"
+    # Fix CWSR regression in 6.18+/6.19+ causing black screen on resume (gfx1150/Strix Point)
+    # https://community.frame.work/t/attn-critical-bugs-in-amdgpu-driver-included-with-kernel-6-18-x-6-19-x/79221
     # "amdgpu.cwsr_enable=0"
     "amdgpu.dcdebugmask=0x10" # Disable PSR, use if experiencing screen stutter or flicker
   ];
