@@ -5,8 +5,9 @@ let
   fzf = "${pkgs.fzf}/bin/fzf";
   sort = "${pkgs.coreutils}/bin/sort";
   head = "${pkgs.coreutils}/bin/head";
+  zsh = "${pkgs.zsh}/bin/zsh";
 in ''
-  #!/bin/bash
+  #!${zsh}
   QUERY=$(${jq} -r '.query // ""')
   PROJECT_DIR="''${CLAUDE_PROJECT_DIR:-.}"
   cd "$PROJECT_DIR" || exit 1

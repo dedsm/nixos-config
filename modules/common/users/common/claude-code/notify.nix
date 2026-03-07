@@ -34,8 +34,10 @@ let
     fi
   '';
 
+  zsh = "${pkgs.zsh}/bin/zsh";
+
   darwinNotifyScript = let tn = "${pkgs.terminal-notifier}/bin/terminal-notifier"; in ''
-    #!/bin/bash
+    #!${zsh}
     if [ -t 0 ]; then
       MESSAGE="''${1:-Task completed}"
       SOUND_TYPE="''${2:-default}"
@@ -66,7 +68,7 @@ let
   '';
 
   linuxNotifyScript = let ns = "${pkgs.libnotify}/bin/notify-send"; in ''
-    #!/bin/bash
+    #!${zsh}
     if [ -t 0 ]; then
       MESSAGE="''${1:-Task completed}"
       NOTIFICATION_TYPE=""

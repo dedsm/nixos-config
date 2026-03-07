@@ -52,6 +52,10 @@ let
       command = statusLineCommand;
     };
     alwaysThinkingEnabled = true;
+    attribution = {
+      commit = "";
+      pr = "";
+    };
   } // (cfg.extraSettings or {});
 
   managedSettingsFile = pkgs.writeText "claude-managed-settings.json" (builtins.toJSON managedSettings);

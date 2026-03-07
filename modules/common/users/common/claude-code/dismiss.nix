@@ -3,8 +3,10 @@ let
   jq = "${pkgs.jq}/bin/jq";
   cat = "${pkgs.coreutils}/bin/cat";
 
+  zsh = "${pkgs.zsh}/bin/zsh";
+
   darwinDismissScript = let tn = "${pkgs.terminal-notifier}/bin/terminal-notifier"; in ''
-    #!/bin/bash
+    #!${zsh}
     if [ ! -t 0 ]; then
       INPUT=$(${cat})
       SESSION_ID=$(echo "$INPUT" | ${jq} -r '.session_id // empty')
@@ -16,7 +18,7 @@ let
   '';
 
   linuxDismissScript = ''
-    #!/bin/bash
+    #!${zsh}
     # Consume stdin if present (hook mode sends JSON)
     [ ! -t 0 ] && ${cat} > /dev/null
   '';
