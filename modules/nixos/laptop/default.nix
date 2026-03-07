@@ -29,6 +29,7 @@ in {
     # Power management
     services.upower = { enable = true; };
     services.power-profiles-daemon.enable = true;
+    powerManagement.powertop.enable = true;
 
     hardware.amdgpu = {
       initrd.enable = true;

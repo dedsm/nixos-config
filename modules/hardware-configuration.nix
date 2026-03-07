@@ -32,7 +32,6 @@
   boot.kernelParams = [
     "amdgpu.abmlevel=0"
     "amdgpu.gttsize=102400"
-    "amdgpu.dcdebugmask=0x14" # Disable PSR, use if experiencing screen stutter or flicker
   ];
 
   boot.kernelModules = [ ];
@@ -66,8 +65,6 @@
   networking.useDHCP = lib.mkDefault true;
 
   hardware.enableRedistributableFirmware = true;
-  hardware.cpu.intel.updateMicrocode =
-    lib.mkDefault config.hardware.enableRedistributableFirmware;
 
   services.pipewire.wireplumber.extraConfig.no-ucm = {
     "monitor.alsa.properties" = {
