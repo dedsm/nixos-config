@@ -20,6 +20,7 @@ let
   ghostty = import ./ghostty attrs;
   sketchybar = import ./sketchybar attrs;
   theme = import ./theme attrs;
+  claude-code = import ./claude-code attrs;
 
   defaults = import ./defaults attrs;
 in lib.mkMerge [
@@ -43,6 +44,7 @@ in lib.mkMerge [
   ghostty
   sketchybar
   theme
+  claude-code
 
   defaults
 ]

@@ -8,6 +8,7 @@ let
       };
       commonModule = import ./users/common homeAttrs;
     in {
+      home-manager.backupFileExtension = "home_manager_bak";
       home-manager.users.${k} = lib.mkMerge [
         commonModule
         {

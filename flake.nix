@@ -111,6 +111,7 @@
       nvim.enable = true;
       zsh.enable = true;
       starship.enable = true;
+      claude-code.enable = true;
 
       # Defaults for modules not enabled on all platforms
       kdeconnect.enable = false;
@@ -178,7 +179,6 @@
           yq
           fzf
           krew
-          pkgs.unstable.claude-code
           nodePackages.prettier
           pandoc
         ];
@@ -260,7 +260,6 @@
             gnupg
             pkgs.unstable.antigravity
             any-nix-shell
-            terminal-notifier
           ]);
       };
 
