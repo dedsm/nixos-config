@@ -32,7 +32,6 @@ with lib;
         "$browser" = "firefox-devedition";
         "$mod" = "SUPER";
         exec-once = [
-          "uwsm app -- mako"
           "uwsm app -- dropbox"
           "uwsm app -- avizo-service"
           "uwsm app -- solaar -w hide"
