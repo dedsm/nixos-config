@@ -37,7 +37,7 @@ with lib;
         shfmt
 
         # Markdown extra
-        nodePackages.markdownlint-cli
+        markdownlint-cli2
         marksman
 
         # Docker extra
