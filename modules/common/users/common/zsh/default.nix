@@ -51,6 +51,59 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       # Enable PATH-based discovery for nix-shell compatibility
       zstyle ':completion-sync:path' enabled true
 
+      # Auto-rename tmux window to directory basename (with dedup)
+      # For git worktrees, shows "repo:dir" when dir differs from repo name
+      function _tmux_rename_window() {
+        [[ -z "$TMUX" || -z "$TMUX_PANE" ]] && return
+
+        local dir_name repo_name name
+        dir_name=$(basename "$PWD")
+
+        # Detect git repo name (use common dir for worktrees and bare repos)
+        local git_dir
+        git_dir=$(realpath "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
+        if [[ -n "$git_dir" ]]; then
+          if [[ "$(basename "$git_dir")" == ".git" ]]; then
+            # Normal repo: .git dir lives inside the repo root
+            repo_name=$(basename "$(dirname "$git_dir")")
+          else
+            # Bare repo: the git dir IS the repo
+            repo_name=$(basename "$git_dir")
+          fi
+          if [[ "$repo_name" != "$dir_name" ]]; then
+            name="''${repo_name}:''${dir_name}"
+          else
+            name="$dir_name"
+          fi
+        else
+          name="$dir_name"
+        fi
+
+        local current_window
+        current_window=$(tmux display-message -p -t "$TMUX_PANE" '#{window_index}')
+
+        # collect names from OTHER windows
+        local taken
+        taken=$(tmux list-windows -F '#{window_index} #{window_name}' \
+          | awk -v cur="$current_window" '$1 != cur { $1=""; print substr($0,2) }' \
+          | grep -E "^''${name}( [0-9]+)?$" || true)
+
+        if [[ -z "$taken" ]]; then
+          tmux rename-window -t "$TMUX_PANE" "$name"
+        elif ! echo "$taken" | grep -qE "^''${name}$"; then
+          tmux rename-window -t "$TMUX_PANE" "$name"
+        else
+          local n=2
+          while echo "$taken" | grep -qE "^''${name} ''${n}$"; do
+            ((n++))
+          done
+          tmux rename-window -t "$TMUX_PANE" "$name $n"
+        fi
+      }
+      autoload -Uz add-zsh-hook
+      add-zsh-hook chpwd _tmux_rename_window
+      _tmux_rename_window  # run once on shell init
+
       ${homeManagerConfig.zsh.initContent or ""}
       any-nix-shell zsh --info-right | source /dev/stdin
       ${if (homeManagerConfig.zoxide.enable or false) then ''
