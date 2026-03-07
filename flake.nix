@@ -112,6 +112,7 @@
       zsh.enable = true;
       starship.enable = true;
       claude-code.enable = true;
+      gemini-cli.enable = true;
 
       # Defaults for modules not enabled on all platforms
       kdeconnect.enable = false;

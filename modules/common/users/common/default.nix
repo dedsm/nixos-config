@@ -21,6 +21,7 @@ let
   sketchybar = import ./sketchybar attrs;
   theme = import ./theme attrs;
   claude-code = import ./claude-code attrs;
+  gemini-cli = import ./gemini-cli attrs;
 
   defaults = import ./defaults attrs;
 in lib.mkMerge [
@@ -45,6 +46,7 @@ in lib.mkMerge [
   sketchybar
   theme
   claude-code
+  gemini-cli
 
   defaults
 ]
