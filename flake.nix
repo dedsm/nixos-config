@@ -117,7 +117,7 @@
       # Defaults for modules not enabled on all platforms
       kdeconnect.enable = false;
       lorri.enable = false;
-      mako.enable = false;
+      swaync.enable = false;
       network-manager.enable = false;
       bluetooth.enable = false;
       wayland.enable = false;
@@ -181,7 +181,6 @@
           fzf
           krew
           nodePackages.prettier
-          pandoc
         ];
     };
 
@@ -190,7 +189,7 @@
       // {
         kdeconnect.enable = true;
         lorri.enable = true;
-        mako.enable = true;
+        swaync.enable = true;
         network-manager.enable = true;
         bluetooth.enable = true;
         wayland.enable = true;
@@ -270,7 +269,7 @@
       zsh.enable = true;
       kdeconnect.enable = false;
       lorri.enable = false;
-      mako.enable = false;
+      swaync.enable = false;
       network-manager.enable = false;
       bluetooth.enable = false;
       sway.enable = false;

@@ -87,7 +87,21 @@ let
       *) URGENCY="normal" ;;
     esac
 
-    ${ns} -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE"
+    ID_FILE="/tmp/claude-code-notify-$GROUP_ID.id"
+    if [ -f "$ID_FILE" ]; then
+      OLD_ID=$(${cat} "$ID_FILE")
+      if [ -n "$OLD_ID" ]; then
+        NEW_ID=$(${ns} -p -r "$OLD_ID" -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
+      else
+        NEW_ID=$(${ns} -p -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
+      fi
+    else
+      NEW_ID=$(${ns} -p -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
+    fi
+
+    if [ -n "$NEW_ID" ]; then
+      echo "$NEW_ID" > "$ID_FILE"
+    fi
   '';
 in
 if isDarwin then darwinNotifyScript else linuxNotifyScript

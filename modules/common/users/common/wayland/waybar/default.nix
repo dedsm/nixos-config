@@ -39,6 +39,7 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         #disk,
         #idle_inhibitor,
         #custom-theme,
+        #custom-swaync,
         #tray {
             background: #1a1a1a;
         }
@@ -159,8 +160,33 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             "custom/theme"
             "custom/left-arrow-light"
             "custom/left-arrow-dark"
+            "custom/swaync"
+            "custom/left-arrow-light"
+            "custom/left-arrow-dark"
             "tray"
           ];
+
+          "custom/swaync" = {
+            tooltip = true;
+            tooltip-format = "Left Click: Launch Notification Center\nRight Click: Do not Disturb";
+            format = "{icon} {text}";
+            format-icons = {
+              notification = "<span foreground='red'><sup></sup></span>";
+              none = "";
+              dnd-notification = "<span foreground='red'><sup></sup></span>";
+              dnd-none = "";
+              inhibited-notification = "󰂛<span foreground='red'><sup></sup></span>";
+              inhibited-none = "󰂛";
+              dnd-inhibited-notification = "<span foreground='red'><sup></sup></span>";
+              dnd-inhibited-none = "";
+            };
+            return-type = "json";
+            exec-if = "${pkgs.swaynotificationcenter}/bin/swaync-client";
+            exec = "${pkgs.swaynotificationcenter}/bin/swaync-client -swb";
+            on-click = "${pkgs.swaynotificationcenter}/bin/swaync-client -t -sw";
+            on-click-right = "${pkgs.swaynotificationcenter}/bin/swaync-client -d -sw";
+            escape = true;
+          };
 
           "custom/left-arrow-dark" = {
             format = "";

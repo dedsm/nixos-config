@@ -5,7 +5,7 @@ let
   zsh = import ./zsh attrs;
   kdeconnect = import ./kdeconnect attrs;
   lorri = import ./lorri attrs;
-  mako = import ./mako attrs;
+  swaync = import ./swaync attrs;
   bluetooth = import ./bluetooth attrs;
   network-manager = import ./network-manager attrs;
   hyprland = import ./hyprland attrs;
@@ -30,7 +30,7 @@ in lib.mkMerge [
   zsh
   kdeconnect
   lorri
-  mako
+  swaync
   network-manager
   bluetooth
   hyprland
