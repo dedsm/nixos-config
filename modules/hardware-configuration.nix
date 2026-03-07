@@ -28,20 +28,11 @@
     cleanOnBoot = true;
   };
 
-  # boot.kernelPackages = pkgs.linuxPackages_6_12;
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  # boot.kernelPackages = pkgs.linuxPackages_latest.extend (lpFinal: lpPrev: {
-  #   cpupower = lpPrev.cpupower.overrideAttrs (old: {
-  #     nativeBuildInputs = (old.nativeBuildInputs or []) ++ [ pkgs.which ];
-  #     makeFlags = (old.makeFlags or []) ++ [ "INSTALL_NO_TRANSLATIONS=1" ];
-  #   });
-  # });
   boot.kernelParams = [
     "amdgpu.abmlevel=0"
     "amdgpu.gttsize=102400"
-    "amdgpu.dcdebugmask=0x10" # Disable PSR, use if experiencing screen stutter or flicker
-    "amdgpu.sg_display=0"
-    "amdgpu.gpu_recovery=1"
+    "amdgpu.dcdebugmask=0x14" # Disable PSR, use if experiencing screen stutter or flicker
   ];
 
   boot.kernelModules = [ ];

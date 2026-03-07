@@ -37,14 +37,14 @@
 
     mkPkgs = system: let
       claudeCodeOverlay = final: prev: {
-        claude-code = prev.claude-code.overrideAttrs (old: rec {
-          version = "2.1.66";
-          src = prev.fetchzip {
-            url = "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${version}.tgz";
-            hash = "sha256-bZDWmtYUKL6Yrkuz70B4CgJLGn63W68G1MQa5ggivbg=";
-          };
-          npmDepsHash = "sha256-brrbatyYO2PH4EbduuEkknql4W0MQCMMKL1LvAQnx2s=";
-        });
+        # claude-code = prev.claude-code.overrideAttrs (old: rec {
+        #   version = "2.1.66";
+        #   src = prev.fetchzip {
+        #     url = "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-${version}.tgz";
+        #     hash = "sha256-bZDWmtYUKL6Yrkuz70B4CgJLGn63W68G1MQa5ggivbg=";
+        #   };
+        #   npmDepsHash = "sha256-brrbatyYO2PH4EbduuEkknql4W0MQCMMKL1LvAQnx2s=";
+        # });
       };
       unstablePkgs = import unstable {
         inherit system;

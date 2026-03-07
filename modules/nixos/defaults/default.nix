@@ -127,7 +127,9 @@ in {
 
       security.pam.services.login.enableKwallet = true;
       security.pam.services.login.fprintAuth = false;
-      security.pam.services.hyprlock = {};
+      security.pam.services.hyprlock = {
+        fprintAuth = false;
+      };
 
       services.accounts-daemon.enable = true;
 
