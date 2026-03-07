@@ -1,30 +1,25 @@
 { pkgs, isDarwin }:
 let
   jq = "${pkgs.jq}/bin/jq";
-  git = "${pkgs.git}/bin/git";
   cat = "${pkgs.coreutils}/bin/cat";
   basename = "${pkgs.coreutils}/bin/basename";
 
+  tmux = "${pkgs.tmux}/bin/tmux";
+
   gitContextBlock = ''
-    TITLE="Claude Code"
     GROUP_ID="claude-code-default"
 
     if [ -n "$SESSION_ID" ]; then
       GROUP_ID="claude-code-$SESSION_ID"
     fi
 
-    if ${git} rev-parse --is-inside-work-tree &>/dev/null; then
-      PROJECT=$(${basename} "$(${git} rev-parse --show-toplevel 2>/dev/null)")
-      BRANCH=$(${git} branch --show-current 2>/dev/null || echo "detached")
-      GIT_DIR=$(${git} rev-parse --git-dir 2>/dev/null)
-      GIT_COMMON_DIR=$(${git} rev-parse --git-common-dir 2>/dev/null)
+    # Use tmux window name as title if available (matches what the user sees)
+    if [ -n "$TMUX" ] && [ -n "$TMUX_PANE" ]; then
+      TITLE=$(${tmux} display-message -p -t "$TMUX_PANE" '#{window_name}' 2>/dev/null)
+    fi
 
-      if [ "$GIT_DIR" != "$GIT_COMMON_DIR" ]; then
-        WORKTREE_NAME=$(${basename} "$(pwd)")
-        TITLE="$PROJECT [worktree: $WORKTREE_NAME @ $BRANCH]"
-      else
-        TITLE="$PROJECT @ $BRANCH"
-      fi
+    if [ -z "$TITLE" ]; then
+      TITLE="Claude Code $(${basename} "$(pwd)")"
     fi
 
     if [ -n "$NOTIFICATION_TYPE" ]; then
