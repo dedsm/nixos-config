@@ -23,6 +23,8 @@ let
       footer = {
         hideSandboxStatus = true;
       };
+      # Auto theme switching config
+      autoThemeSwitching = true;
     };
     hooksConfig = {
       # DevEx: AfterAgent hooks run when the model completes its task.
@@ -40,15 +42,7 @@ let
     SETTINGS="$HOME/.gemini/settings.json"
     ${mkdir} -p "$HOME/.gemini"
     if [ -f "$SETTINGS" ] && ${jq} empty "$SETTINGS" 2>/dev/null; then
-      # Merge managed settings into existing settings
-      ${jq} -s '.[0] * .[1]' "$SETTINGS" ${managedSettingsFile} > "$SETTINGS.tmp"
-      
-      # If autoThemeSwitching is true, ensure ui.theme is completely removed so it doesn't get hardcoded
-      if ${jq} -e '.ui.autoThemeSwitching == true' "$SETTINGS.tmp" >/dev/null; then
-        ${jq} 'del(.ui.theme)' "$SETTINGS.tmp" > "$SETTINGS.tmp2" && ${mv} "$SETTINGS.tmp2" "$SETTINGS.tmp"
-      fi
-      
-      ${mv} "$SETTINGS.tmp" "$SETTINGS"
+      ${jq} -s '.[0] * .[1]' "$SETTINGS" ${managedSettingsFile} > "$SETTINGS.tmp" && ${mv} "$SETTINGS.tmp" "$SETTINGS"
     else
       ${cp} ${managedSettingsFile} "$SETTINGS"
     fi
