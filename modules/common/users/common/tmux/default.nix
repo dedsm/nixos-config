@@ -7,6 +7,14 @@ let
   # Base plugins for all systems
   basePlugins = with pkgs.tmuxPlugins; [
     vim-tmux-navigator
+    resurrect
+    {
+      plugin = continuum;
+      extraConfig = ''
+        set -g @continuum-restore 'on'
+        set -g @continuum-save-interval '15'
+      '';
+    }
   ];
 
   # Darwin-only plugins

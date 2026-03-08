@@ -9,11 +9,19 @@
   ...
 }:
 with lib;
-  mkIf (homeManagerConfig.hyprland.enable or false) {
+  mkIf (homeManagerConfig.hyprland.enable or false) (let
+    screencast-inhibit = pkgs.writeShellScript "screencast-inhibit" ''
+      ${pkgs.socat}/bin/socat -U - "UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock" | while IFS= read -r line; do
+        case "$line" in
+          "screencast>>1,"*) swaync-client --inhibitor-add screencast ;;
+          "screencast>>0,"*) swaync-client --inhibitor-remove screencast ;;
+        esac
+      done
+    '';
+  in {
     # UWSM-specific environment file for Hyprland
     xdg.configFile."uwsm/env-hyprland".text = ''
       # Wayland toolkit backend variables
-      export GDK_SCALE=2
       export GDK_BACKEND=wayland,x11
       export SDL_VIDEODRIVER=wayland
       export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
@@ -39,6 +47,8 @@ with lib;
           "uwsm app -- ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1"
           "uwsm app -- sh -c 'sleep 5 && ${pkgs.unstable.synology-drive-client}/bin/synology-drive'"
           "uwsm app -- ${pkgs.kdePackages.kwallet-pam}/libexec/pam_kwallet_init"
+        ] ++ lib.optionals (homeManagerConfig.swaync.enable or false) [
+          "uwsm app -- ${screencast-inhibit}"
         ];
         misc = {
           force_default_wallpaper = 0;
@@ -152,4 +162,4 @@ with lib;
           );
       };
     };
-  }
+  })

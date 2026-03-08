@@ -9,8 +9,9 @@ mkIf (homeManagerConfig.swaync.enable or false) {
       positionY = "top";
       layer = "overlay";
       control-center-layer = "top";
-      control-center-width = 500;
-      control-center-height = 600;
+      notification-window-width = 350;
+      control-center-width = 380;
+      control-center-height = 500;
       timeout = 10;
       timeout-low = 5;
       timeout-critical = 0;
@@ -71,6 +72,11 @@ mkIf (homeManagerConfig.swaync.enable or false) {
     };
 
     style = ''
+      /* Global sizing */
+      * {
+        font-size: 14px;
+      }
+
       /* Base notification styling */
       .notification {
         background: rgba(30, 30, 46, 0.95);
@@ -94,9 +100,9 @@ mkIf (homeManagerConfig.swaync.enable or false) {
       .control-center {
         background: rgba(30, 30, 46, 0.98);
         border: 2px solid rgba(137, 180, 250, 0.3);
-        border-radius: 12px;
-        margin: 12px;
-        padding: 12px;
+        border-radius: 10px;
+        margin: 8px;
+        padding: 8px;
       }
 
       .control-center-list {
@@ -122,9 +128,9 @@ mkIf (homeManagerConfig.swaync.enable or false) {
       /* MPRIS widget */
       .widget-mpris {
         background: rgba(49, 50, 68, 0.8);
-        border-radius: 12px;
-        padding: 12px;
-        margin: 8px;
+        border-radius: 8px;
+        padding: 8px;
+        margin: 4px;
       }
 
       .widget-mpris-album-art {
