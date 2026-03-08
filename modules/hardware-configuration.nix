@@ -31,7 +31,10 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
     "amdgpu.abmlevel=0"
+    "amdgpu.dcdebugmask=0x0"
     "amdgpu.gttsize=102400"
+    "ttm.pages_limit=26214400"
+    "ttm.page_pool_size=26214400"
   ];
 
   boot.kernelModules = [ ];
@@ -56,7 +59,7 @@
     fsType = "vfat";
   };
 
-  swapDevices = [{device = "/dev/disk/by-uuid/cf218b64-aeb2-4d26-aa05-0603e21acd81";}];
+  swapDevices = [{device = "/dev/disk/by-uuid/4e4839b8-9c9f-4499-85de-5e0bf952b11a";}];
 
   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
   # (the default) this is the recommended approach. When using systemd-networkd it's
