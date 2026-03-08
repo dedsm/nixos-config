@@ -11,8 +11,11 @@ let
   mkdir = "${pkgs.coreutils}/bin/mkdir";
 
   # Import script modules
+  claudeIcon = import ./icon.nix { inherit pkgs; };
+  iconPath = if isDarwin then claudeIcon.pngPath else claudeIcon.svgPath;
+
   fileSuggestionScript = import ./file-suggestion.nix { inherit pkgs; };
-  notifyScriptDefault = import ./notify.nix { inherit pkgs isDarwin; };
+  notifyScriptDefault = import ./notify.nix { inherit pkgs isDarwin iconPath; };
   dismissScriptDefault = import ./dismiss.nix { inherit pkgs isDarwin; };
   statusLineScript = import ./statusline.nix { inherit pkgs; };
 

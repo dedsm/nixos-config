@@ -1,4 +1,4 @@
-{ pkgs, isDarwin }:
+{ pkgs, isDarwin, iconPath }:
 let
   jq = "${pkgs.jq}/bin/jq";
   cat = "${pkgs.coreutils}/bin/cat";
@@ -59,7 +59,7 @@ let
       *)        SOUND="default" ;;
     esac
 
-    ${tn} -title "$TITLE" -message "$DISPLAY_MESSAGE" -sound "$SOUND" -group "$GROUP_ID"
+    ${tn} -title "$TITLE" -message "$DISPLAY_MESSAGE" -sound "$SOUND" -group "$GROUP_ID" -appIcon ${iconPath}
   '';
 
   linuxNotifyScript = let ns = "${pkgs.libnotify}/bin/notify-send"; in ''
@@ -86,12 +86,12 @@ let
     if [ -f "$ID_FILE" ]; then
       OLD_ID=$(${cat} "$ID_FILE")
       if [ -n "$OLD_ID" ]; then
-        NEW_ID=$(${ns} -p -r "$OLD_ID" -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
+        NEW_ID=$(${ns} -p -i ${iconPath} -r "$OLD_ID" -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
       else
-        NEW_ID=$(${ns} -p -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
+        NEW_ID=$(${ns} -p -i ${iconPath} -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
       fi
     else
-      NEW_ID=$(${ns} -p -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
+      NEW_ID=$(${ns} -p -i ${iconPath} -u "$URGENCY" "$TITLE" "$DISPLAY_MESSAGE")
     fi
 
     if [ -n "$NEW_ID" ]; then
