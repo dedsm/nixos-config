@@ -3,7 +3,6 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
     enable = true;
     settings = {
       general = {
-        grace = 0;
         hide_cursor = true;
       };
       
