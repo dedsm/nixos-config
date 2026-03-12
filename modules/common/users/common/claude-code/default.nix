@@ -4,6 +4,27 @@ let
   enable = cfg.enable or false;
   isDarwin = pkgs.stdenv.isDarwin;
 
+  # Claude Code package with optional version pin via version.json
+  # Run ./update-claude-code.sh to fetch the latest version and hashes
+  baseClaudeCode = pkgs.unstable.claude-code-bin;
+  versionFile = ./version.json;
+  hasVersionPin = builtins.pathExists versionFile;
+  claudeCodePkg =
+    if hasVersionPin then
+      let
+        pin = lib.importJSON versionFile;
+        platformKey = "${if isDarwin then "darwin" else "linux"}-${if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64"}";
+      in
+      baseClaudeCode.overrideAttrs (old: rec {
+        version = pin.version;
+        src = pkgs.fetchurl {
+          url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/${version}/${platformKey}/claude";
+          sha256 = pin.platforms.${platformKey};
+        };
+      })
+    else
+      baseClaudeCode;
+
   # Nix store paths for commands used only in this file
   jq = "${pkgs.jq}/bin/jq";
   mv = "${pkgs.coreutils}/bin/mv";
@@ -70,7 +91,7 @@ let
 in
 lib.mkIf enable {
   home.packages =
-    [ pkgs.unstable.claude-code ]
+    [ claudeCodePkg ]
     ++ lib.optionals isDarwin [ pkgs.terminal-notifier ]
     ++ lib.optionals (!isDarwin) [ pkgs.libnotify ];
 
