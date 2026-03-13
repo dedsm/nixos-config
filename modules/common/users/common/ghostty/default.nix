@@ -7,7 +7,7 @@ mkIf (homeManagerConfig.ghostty.enable or false) {
     settings = {
       font-family = "InconsolataGo Nerd Font Mono";
       font-size = 14;
-      theme = "light:Builtin Solarized Light,dark:Builtin Solarized Dark";
+      theme = "light:Selenized Light,dark:Selenized Dark";
     };
   };
 }
