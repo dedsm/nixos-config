@@ -93,7 +93,7 @@ mkIf (homeManagerConfig.swaync.enable or false) {
       /* Urgent notifications */
       .critical {
         border: 2px solid rgba(243, 139, 168, 1);
-        background: rgba(243, 139, 168, 0.2);
+        background: rgba(180, 60, 80, 0.4);
       }
 
       /* Control center styling */
