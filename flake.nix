@@ -17,6 +17,11 @@
 
     nixos-hardware = {url = "github:NixOS/nixos-hardware";};
 
+    hyprdynamicmonitors = {
+      url = "github:fiffeek/hyprdynamicmonitors";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     darwin = {
       url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -30,6 +35,7 @@
     home-manager,
     nixos-hardware,
     fw-fanctrl,
+    hyprdynamicmonitors,
     darwin,
     ...
   }: let
@@ -70,6 +76,7 @@
         lib
         hyprland
         fw-fanctrl
+        hyprdynamicmonitors
         darwin
         ;
     };

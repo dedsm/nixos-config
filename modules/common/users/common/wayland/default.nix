@@ -1,8 +1,8 @@
 attrs@{ lib, homeManagerConfig, pkgs, ... }:
 let
   waybar = import ./waybar attrs;
-  kanshi = import ./kanshi attrs;
+  hyprdynamicmonitors = import ./hyprdynamicmonitors attrs;
   hypridle = import ./hypridle attrs;
   hyprlock = import ./hyprlock attrs;
 in with lib;
-mkIf (homeManagerConfig.wayland.enable or false) (mkMerge [ waybar kanshi hypridle hyprlock ])
+mkIf (homeManagerConfig.wayland.enable or false) (mkMerge [ waybar hyprdynamicmonitors hypridle hyprlock ])

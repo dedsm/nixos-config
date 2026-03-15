@@ -36,6 +36,7 @@ with lib;
       #package = hyprland.packages.${pkgs.system}.hyprland-debug;
       #package = hyprland.packages.${pkgs.system}.hyprland;
       settings = {
+        source = [ "~/.config/hypr/monitors.conf" ];
         "$terminal" = "${pkgs.foot}/bin/foot";
         "$browser" = "firefox-devedition";
         "$mod" = "SUPER";

@@ -1,8 +1,8 @@
-attrs@{ config, pkgs, lib, hc, ... }:
+attrs@{ config, pkgs, lib, hc, hyprdynamicmonitors, ... }:
 let
   mkHomeManager = k: v:
     let
-      homeAttrs = attrs // { 
+      homeAttrs = attrs // {
         homeManagerConfig = v;
         username = k;
       };
@@ -20,4 +20,6 @@ let
         })
       ];
     };
-in lib.mkMerge (lib.mapAttrsToList mkHomeManager hc)
+in lib.mkMerge ([
+  { home-manager.sharedModules = [ hyprdynamicmonitors.homeManagerModules.default ]; }
+] ++ lib.mapAttrsToList mkHomeManager hc)
