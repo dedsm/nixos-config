@@ -4,6 +4,7 @@ let
   git = "${pkgs.git}/bin/git";
   cat = "${pkgs.coreutils}/bin/cat";
   basename = "${pkgs.coreutils}/bin/basename";
+  date = "${pkgs.coreutils}/bin/date";
   zsh = "${pkgs.zsh}/bin/zsh";
 in ''
   #!${zsh}
@@ -59,6 +60,61 @@ in ''
   ctx_section="''${ctx_section} | ''${DIM}in:''${RESET}''${total_in_fmt} ''${DIM}out:''${RESET}''${total_out_fmt}"
   ctx_section="''${ctx_section} | ''${DIM}cache:''${RESET}''${cache_create_fmt}+''${cache_read_fmt}"
 
+  # === Rate Limits ===
+  rl_5h_pct=$(echo "$input" | ${jq} -r '.rate_limits.five_hour.used_percentage // empty')
+  rl_7d_pct=$(echo "$input" | ${jq} -r '.rate_limits.seven_day.used_percentage // empty')
+  rl_5h_resets=$(echo "$input" | ${jq} -r '.rate_limits.five_hour.resets_at // empty')
+  rl_7d_resets=$(echo "$input" | ${jq} -r '.rate_limits.seven_day.resets_at // empty')
+
+  # Format seconds remaining as countdown
+  fmt_countdown() {
+    local resets_at=$1
+    local now=$(${date} +%s)
+    local diff=$(( resets_at - now ))
+    if (( diff <= 0 )); then
+      echo "now"
+      return
+    fi
+    local hours=$(( diff / 3600 ))
+    local mins=$(( (diff % 3600) / 60 ))
+    if (( hours > 0 )); then
+      printf "%dh%dm" "$hours" "$mins"
+    else
+      printf "%dm" "$mins"
+    fi
+  }
+
+  rate_section=""
+  if [[ -n "$rl_5h_pct" || -n "$rl_7d_pct" ]]; then
+    # Color helper for rate limit percentages
+    rl_color() {
+      local pct=$1
+      if (( pct < 50 )); then
+        echo "$GREEN"
+      elif (( pct < 80 )); then
+        echo "$YELLOW"
+      else
+        echo "$RED"
+      fi
+    }
+
+    rate_section="''${BOLD}Rate:''${RESET}"
+    if [[ -n "$rl_5h_pct" ]]; then
+      rl_5h_fmt=$(printf "%.0f" "$rl_5h_pct")
+      rl_5h_color=$(rl_color "$rl_5h_pct")
+      rl_5h_cd=""
+      [[ -n "$rl_5h_resets" ]] && rl_5h_cd=" ''${DIM}↻$(fmt_countdown "$rl_5h_resets")''${RESET}"
+      rate_section="''${rate_section} ''${DIM}5h:''${RESET}''${rl_5h_color}''${rl_5h_fmt}%''${RESET}''${rl_5h_cd}"
+    fi
+    if [[ -n "$rl_7d_pct" ]]; then
+      rl_7d_fmt=$(printf "%.0f" "$rl_7d_pct")
+      rl_7d_color=$(rl_color "$rl_7d_pct")
+      rl_7d_cd=""
+      [[ -n "$rl_7d_resets" ]] && rl_7d_cd=" ''${DIM}↻$(fmt_countdown "$rl_7d_resets")''${RESET}"
+      rate_section="''${rate_section} ''${DIM}7d:''${RESET}''${rl_7d_color}''${rl_7d_fmt}%''${RESET}''${rl_7d_cd}"
+    fi
+  fi
+
   # === Git ===
   work_dir=$(echo "$input" | ${jq} -r '.workspace.current_dir // ""')
   dir_name=$(${basename} "$work_dir")
@@ -90,7 +146,9 @@ in ''
   fi
 
   # === Output ===
-  printf "%s | %s\n%s" \
-    "$model_section" "$ctx_section" \
-    "$git_section"
+  line1="$model_section | $ctx_section"
+  if [[ -n "$rate_section" ]]; then
+    line1="$line1 | $rate_section"
+  fi
+  printf "%s\n%s" "$line1" "$git_section"
 ''
