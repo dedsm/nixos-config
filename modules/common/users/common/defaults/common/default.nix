@@ -34,6 +34,11 @@ attrs @ {
 
         mouse = {hide-when-typing = "yes";};
 
+        tweak = {
+          delayed-render-lower = 5000000;
+          delayed-render-upper = 16000000;
+        };
+
         colors = {
           # Solarized Light (Default)
           cursor = "fdf6e3 586e75";
