@@ -26,7 +26,7 @@ attrs @ {
       settings = {
         main = {
           term = "foot";
-          font = "InconsolataGo Nerd Font Mono:size=10";
+          font = "InconsolataGo Nerd Font Mono:size=12";
           dpi-aware = "no";
         };
 

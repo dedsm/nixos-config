@@ -85,12 +85,12 @@ attrs@{ lib, homeManagerConfig, pkgs, hyprdynamicmonitors, ... }: {
     '';
     extraFiles = {
       "hyprdynamicmonitors/hyprconfigs/laptop_only.conf" = pkgs.writeText "laptop_only.conf" ''
-        monitor=eDP-1, 2256x1504@59.999, 0x0, 1.566667
+        monitor=eDP-1, 2256x1504@59.999, 0x0, 1.333333
       '';
       "hyprdynamicmonitors/hyprconfigs/docked_lid_open.conf" = pkgs.writeText "docked_lid_open.conf" ''
         monitor=desc:LG Electronics LG ULTRAFINE 110NTZN4L965, 3840x2160@59.996, 0x0, 2
         monitor=desc:LG Electronics LG ULTRAFINE 110NTMX4M035, 3840x2160@59.996, 1920x0, 2
-        monitor=eDP-1, 2256x1504@59.999, 3840x0, 1.566667
+        monitor=eDP-1, 2256x1504@59.999, 3840x0, 1.333333
       '';
       "hyprdynamicmonitors/hyprconfigs/docked_lid_closed.conf" = pkgs.writeText "docked_lid_closed.conf" ''
         monitor=eDP-1, disable
@@ -99,7 +99,7 @@ attrs@{ lib, homeManagerConfig, pkgs, hyprdynamicmonitors, ... }: {
       '';
       "hyprdynamicmonitors/hyprconfigs/docked_downstairs_lid_open.conf" = pkgs.writeText "docked_downstairs_lid_open.conf" ''
         monitor=desc:LG Electronics LG Ultra HD 0x0000E0D7, 3840x2160@60, 0x0, 2
-        monitor=eDP-1, 2256x1504@59.999, 1920x0, 1.566667
+        monitor=eDP-1, 2256x1504@59.999, 1920x0, 1.333333
       '';
       "hyprdynamicmonitors/hyprconfigs/docked_downstairs_lid_closed.conf" = pkgs.writeText "docked_downstairs_lid_closed.conf" ''
         monitor=eDP-1, disable
@@ -107,7 +107,7 @@ attrs@{ lib, homeManagerConfig, pkgs, hyprdynamicmonitors, ... }: {
       '';
       "hyprdynamicmonitors/hyprconfigs/avr.conf" = pkgs.writeText "avr.conf" ''
         monitor=desc:Sony LG TV SSCR2 0x00000101, 1920x1080@60, 0x0, 1
-        monitor=eDP-1, 2256x1504@59.999, 1920x0, 1.5
+        monitor=eDP-1, 2256x1504@59.999, 1920x0, 1.333333
       '';
       "hyprdynamicmonitors/hyprconfigs/fallback.conf" = pkgs.writeText "fallback.conf" ''
         monitor=, preferred, auto, 1
