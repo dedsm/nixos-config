@@ -32,6 +32,12 @@ in {
     services.upower = { enable = true; };
     services.power-profiles-daemon.enable = true;
     powerManagement.powertop.enable = true;
+    powerManagement.powerDownCommands = ''
+      # Disable all ACPI wakeup sources except the power button (PWRB) before suspend
+      for dev in $(${pkgs.gawk}/bin/awk '$3 == "*enabled" && $1 != "PWRB" {print $1}' /proc/acpi/wakeup); do
+        echo "$dev" > /proc/acpi/wakeup
+      done
+    '';
 
     hardware.amdgpu = {
       initrd.enable = true;

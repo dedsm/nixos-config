@@ -280,7 +280,13 @@ in {
       '';
 
       services.fprintd = {enable = true;};
-      services.udev = {packages = with pkgs; [yubikey-personalization];};
+      services.udev = {
+        packages = with pkgs; [yubikey-personalization];
+        extraRules = ''
+          # Disable wakeup on all USB devices to prevent spurious resume from suspend
+          ACTION=="add", SUBSYSTEM=="usb", ATTR{power/wakeup}="disabled"
+        '';
+      };
 
       services.ddclient = {
         enable = true;
