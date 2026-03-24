@@ -283,8 +283,8 @@ in {
       services.udev = {
         packages = with pkgs; [yubikey-personalization];
         extraRules = ''
-          # Disable wakeup on all USB devices to prevent spurious resume from suspend
-          ACTION=="add", SUBSYSTEM=="usb", ATTR{power/wakeup}="disabled"
+          # Disable wakeup on Logitech USB receiver to prevent spurious resume from suspend
+          ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="046d", ATTR{idProduct}=="c548", ATTR{power/wakeup}="disabled"
         '';
       };
 
