@@ -60,13 +60,6 @@
         unstable = unstablePkgs;
         unfree = unfreePkgs;
         local = localpkgs final prev;
-      } // lib.optionalAttrs prev.stdenv.hostPlatform.isDarwin {
-        # FIXME: remove once nixpkgs includes https://github.com/NixOS/nixpkgs/pull/502769
-        direnv = prev.direnv.overrideAttrs (old: {
-          postPatch = (old.postPatch or "") + ''
-            substituteInPlace GNUmakefile --replace-fail " -linkmode=external" ""
-          '';
-        });
       };
     in
       import nixpkgs {
@@ -269,6 +262,7 @@
             gnupg
             pkgs.unstable.antigravity
             any-nix-shell
+            watch
           ]);
       };
 
