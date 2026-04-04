@@ -1,4 +1,4 @@
-attrs@{ config, pkgs, lib, hc, hyprdynamicmonitors, ... }:
+attrs@{ config, pkgs, lib, hc, hyprdynamicmonitors, anyrun, ... }:
 let
   mkHomeManager = k: v:
     let
@@ -21,5 +21,10 @@ let
       ];
     };
 in lib.mkMerge ([
-  { home-manager.sharedModules = [ hyprdynamicmonitors.homeManagerModules.default ]; }
+  { home-manager.sharedModules = [
+      hyprdynamicmonitors.homeManagerModules.default
+      anyrun.homeManagerModules.default
+      { disabledModules = [ "programs/anyrun.nix" ]; }
+    ];
+  }
 ] ++ lib.mapAttrsToList mkHomeManager hc)

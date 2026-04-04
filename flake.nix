@@ -22,6 +22,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    anyrun = {
+      url = "github:anyrun-org/anyrun";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     darwin = {
       url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -36,6 +41,7 @@
     nixos-hardware,
     fw-fanctrl,
     hyprdynamicmonitors,
+    anyrun,
     darwin,
     ...
   }: let
@@ -77,6 +83,7 @@
         hyprland
         fw-fanctrl
         hyprdynamicmonitors
+        anyrun
         darwin
         ;
     };
@@ -238,7 +245,6 @@
             xsane
             imagemagick
             networkmanagerapplet
-            bemenu
             slurp
             grim
             marksman
@@ -307,6 +313,7 @@
         // {
           sway.enable = false;
           hyprland.enable = true;
+          anyrun.enable = true;
           packages = pkgs:
             (davidNixos pkgs).packages pkgs
             ++ (with pkgs; [

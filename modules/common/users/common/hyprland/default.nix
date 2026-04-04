@@ -3,13 +3,24 @@
   config,
   hyprland,
   homeManagerConfig,
-
-
+  anyrun,
   pkgs,
   ...
 }:
 with lib;
   mkIf (homeManagerConfig.hyprland.enable or false) (let
+    anyrunPkgs = anyrun.packages.${pkgs.system};
+    hyprshot-picker = pkgs.writeShellScript "hyprshot-picker" ''
+      choice=$(printf "Copy Region\nCopy Window\nCopy Monitor\nSave Region\nSave Window\nSave Monitor" | ${anyrunPkgs.anyrun}/bin/anyrun --plugins ${anyrunPkgs.stdin}/lib/libstdin.so --show-results-immediately true 2>/dev/null)
+      case "$choice" in
+        "Copy Region")  ${pkgs.hyprshot}/bin/hyprshot -m region --clipboard-only ;;
+        "Copy Window")  ${pkgs.hyprshot}/bin/hyprshot -m window --clipboard-only ;;
+        "Copy Monitor") ${pkgs.hyprshot}/bin/hyprshot -m output --clipboard-only ;;
+        "Save Region")  ${pkgs.hyprshot}/bin/hyprshot -m region -o ~/Downloads ;;
+        "Save Window")  ${pkgs.hyprshot}/bin/hyprshot -m window -o ~/Downloads ;;
+        "Save Monitor") ${pkgs.hyprshot}/bin/hyprshot -m output -o ~/Downloads ;;
+      esac
+    '';
     screencast-inhibit = pkgs.writeShellScript "screencast-inhibit" ''
       ${pkgs.socat}/bin/socat -U - "UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock" | while IFS= read -r line; do
         case "$line" in
@@ -126,7 +137,7 @@ with lib;
             "ALT SHIFT, P, exec, uwsm app -- nautilus"
             "ALT SHIFT, C, exec, uwsm app -- gnome-calculator"
             "CTRL ALT, L, exec, uwsm app -- ${pkgs.systemd}/bin/loginctl lock-session"
-            "$mod, P, exec, uwsm app -- bemenu-run"
+            "$mod, P, exec, uwsm app -- anyrun"
             "$mod, X, exec, uwsm app -- playerctl play-pause"
             "$mod, Z, exec, uwsm app -- playerctl previous"
             "$mod, C, exec, uwsm app -- playerctl next"
@@ -135,7 +146,8 @@ with lib;
             ", XF86AudioPlay, exec, uwsm app -- playerctl play-pause"
             ", XF86AudioPrev, exec, uwsm app -- playerctl previous"
             ", XF86AudioNext, exec, uwsm app -- playerctl next"
-            ", Print, exec, uwsm app -- grimblast copy area"
+            ", Print, exec, uwsm app -- ${pkgs.hyprshot}/bin/hyprshot -m region --clipboard-only"
+            "CTRL, Print, exec, ${hyprshot-picker}"
             ", XF86AudioMute, exec, uwsm app -- volumectl %"
             "$mod SHIFT, RETURN, exec, uwsm app -- $terminal"
             "$mod SHIFT, C, killactive"

@@ -94,8 +94,31 @@ attrs @ {
     style.name = "adwaita";
   };
 
+  dconf.settings = {
+    "org/gnome/desktop/interface" = {
+      color-scheme = "prefer-light";
+      gtk-theme = "Adwaita";
+      icon-theme = "Papirus";
+    };
+  };
+
   gtk = {
     enable = true;
+    gtk3.extraCss = ''
+      @binding-set no-emoji {
+        unbind "<Control>period";
+        unbind "<Control>semicolon";
+      }
+      entry {
+        -gtk-key-bindings: no-emoji;
+      }
+      textview {
+        -gtk-key-bindings: no-emoji;
+      }
+    '';
+    gtk4.extraConfig = {
+      gtk-application-prefer-dark-theme = 0;
+    };
     cursorTheme = {
       package = pkgs.vanilla-dmz;
       name = "Vanilla-DMZ";
@@ -103,8 +126,8 @@ attrs @ {
     };
 
     iconTheme = {
-      package = pkgs.hicolor-icon-theme;
-      name = "hicolor";
+      package = pkgs.papirus-icon-theme;
+      name = "Papirus";
     };
 
     theme = {

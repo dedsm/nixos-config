@@ -31,7 +31,7 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
     "amdgpu.abmlevel=0"
-    "amdgpu.dcdebugmask=0x0"
+    "amdgpu.dcdebugmask=0x40410"
     "amdgpu.gttsize=102400"
     "ttm.pages_limit=26214400"
     "ttm.page_pool_size=26214400"

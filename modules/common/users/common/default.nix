@@ -20,6 +20,7 @@ let
   ghostty = import ./ghostty attrs;
   sketchybar = import ./sketchybar attrs;
   theme = import ./theme attrs;
+  anyrun = import ./anyrun attrs;
   claude-code = import ./claude-code attrs;
   gemini-cli = import ./gemini-cli attrs;
 
@@ -48,5 +49,6 @@ in lib.mkMerge [
   claude-code
   gemini-cli
 
+  anyrun
   defaults
 ]
