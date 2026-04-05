@@ -7,7 +7,7 @@
 }:
 with lib;
 let
-  anyrunPkgs = anyrun.packages.${pkgs.system};
+  anyrunPkgs = anyrun.packages.${pkgs.stdenv.hostPlatform.system};
 in
   mkIf (homeManagerConfig.anyrun.enable or false) {
     programs.anyrun = {

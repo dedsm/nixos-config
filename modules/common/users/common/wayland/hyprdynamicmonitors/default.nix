@@ -1,7 +1,7 @@
 attrs@{ lib, homeManagerConfig, pkgs, hyprdynamicmonitors, ... }: {
   home.hyprdynamicmonitors = {
     enable = true;
-    package = hyprdynamicmonitors.packages.${pkgs.system}.default;
+    package = hyprdynamicmonitors.packages.${pkgs.stdenv.hostPlatform.system}.default;
     installExamples = false;
     extraFlags = [ "--enable-lid-events" ];
     config = ''

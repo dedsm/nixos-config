@@ -9,7 +9,7 @@
 }:
 with lib;
   mkIf (homeManagerConfig.hyprland.enable or false) (let
-    anyrunPkgs = anyrun.packages.${pkgs.system};
+    anyrunPkgs = anyrun.packages.${pkgs.stdenv.hostPlatform.system};
     hyprshot-picker = pkgs.writeShellScript "hyprshot-picker" ''
       choice=$(printf "Copy Region\nCopy Window\nCopy Monitor\nSave Region\nSave Window\nSave Monitor" | ${anyrunPkgs.anyrun}/bin/anyrun --plugins ${anyrunPkgs.stdin}/lib/libstdin.so --show-results-immediately true 2>/dev/null)
       case "$choice" in

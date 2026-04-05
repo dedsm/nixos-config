@@ -49,13 +49,13 @@
 
     mkPkgs = system: let
       unstablePkgs = import unstable {
-        inherit system;
+        localSystem = system;
         config = {
           allowUnfree = true;
         };
       };
       unfreePkgs = import nixpkgs {
-        inherit system;
+        localSystem = system;
         config = {allowUnfree = true;};
       };
       localpkgs = import ./pkgs {
@@ -69,7 +69,7 @@
       };
     in
       import nixpkgs {
-        inherit system;
+        localSystem = system;
         overlays = [overlay];
       };
     util = import ./lib {
