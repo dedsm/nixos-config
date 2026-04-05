@@ -40,7 +40,6 @@
   boot.kernelModules = [ ];
   boot.extraModulePackages = [];
   boot.blacklistedKernelModules = ["hid_sensor_hub"];
-  boot.plymouth = {enable = true;};
 
   fileSystems."/" = {
     device = "/dev/disk/by-uuid/3ab7175e-f003-48bc-bbdb-26d94e17695d";
