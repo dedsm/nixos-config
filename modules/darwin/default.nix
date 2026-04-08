@@ -40,6 +40,7 @@
     ];
     casks = [
       "middleclick"
+      "orbstack"
     ];
   };
 
