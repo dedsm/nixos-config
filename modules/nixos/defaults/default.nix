@@ -236,6 +236,7 @@ in {
         ripgrep
         virtiofsd # Shared files with virt-manager
         lm_sensors
+        inotify-tools
       ];
       environment.enableAllTerminfo = true;
 
