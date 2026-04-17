@@ -39,6 +39,7 @@
       "cormacrelf/tap/dark-notify"
     ];
     casks = [
+      "keepingyouawake"
       "middleclick"
       "orbstack"
     ];
