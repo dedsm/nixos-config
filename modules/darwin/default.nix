@@ -40,6 +40,7 @@
     ];
     casks = [
       "keepingyouawake"
+      "logi-options-plus"
       "middleclick"
       "orbstack"
     ];

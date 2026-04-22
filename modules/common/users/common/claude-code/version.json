@@ -1,7 +1,7 @@
 {
-  "version": "2.1.110",
+  "version": "2.1.117",
   "platforms": {
-    "darwin-arm64": "f45cb1b0765f9fc592d36d7153f6c1ff0ecfc3ae9cbc997eaff2b0cd25bff9f6",
-    "linux-x64": "7ecdde57b002d5927e704dcbce04eaafb923644d315259ba2e6ac6f0712163a4"
+    "darwin-arm64": "12cf77a447d129d3fb691023ee3ced3e43efbde72ab910c6162db2c7be5ca374",
+    "linux-x64": "b7246963d9e32ece439c3e1e7885f53773a4820e90a4d2433ef2a413a055a5fe"
   }
 }
