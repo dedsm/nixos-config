@@ -23,6 +23,7 @@ let
   anyrun = import ./anyrun attrs;
   claude-code = import ./claude-code attrs;
   gemini-cli = import ./gemini-cli attrs;
+  cli-notify = import ./cli-notify attrs;
 
   defaults = import ./defaults attrs;
 in lib.mkMerge [
@@ -48,6 +49,7 @@ in lib.mkMerge [
   theme
   claude-code
   gemini-cli
+  cli-notify
 
   anyrun
   defaults

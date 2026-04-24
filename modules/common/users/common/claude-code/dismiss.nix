@@ -5,14 +5,14 @@ let
 
   zsh = "${pkgs.zsh}/bin/zsh";
 
-  darwinDismissScript = let alerter = "/opt/homebrew/bin/alerter"; in ''
+  darwinDismissScript = let notify = "$HOME/Applications/CLINotify.app/Contents/MacOS/cli-notify"; in ''
     #!${zsh}
     if [ ! -t 0 ]; then
       INPUT=$(${cat})
       SESSION_ID=$(echo "$INPUT" | ${jq} -r '.session_id // empty')
       if [ -n "$SESSION_ID" ]; then
         GROUP_ID="claude-code-$SESSION_ID"
-        ${alerter} --remove "$GROUP_ID" 2>/dev/null
+        ${notify} --remove "$GROUP_ID" 2>/dev/null
       fi
     fi
   '';

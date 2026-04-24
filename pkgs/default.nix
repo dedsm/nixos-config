@@ -8,4 +8,6 @@ in
   cursor-appimage = super.callPackage ./cursor-appimage { };
 
   slack = super.callPackage ./slack { slack = unstablePkgs.slack; };
+
+  cli-notify = super.callPackage ./cli-notify { };
 }

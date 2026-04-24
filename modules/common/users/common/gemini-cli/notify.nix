@@ -36,7 +36,7 @@ let
 
   zsh = "${pkgs.zsh}/bin/zsh";
 
-  darwinNotifyScript = let alerter = "/opt/homebrew/bin/alerter"; in ''
+  darwinNotifyScript = let notify = "$HOME/Applications/CLINotify.app/Contents/MacOS/cli-notify"; in ''
     #!${zsh}
     if [ -t 0 ]; then
       MESSAGE="''${1:-Task completed}"
@@ -59,7 +59,7 @@ let
       *)        SOUND="default" ;;
     esac
 
-    ${alerter} --title "$TITLE" --message "$DISPLAY_MESSAGE" --sound "$SOUND" --group "$GROUP_ID" --timeout 5 >/dev/null 2>&1
+    ${notify} --title "$TITLE" --message "$DISPLAY_MESSAGE" --sound "$SOUND" --group "$GROUP_ID" >/dev/null 2>&1
 
     # Return empty JSON to satisfy Gemini CLI hook requirements
     echo "{}"
