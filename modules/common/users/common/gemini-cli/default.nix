@@ -52,7 +52,6 @@ in
 lib.mkIf enable {
   home.packages =
     [ pkgs.unstable.gemini-cli ]
-    ++ lib.optionals isDarwin [ pkgs.terminal-notifier ]
     ++ lib.optionals (!isDarwin) [ pkgs.libnotify ];
 
   home.file.".local/bin/notify-gemini.sh" = {

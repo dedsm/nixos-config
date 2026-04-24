@@ -31,7 +31,7 @@ let
 
   zsh = "${pkgs.zsh}/bin/zsh";
 
-  darwinNotifyScript = let tn = "${pkgs.terminal-notifier}/bin/terminal-notifier"; in ''
+  darwinNotifyScript = let alerter = "/opt/homebrew/bin/alerter"; in ''
     #!${zsh}
     if [ -t 0 ]; then
       MESSAGE="''${1:-Task completed}"
@@ -59,7 +59,7 @@ let
       *)        SOUND="default" ;;
     esac
 
-    ${tn} -title "$TITLE" -message "$DISPLAY_MESSAGE" -sound "$SOUND" -group "$GROUP_ID" -appIcon ${iconPath}
+    ${alerter} --title "$TITLE" --message "$DISPLAY_MESSAGE" --sound "$SOUND" --group "$GROUP_ID" --appIcon ${iconPath} --timeout 5
   '';
 
   linuxNotifyScript = let ns = "${pkgs.libnotify}/bin/notify-send"; in ''

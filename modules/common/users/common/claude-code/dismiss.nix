@@ -5,14 +5,14 @@ let
 
   zsh = "${pkgs.zsh}/bin/zsh";
 
-  darwinDismissScript = let tn = "${pkgs.terminal-notifier}/bin/terminal-notifier"; in ''
+  darwinDismissScript = let alerter = "/opt/homebrew/bin/alerter"; in ''
     #!${zsh}
     if [ ! -t 0 ]; then
       INPUT=$(${cat})
       SESSION_ID=$(echo "$INPUT" | ${jq} -r '.session_id // empty')
       if [ -n "$SESSION_ID" ]; then
         GROUP_ID="claude-code-$SESSION_ID"
-        ${tn} -remove "$GROUP_ID" 2>/dev/null
+        ${alerter} --remove "$GROUP_ID" 2>/dev/null
       fi
     fi
   '';

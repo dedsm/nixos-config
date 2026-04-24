@@ -99,7 +99,6 @@ in
 lib.mkIf enable {
   home.packages =
     [ claudeCodePkg ]
-    ++ lib.optionals isDarwin [ pkgs.terminal-notifier ]
     ++ lib.optionals (!isDarwin) [ pkgs.libnotify ];
 
   home.file.".local/bin/claude-file-suggestion.sh" = {

@@ -37,6 +37,7 @@
     };
     brews = [
       "cormacrelf/tap/dark-notify"
+      "vjeantet/tap/alerter"
     ];
     casks = [
       "keepingyouawake"
