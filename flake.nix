@@ -159,6 +159,7 @@
           diff = {tool = "vimdiff";};
           pull = {ff = "only";};
           init = {defaultBranch = "master";};
+          worktree = {guessRemote = true;};
         };
       };
 
