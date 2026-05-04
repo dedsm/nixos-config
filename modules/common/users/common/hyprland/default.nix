@@ -29,6 +29,38 @@ with lib;
         esac
       done
     '';
+    monitor-by-position = pkgs.writeShellScript "monitor-by-position" ''
+      set -euo pipefail
+      action="$1"
+      slot="$2"
+      monitors=$(hyprctl monitors -j)
+      count=$(echo "$monitors" | ${pkgs.jq}/bin/jq 'length')
+      case "$count" in
+        1) idx=0 ;;
+        2)
+          case "$slot" in
+            left)   idx=0 ;;
+            center) idx=1 ;;
+            right)  exit 0 ;;
+            *)      exit 1 ;;
+          esac
+          ;;
+        *)
+          case "$slot" in
+            left)   idx=0 ;;
+            center) idx=$((count / 2)) ;;
+            right)  idx=$((count - 1)) ;;
+            *)      exit 1 ;;
+          esac
+          ;;
+      esac
+      name=$(echo "$monitors" | ${pkgs.jq}/bin/jq -r "sort_by(.x)[$idx].name")
+      case "$action" in
+        focus) hyprctl dispatch focusmonitor "$name" ;;
+        move)  hyprctl dispatch movewindow "mon:$name" ;;
+        *)     exit 1 ;;
+      esac
+    '';
   in {
     # UWSM-specific environment file for Hyprland
     xdg.configFile."uwsm/env-hyprland".text = ''
@@ -153,10 +185,12 @@ with lib;
             "$mod SHIFT, C, killactive"
             "$mod SHIFT, Q, exit"
             "$mod, RETURN, layoutmsg, swapwithmaster"
-            "$mod, W, focusmonitor, l"
-            "$mod, E, focusmonitor, r"
-            "$mod SHIFT, W, movewindow, mon:l"
-            "$mod SHIFT, E, movewindow, mon:r"
+            "$mod, W, exec, ${monitor-by-position} focus left"
+            "$mod, E, exec, ${monitor-by-position} focus center"
+            "$mod, R, exec, ${monitor-by-position} focus right"
+            "$mod SHIFT, W, exec, ${monitor-by-position} move left"
+            "$mod SHIFT, E, exec, ${monitor-by-position} move center"
+            "$mod SHIFT, R, exec, ${monitor-by-position} move right"
             "$mod, TAB, cyclenext"
             "$mod SHIFT, TAB, cyclenext, prev"
             "$mod, COMMA, layoutmsg, addmaster"
