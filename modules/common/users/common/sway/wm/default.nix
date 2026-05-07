@@ -27,7 +27,6 @@ attrs@{ lib, homeManagerConfig, unstablePkgs, pkgs, ... }: {
         }
         { command = "avizo-service"; }
         { command = "mako"; }
-        { command = "dropbox"; }
         { command = "solaar -w hide"; }
         { command = "wl-paste -t text --watch clipman store --no-persist"; }
         {

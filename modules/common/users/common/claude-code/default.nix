@@ -6,7 +6,7 @@ let
 
   # Claude Code package with optional version pin via version.json
   # Run ./update-claude-code.sh to fetch the latest version and hashes
-  baseClaudeCode = pkgs.unstable.claude-code-bin;
+  baseClaudeCode = pkgs.unstable.claude-code;
   versionFile = ./version.json;
   hasVersionPin = builtins.pathExists versionFile;
   claudeCodePkg =

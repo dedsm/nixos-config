@@ -3,15 +3,14 @@
   config,
   hyprland,
   homeManagerConfig,
-  anyrun,
   pkgs,
   ...
 }:
 with lib;
   mkIf (homeManagerConfig.hyprland.enable or false) (let
-    anyrunPkgs = anyrun.packages.${pkgs.stdenv.hostPlatform.system};
+    anyrunPkg = pkgs.unstable.anyrun;
     hyprshot-picker = pkgs.writeShellScript "hyprshot-picker" ''
-      choice=$(printf "Copy Region\nCopy Window\nCopy Monitor\nSave Region\nSave Window\nSave Monitor" | ${anyrunPkgs.anyrun}/bin/anyrun --plugins ${anyrunPkgs.stdin}/lib/libstdin.so --show-results-immediately true 2>/dev/null)
+      choice=$(printf "Copy Region\nCopy Window\nCopy Monitor\nSave Region\nSave Window\nSave Monitor" | ${anyrunPkg}/bin/anyrun --plugins ${anyrunPkg}/lib/libstdin.so --show-results-immediately true 2>/dev/null)
       case "$choice" in
         "Copy Region")  ${pkgs.hyprshot}/bin/hyprshot -m region --clipboard-only ;;
         "Copy Window")  ${pkgs.hyprshot}/bin/hyprshot -m window --clipboard-only ;;
@@ -72,7 +71,7 @@ with lib;
       export MOZ_ENABLE_WAYLAND=1
       export NIXOS_OZONE_WL=1
     '';
-    
+
     wayland.windowManager.hyprland = {
       enable = true;
       systemd.enable = false;
@@ -84,7 +83,6 @@ with lib;
         "$browser" = "firefox-devedition";
         "$mod" = "SUPER";
         exec-once = [
-          "uwsm app -- dropbox"
           "uwsm app -- avizo-service"
           "uwsm app -- solaar -w hide"
           "uwsm app -- wl-paste -t text --watch clipman store --no-persist"

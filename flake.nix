@@ -22,11 +22,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    anyrun = {
-      url = "github:anyrun-org/anyrun";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     darwin = {
       url = "github:nix-darwin/nix-darwin/nix-darwin-25.11";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -41,7 +36,6 @@
     nixos-hardware,
     fw-fanctrl,
     hyprdynamicmonitors,
-    anyrun,
     darwin,
     ...
   }: let
@@ -83,7 +77,6 @@
         hyprland
         fw-fanctrl
         hyprdynamicmonitors
-        anyrun
         darwin
         ;
     };
@@ -191,6 +184,9 @@
 
           # K8S
           k9s
+
+          # rtk
+          pkgs.unstable.rtk
         ];
     };
 
@@ -234,7 +230,6 @@
             chromium
             libreoffice
             ffmpeg
-            pkgs.unfree.dropbox
             vlc
             ntfs3g
             kubernetes-helm
@@ -322,7 +317,6 @@
               pkgs.unstable.spotify
               pkgs.unstable.vscode
               # Cursor.ai
-              pkgs.local.cursor-appimage
               pkgs.unstable.antigravity
               pkgs.unstable.synology-drive-client
               pkgs.unstable.ledger-live-desktop

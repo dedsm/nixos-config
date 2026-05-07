@@ -1,17 +1,17 @@
 {
   lib,
   homeManagerConfig,
-  anyrun,
   pkgs,
   ...
 }:
 with lib;
 let
-  anyrunPkgs = anyrun.packages.${pkgs.stdenv.hostPlatform.system};
+  anyrunPkg = pkgs.unstable.anyrun;
 in
   mkIf (homeManagerConfig.anyrun.enable or false) {
     programs.anyrun = {
       enable = true;
+      package = anyrunPkg;
       config = {
         x = { fraction = 0.5; };
         y = { fraction = 0.3; };
@@ -23,19 +23,12 @@ in
         showResultsImmediately = true;
         maxEntries = 10;
         plugins = [
-          anyrunPkgs.applications
-          anyrunPkgs.actions
-          anyrunPkgs.translate
-          anyrunPkgs.rink
-          anyrunPkgs.shell
+          "${anyrunPkg}/lib/libapplications.so"
+          "${anyrunPkg}/lib/libtranslate.so"
+          "${anyrunPkg}/lib/librink.so"
+          "${anyrunPkg}/lib/libshell.so"
         ];
       };
-      extraConfigFiles."actions.ron".text = ''
-        Config(
-          enable_power_actions: true,
-          custom_actions: [],
-        )
-      '';
       extraCss = ''
         window {
           background: transparent;
