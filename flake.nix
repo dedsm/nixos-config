@@ -108,7 +108,7 @@
       zsh.enable = true;
       starship.enable = true;
       claude-code.enable = true;
-      gemini-cli.enable = true;
+      antigravity.enable = true;
 
       # Defaults for modules not enabled on all platforms
       kdeconnect.enable = false;
@@ -317,7 +317,6 @@
               pkgs.unstable.spotify
               pkgs.unstable.vscode
               # Cursor.ai
-              pkgs.unstable.antigravity
               pkgs.unstable.synology-drive-client
               pkgs.unstable.ledger-live-desktop
               pkgs.unstable.avizo

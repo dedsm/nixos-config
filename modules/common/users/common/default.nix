@@ -22,7 +22,7 @@ let
   theme = import ./theme attrs;
   anyrun = import ./anyrun attrs;
   claude-code = import ./claude-code attrs;
-  gemini-cli = import ./gemini-cli attrs;
+  antigravity = import ./antigravity attrs;
   cli-notify = import ./cli-notify attrs;
 
   defaults = import ./defaults attrs;
@@ -48,7 +48,7 @@ in lib.mkMerge [
   sketchybar
   theme
   claude-code
-  gemini-cli
+  antigravity
   cli-notify
 
   anyrun
