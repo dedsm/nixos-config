@@ -26,6 +26,7 @@ appimageTools.wrapType2 {
     ''
       wrapProgram $out/bin/${pname} \
         --add-flags "--no-sandbox" \
+        --add-flags "--password-store=gnome-libsecret" \
         --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform-hint=auto --enable-features=WaylandWindowDecorations --enable-wayland-ime=true}}"
 
       # Find and install all desktop files

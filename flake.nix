@@ -315,7 +315,9 @@
             ++ (with pkgs; [
               pkgs.local.slack
               pkgs.unstable.spotify
-              pkgs.unstable.vscode
+              (pkgs.unstable.vscode.override {
+                commandLineArgs = "--password-store=gnome-libsecret";
+              })
               # Cursor.ai
               pkgs.unstable.synology-drive-client
               pkgs.unstable.ledger-live-desktop

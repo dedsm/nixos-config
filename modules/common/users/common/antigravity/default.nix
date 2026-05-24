@@ -10,14 +10,21 @@ let
 
   versionInfo = lib.importJSON ./version.json;
 
-  pinnedIde = pkgs.unstable.callPackage ./ide.nix { versionInfo = versionInfo.ide; };
+  pinnedIde = pkgs.unstable.callPackage ./ide.nix {
+    versionInfo = versionInfo.ide;
+    commandLineArgs = "--password-store=gnome-libsecret";
+  };
   pinnedCli = pkgs.unstable.callPackage ./cli.nix { versionInfo = versionInfo.cli; };
 
   # Once nixpkgs lands the rename + 2.x bump and the CLI package, flip useUpstream
   # to consume those directly instead of the pinned builds in this module.
+  baseUpstreamIde = pkgs.unstable.antigravity-ide or pkgs.unstable.antigravity or null;
   idePkg =
     if useUpstream then
-      pkgs.unstable.antigravity-ide or pkgs.unstable.antigravity
+      if baseUpstreamIde != null && baseUpstreamIde ? override then
+        baseUpstreamIde.override { commandLineArgs = "--password-store=gnome-libsecret"; }
+      else
+        baseUpstreamIde
     else
       pinnedIde;
 
