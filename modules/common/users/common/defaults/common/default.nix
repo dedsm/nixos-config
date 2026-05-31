@@ -32,6 +32,9 @@ attrs @ {
           term = "foot";
           font = "InconsolataGo Nerd Font Mono:size=12";
           dpi-aware = "no";
+          # foot's new colors-light/colors-dark model defaults startup to dark;
+          # the old [colors] base was light, so pin light to match prior behaviour.
+          initial-color-theme = "light";
         };
 
         scrollback = {lines = 10000;};
@@ -43,8 +46,8 @@ attrs @ {
           delayed-render-upper = 16000000;
         };
 
-        colors = {
-          # Solarized Light (Default)
+        colors-light = {
+          # Solarized Light (applied on SIGUSR1 / light mode; bare [colors] is deprecated)
           cursor = "fdf6e3 586e75";
           background = "fdf6e3";
           foreground = "657b83";
@@ -66,8 +69,8 @@ attrs @ {
           bright7 = "002b36"; # base03
         };
 
-        colors2 = {
-          # Solarized Dark (Alternative - SIGUSR2)
+        colors-dark = {
+          # Solarized Dark (applied on SIGUSR2 / dark mode; foot renamed colors2 -> colors-dark)
           cursor = "002b36 93a1a1";
           background = "002b36";
           foreground = "839496";

@@ -43,10 +43,11 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       # If running in foot, ensure the correct theme is applied on startup (interactive only)
       if [[ -o interactive ]] && [[ "$TERM" == "foot" ]]; then
         if [[ "$(ps -p $PPID -o comm= 2>/dev/null | tr -d ' ')" == "foot" ]]; then
+          # foot 1.27: SIGUSR1 = dark ([colors-dark]), SIGUSR2 = light ([colors-light])
           if [[ "$(theme-get)" == "dark" ]]; then
-            kill -USR2 $PPID
-          else
             kill -USR1 $PPID
+          else
+            kill -USR2 $PPID
           fi
         fi
       fi

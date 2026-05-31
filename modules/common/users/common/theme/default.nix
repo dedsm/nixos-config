@@ -89,8 +89,8 @@ in {
           ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'Adwaita-dark'"
         '';
         foot-theme = ''
-          # Signal SIGUSR2 to all foot instances to switch to [colors2] (dark)
-          ${pkgs.procps}/bin/pkill -x -USR2 foot || true
+          # foot: SIGUSR1 switches to [colors-dark] (dark)
+          ${pkgs.procps}/bin/pkill -x -USR1 foot || true
         '';
         tmux-theme = ''
           # Update symlink for initial startup
@@ -113,8 +113,8 @@ in {
           ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'Adwaita'"
         '';
         foot-theme = ''
-          # Signal SIGUSR1 to all foot instances to switch to [colors] (light)
-          ${pkgs.procps}/bin/pkill -x -USR1 foot || true
+          # foot: SIGUSR2 switches to [colors-light] (light)
+          ${pkgs.procps}/bin/pkill -x -USR2 foot || true
         '';
         tmux-theme = ''
           # Update symlink for initial startup

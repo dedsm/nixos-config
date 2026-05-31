@@ -95,7 +95,8 @@ with lib;
         misc = {
           force_default_wallpaper = 0;
           disable_hyprland_logo = true;
-          vfr = true;
+          # vfr (variable frame rate) is default-true and moved to debug: in 0.55;
+          # no need to set it explicitly.
           vrr = 1;
         };
         master = {
@@ -119,16 +120,11 @@ with lib;
         general = {
           border_size = 2;
           "col.active_border" = "0xffff0000";
-          no_border_on_floating = true;
           gaps_in = 2;
           gaps_out = 2;
           resize_on_border = true;
           layout = "master";
         };
-        windowrulev2 = [
-          "float, title:^(.*Picture.*)$"
-          "float, class:(org.gnome.Calculator)"
-        ];
         xwayland = {
           force_zero_scaling = true;
         };
@@ -206,5 +202,28 @@ with lib;
             ]) 10)
           );
       };
+
+      # Window rules use the 0.55 named-block form: `windowrule` is now a special
+      # category whose first field must be the `name` key. The structured `settings`
+      # form renders attrs alphabetically, so it can't guarantee name-first ordering —
+      # hence raw extraConfig here. border_size 0 on floating windows replaces the
+      # removed general:no_border_on_floating.
+      extraConfig = ''
+        windowrule {
+          name = float-picture
+          match:title = ^(.*Picture.*)$
+          float = true
+        }
+        windowrule {
+          name = float-calculator
+          match:class = org.gnome.Calculator
+          float = true
+        }
+        windowrule {
+          name = noborder-floating
+          match:float = true
+          border_size = 0
+        }
+      '';
     };
   })
