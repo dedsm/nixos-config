@@ -1,5 +1,6 @@
 attrs @ {
   lib,
+  config,
   homeManagerConfig,
   pkgs,
   username,
@@ -9,6 +10,9 @@ attrs @ {
     firefox = {
       enable = true;
       package = pkgs.unstable.firefox-devedition;
+      # Adopt Firefox 147+ XDG layout (~/.config/mozilla/firefox). Fresh machines
+      # use XDG automatically; existing ~/.mozilla profiles stay legacy (no auto-migration).
+      configPath = "${config.users.users.${username}.home}/.config/mozilla/firefox";
     };
 
 
@@ -119,6 +123,8 @@ attrs @ {
     gtk4.extraConfig = {
       gtk-application-prefer-dark-theme = 0;
     };
+    # 26.05: gtk4.theme no longer mirrors gtk.theme; GTK4 apps use libadwaita.
+    gtk4.theme = null;
     cursorTheme = {
       package = pkgs.vanilla-dmz;
       name = "Vanilla-DMZ";

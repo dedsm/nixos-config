@@ -4,15 +4,14 @@ mkIf (homeManagerConfig.ssh.enable or false) {
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    matchBlocks."*" = {
-      controlMaster = "auto";
-      controlPath = "~/.ssh/sockets/%r@%h-%p";
-      controlPersist = "60";
-      hashKnownHosts = true;
-      extraOptions = {
-        UseRoaming = "no";
-        SetEnv = "TERM=xterm-256color";
-      };
+    # 26.05: matchBlocks deprecated in favour of settings with upstream directive names.
+    # UseRoaming dropped — removed from OpenSSH since the CVE-2016-0777 fix.
+    settings."*" = {
+      ControlMaster = "auto";
+      ControlPath = "~/.ssh/sockets/%r@%h-%p";
+      ControlPersist = "60";
+      HashKnownHosts = true;
+      SetEnv = { TERM = "xterm-256color"; };
     };
   };
 

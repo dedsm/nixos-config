@@ -41,13 +41,13 @@ with lib;
         marksman
 
         # Docker extra
-        nodePackages.typescript-language-server
+        typescript-language-server
         pkgs.dockerfile-language-server
         hadolint
         docker-compose-language-service
 
         # JSON and YAML extras
-        nodePackages.yaml-language-server
+        yaml-language-server
 
         # Nix formatter
         alejandra

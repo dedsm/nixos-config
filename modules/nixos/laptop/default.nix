@@ -20,11 +20,11 @@ in {
       HandleLidSwitchExternalPower = "suspend-then-hibernate";
     };
 
-    systemd.sleep.extraConfig = ''
-      HibernateMode=shutdown
-      HibernateDelaySec=24h
-      HibernateOnACPower=no
-    '';
+    systemd.sleep.settings.Sleep = {
+      HibernateMode = "shutdown";
+      HibernateDelaySec = "24h";
+      HibernateOnACPower = "no";
+    };
 
     systemd.tmpfiles.rules = [ "w /sys/power/image_size - - - - 0" ];
 
