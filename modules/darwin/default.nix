@@ -31,7 +31,13 @@
       autoUpdate = false;
     };
     onActivation = {
+      # Homebrew 5.x requires `--force-cleanup` for `brew bundle ... --cleanup` to
+      # actually run; without it activation just prints usage and installs nothing.
+      # nix-darwin doesn't pass it yet (see nix-darwin#1787 / PR #1789), so we inject
+      # it via extraFlags to keep "zap" auto-removal working. NOTE: this will actively
+      # uninstall (zap) any Homebrew package not declared above.
       cleanup = "zap";
+      extraFlags = [ "--force-cleanup" ];
       autoUpdate = false;
       upgrade = false;
     };
