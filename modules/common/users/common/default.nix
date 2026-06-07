@@ -22,6 +22,7 @@ let
   theme = import ./theme attrs;
   anyrun = import ./anyrun attrs;
   claude-code = import ./claude-code attrs;
+  playwright = import ./playwright attrs;
   antigravity = import ./antigravity attrs;
   cli-notify = import ./cli-notify attrs;
 
@@ -48,6 +49,7 @@ in lib.mkMerge [
   sketchybar
   theme
   claude-code
+  playwright
   antigravity
   cli-notify
 

@@ -101,6 +101,7 @@
       zsh.enable = true;
       starship.enable = true;
       claude-code.enable = true;
+      playwright.enable = true;
       antigravity.enable = true;
 
       # Defaults for modules not enabled on all platforms

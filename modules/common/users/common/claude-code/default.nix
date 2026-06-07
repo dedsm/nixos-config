@@ -25,13 +25,6 @@ let
     else
       baseClaudeCode;
 
-  # Playwright MCP support - dynamically resolve chromium path (Linux only, works natively on Darwin)
-  pw = pkgs.playwright-driver;
-  chromiumRevision = pw.browsersJSON.chromium.revision;
-  playwrightChromiumPath = "${pw.browsers}/chromium-${chromiumRevision}/chrome-linux/chrome";
-  playwrightMcpCacheDir = "$HOME/.cache/playwright-mcp/profiles";
-  isLinux = !isDarwin;
-
   # Nix store paths for commands used only in this file
   jq = "${pkgs.jq}/bin/jq";
   mv = "${pkgs.coreutils}/bin/mv";
@@ -119,22 +112,6 @@ lib.mkIf enable {
   home.file.".local/bin/claude-dismiss-notification.sh" = {
     executable = true;
     text = dismissScript;
-  };
-
-  home.sessionVariables = lib.mkIf isLinux {
-    PLAYWRIGHT_BROWSERS_PATH = "${pw.browsers}";
-    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
-    PLAYWRIGHT_MCP_USER_DATA_DIR = "${playwrightMcpCacheDir}";
-    PLAYWRIGHT_MCP_EXECUTABLE_PATH = playwrightChromiumPath;
-  };
-
-  home.activation.ensurePlaywrightCacheDir = lib.mkIf isLinux {
-    after = ["writeBoundary"];
-    before = [];
-    data = ''
-      $DRY_RUN_CMD ${mkdir} -p "${playwrightMcpCacheDir}"
-    '';
   };
 
   home.activation.mergeClaudeSettings = {
