@@ -1,4 +1,4 @@
-attrs@{ nixos-hardware, nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, fw-fanctrl, ... }: {
+attrs@{ nixos-hardware, nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, ... }: {
   mkHost = { name, system, systemConfig, userConfigFn }:
     let
       pkgs = mkPkgs system;
@@ -53,7 +53,6 @@ attrs@{ nixos-hardware, nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, 
           ];
         }
         nixos-hardware.nixosModules.framework-amd-ai-300-series
-        fw-fanctrl.nixosModules.default
         ../modules/hardware-configuration.nix
         ../modules/common
       ];

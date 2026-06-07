@@ -10,11 +10,6 @@
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    fw-fanctrl = {
-      url = "github:TamtamHero/fw-fanctrl/packaging/nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     nixos-hardware = {url = "github:NixOS/nixos-hardware";};
 
     hyprdynamicmonitors = {
@@ -34,7 +29,6 @@
     hyprland,
     home-manager,
     nixos-hardware,
-    fw-fanctrl,
     hyprdynamicmonitors,
     darwin,
     ...
@@ -75,7 +69,6 @@
         nixos-hardware
         lib
         hyprland
-        fw-fanctrl
         hyprdynamicmonitors
         darwin
         ;
@@ -293,7 +286,6 @@
       laptop.enable = true;
       gnome-programs.enable = true;
       gnome-services.enable = true;
-      fw-fanctrl.enable = false;
 
       systemUsers = {
         david = {
