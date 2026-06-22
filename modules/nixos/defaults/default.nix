@@ -237,6 +237,8 @@ in {
         kdePackages.kwallet
         kdePackages.kwallet-pam
         ripgrep
+        nodejs
+        pnpm # Provides pnpm and pnpx
         virtiofsd # Shared files with virt-manager
         lm_sensors
         inotify-tools
