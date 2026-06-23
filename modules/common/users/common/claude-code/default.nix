@@ -114,6 +114,29 @@ lib.mkIf enable {
     text = dismissScript;
   };
 
+  # Personal "brain" tracking store. We manage exactly two things:
+  #   1. the skill + its canonical template (the mechanism and the latest conventions), and
+  #   2. a one-time bootstrap that seeds ~/brain from the template if it is missing.
+  # The store's living content (pages, index, log) is mutable user data — never
+  # symlinked/managed here. The bootstrap is create-if-missing: it never touches an
+  # existing store. Existing stores catch up to template changes via `/brain --sync`.
+  home.file.".claude/skills/brain/SKILL.md".source = ./skills/brain/SKILL.md;
+  home.file.".claude/skills/brain/templates".source = ./skills/brain/templates;
+
+  home.activation.bootstrapBrain = {
+    after = ["writeBoundary"];
+    before = [];
+    data = ''
+      brain="$HOME/brain"
+      if [ ! -d "$brain" ]; then
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$brain"
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/cp -R ${./skills/brain/templates}/. "$brain"/
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$brain"
+        $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$brain" init -q
+      fi
+    '';
+  };
+
   home.activation.mergeClaudeSettings = {
     after = ["writeBoundary"];
     before = [];

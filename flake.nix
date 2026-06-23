@@ -176,6 +176,9 @@
           krew
           prettier
 
+          # Personal task tracker (git-backed); used by the `brain` Claude skill
+          dstask
+
           # Github CLI
           gh
 
