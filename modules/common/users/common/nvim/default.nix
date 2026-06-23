@@ -23,7 +23,7 @@ with lib;
       withRuby = false;
       enable = true;
       defaultEditor = true;
-      package = pkgs.neovim-unwrapped;
+      package = pkgs.unstable.neovim-unwrapped;
       extraPackages = with pkgs; [
         pkgs.unstable.lua-language-server
         # Nix Language server
@@ -86,7 +86,7 @@ with lib;
         # Colorscheme
 
         catppuccin-nvim
-        (pkgs.vimUtils.buildVimPlugin {
+        (pkgs.unstable.vimUtils.buildVimPlugin {
           pname = "solarized-nvim";
           version = "3.6.0";
           src = pkgs.fetchFromGitHub {
@@ -132,7 +132,7 @@ with lib;
         pkgs.unstable.vimPlugins.claude-code-nvim
 
         # dark-notify neovim plugin (uses dark-notify binary on macOS, darkman on Linux)
-        (pkgs.vimUtils.buildVimPlugin {
+        (pkgs.unstable.vimUtils.buildVimPlugin {
           pname = "dark-notify";
           version = "0.1.3";
           src = pkgs.fetchFromGitHub {
