@@ -5,3 +5,7 @@ result
 # SpecStory explanation file
 .specstory/.what-is-this.md
 modules/common/users/common/.DS_Store
+
+# Machine-local Claude Code state (permissions, MCP servers with secrets)
+.claude/settings.local.json
+.mcp.json

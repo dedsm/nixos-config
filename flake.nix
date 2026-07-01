@@ -100,7 +100,11 @@
       nvim.enable = true;
       zsh.enable = true;
       starship.enable = true;
-      claude-code.enable = true;
+      claude-code = {
+        enable = true;
+        # Persistent headroom compression proxy + route Claude Code through it.
+        headroom.enable = true;
+      };
       playwright.enable = true;
       antigravity.enable = true;
 
