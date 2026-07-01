@@ -108,29 +108,6 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       add-zsh-hook chpwd _tmux_rename_window
       _tmux_rename_window  # run once on shell init
 
-      ${lib.optionalString (homeManagerConfig.claude-code.headroom.enable or false) ''
-        # headroom: tag each `claude` launch with its git repo so the proxy can
-        # attribute compression savings per project. Worktree-stable via
-        # --git-common-dir (all worktrees of a repo roll up to the repo name);
-        # falls back to "common" outside a repo. Passed as a one-shot prefix
-        # assignment (no global env pollution); read once at claude startup,
-        # which is fine since a session's project is fixed by its launch dir.
-        function claude() {
-          local git_dir repo
-          git_dir=$(realpath "$(command git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
-          if [[ -n "$git_dir" ]]; then
-            if [[ "$(basename "$git_dir")" == ".git" ]]; then
-              repo=$(basename "$(dirname "$git_dir")")
-            else
-              repo=$(basename "$git_dir")
-            fi
-          else
-            repo=common
-          fi
-          ANTHROPIC_CUSTOM_HEADERS="X-Headroom-Project: $repo" command claude "$@"
-        }
-      ''}
-
       ${homeManagerConfig.zsh.initContent or ""}
       any-nix-shell zsh --info-right | source /dev/stdin
       ${if (homeManagerConfig.zoxide.enable or false) then ''

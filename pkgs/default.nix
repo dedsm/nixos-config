@@ -10,6 +10,4 @@ in
   slack = super.callPackage ./slack { slack = unstablePkgs.slack; };
 
   cli-notify = super.callPackage ./cli-notify { };
-
-  headroom = super.callPackage ./headroom { };
 }

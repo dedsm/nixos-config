@@ -100,11 +100,7 @@
       nvim.enable = true;
       zsh.enable = true;
       starship.enable = true;
-      claude-code = {
-        enable = true;
-        # Persistent headroom compression proxy + route Claude Code through it.
-        headroom.enable = true;
-      };
+      claude-code.enable = true;
       playwright.enable = true;
       antigravity.enable = true;
 
@@ -191,10 +187,6 @@
 
           # rtk
           pkgs.unstable.rtk
-
-          # Headroom — local context-compression proxy / MCP for AI agents.
-          # Finds the rtk above on PATH; bundles its own ast-grep.
-          pkgs.local.headroom
         ];
     };
 
@@ -405,13 +397,5 @@
         userConfigFn = morgothUserConfig;
       };
     };
-
-    # Buildable custom packages: `nix build .#headroom`.
-    # Also what scripts/update-headroom.sh builds to compute hashes.
-    packages = lib.genAttrs [ "x86_64-linux" "aarch64-darwin" ] (
-      system: {
-        headroom = (mkPkgs system).local.headroom;
-      }
-    );
   };
 }
