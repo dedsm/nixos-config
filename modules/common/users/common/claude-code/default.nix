@@ -88,30 +88,6 @@ let
     fi
   '';
 
-  # === TOMBSTONE: purge headroom leftovers (delete once all machines migrate) ===
-  # The reverted headroom integration (commit cbf355e) injected keys into two
-  # part-managed files via add-only `jq` merges, which a switch cannot un-merge:
-  #   - ~/.claude/settings.json : env.ANTHROPIC_BASE_URL, env.ENABLE_TOOL_SEARCH
-  #   - ~/.claude.json          : mcpServers.headroom
-  # This strips them so each machine self-heals on its next switch. Logic lives in
-  # a writeShellScript (like mergeScript) so the redirects don't fire under
-  # $DRY_RUN_CMD. REMOVAL CRITERIA: once BOTH manwe and morgoth have switched past
-  # this commit, delete this script, the `purgeHeadroomLeftovers` activation below,
-  # and this comment.
-  purgeHeadroomScript = pkgs.writeShellScript "purge-headroom-leftovers" ''
-    SETTINGS="$HOME/.claude/settings.json"
-    if [ -f "$SETTINGS" ] && ${jq} empty "$SETTINGS" 2>/dev/null; then
-      ${jq} 'del(.env.ANTHROPIC_BASE_URL, .env.ENABLE_TOOL_SEARCH)
-        | if (.env == {}) then del(.env) else . end' \
-        "$SETTINGS" > "$SETTINGS.tmp" && ${mv} "$SETTINGS.tmp" "$SETTINGS"
-    fi
-    CLAUDE_JSON="$HOME/.claude.json"
-    if [ -f "$CLAUDE_JSON" ] && ${jq} empty "$CLAUDE_JSON" 2>/dev/null; then
-      ${jq} 'del(.mcpServers.headroom)' \
-        "$CLAUDE_JSON" > "$CLAUDE_JSON.tmp" && ${mv} "$CLAUDE_JSON.tmp" "$CLAUDE_JSON"
-    fi
-  '';
-
 in
 lib.mkIf enable {
   home.packages =
@@ -166,17 +142,6 @@ lib.mkIf enable {
     before = [];
     data = ''
       $DRY_RUN_CMD ${mergeScript}
-    '';
-  };
-
-  # TOMBSTONE (see purgeHeadroomScript above): remove with its script once all
-  # machines have migrated. Runs after mergeClaudeSettings so it strips the stale
-  # env.* keys from the freshly re-merged settings.json.
-  home.activation.purgeHeadroomLeftovers = {
-    after = ["writeBoundary" "mergeClaudeSettings"];
-    before = [];
-    data = ''
-      $DRY_RUN_CMD ${purgeHeadroomScript}
     '';
   };
 }
