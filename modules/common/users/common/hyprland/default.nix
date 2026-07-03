@@ -28,40 +28,6 @@ with lib;
         esac
       done
     '';
-    # Hyprland 0.55+ parses `hyprctl dispatch` arguments as Lua, so the dispatch
-    # calls below use the lua-expression form (hl.dsp.*), not the legacy names.
-    monitor-by-position = pkgs.writeShellScript "monitor-by-position" ''
-      set -euo pipefail
-      action="$1"
-      slot="$2"
-      monitors=$(hyprctl monitors -j)
-      count=$(echo "$monitors" | ${pkgs.jq}/bin/jq 'length')
-      case "$count" in
-        1) idx=0 ;;
-        2)
-          case "$slot" in
-            left)   idx=0 ;;
-            center) idx=1 ;;
-            right)  exit 0 ;;
-            *)      exit 1 ;;
-          esac
-          ;;
-        *)
-          case "$slot" in
-            left)   idx=0 ;;
-            center) idx=$((count / 2)) ;;
-            right)  idx=$((count - 1)) ;;
-            *)      exit 1 ;;
-          esac
-          ;;
-      esac
-      name=$(echo "$monitors" | ${pkgs.jq}/bin/jq -r "sort_by(.x)[$idx].name")
-      case "$action" in
-        focus) hyprctl dispatch "hl.dsp.focus({ monitor = \"$name\" })" ;;
-        move)  hyprctl dispatch "hl.dsp.window.move({ monitor = \"$name\" })" ;;
-        *)     exit 1 ;;
-      esac
-    '';
     # Workspace binds: $mod + [shift +] {1..10} to [move to] workspace {1..10}.
     # Key "0" maps to workspace 10. Rendered as lua hl.bind calls.
     workspaceBinds = lib.concatStringsSep "\n" (builtins.concatLists (builtins.genList (x: let
@@ -69,7 +35,7 @@ with lib;
       n = toString (x + 1);
     in [
       ''hl.bind(mod .. " + ${ws}", hl.dsp.focus({ workspace = ${n}, on_current_monitor = true }))''
-      ''hl.bind(mod .. " + SHIFT + ${ws}", hl.dsp.window.move({ workspace = ${n} }))''
+      ''hl.bind(mod .. " + SHIFT + ${ws}", hl.dsp.window.move({ workspace = ${n}, follow = false }))''
     ]) 10));
   in {
     # UWSM-specific environment file for Hyprland
@@ -174,6 +140,32 @@ with lib;
         hl.animation({ leaf = "fade", enabled = true, speed = 10, bezier = "default" })
         hl.animation({ leaf = "workspaces", enabled = true, speed = 5, bezier = "wind" })
 
+        -- Focus/move the active window to a monitor chosen by physical position.
+        -- Monitors are sorted left-to-right by x each press, so it stays correct
+        -- across hotplug. Replaces the old bash+jq monitor-by-position script.
+        local function monitorByPosition(action, slot)
+          local mons = hl.get_monitors()
+          table.sort(mons, function(a, b) return a.x < b.x end)
+          local n, idx = #mons, nil
+          if n == 1 then idx = 1
+          elseif n == 2 then
+            if slot == "left" then idx = 1
+            elseif slot == "center" then idx = 2
+            else return end                       -- right: no-op on dual
+          else
+            if slot == "left" then idx = 1
+            elseif slot == "center" then idx = math.floor(n / 2) + 1
+            elseif slot == "right" then idx = n
+            else return end
+          end
+          local name = mons[idx].name
+          if action == "focus" then
+            hl.dispatch(hl.dsp.focus({ monitor = name }))
+          else
+            hl.dispatch(hl.dsp.window.move({ monitor = name, follow = false }))
+          end
+        end
+
         -- Mouse binds (old bindm)
         hl.bind(mod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
         hl.bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
@@ -208,12 +200,12 @@ with lib;
         -- uwsm sessions must stop via `uwsm stop`, not the exit dispatcher.
         hl.bind(mod .. " + SHIFT + Q", hl.dsp.exec_cmd("uwsm stop"))
         hl.bind(mod .. " + RETURN", hl.dsp.layout("swapwithmaster"))
-        hl.bind(mod .. " + W", hl.dsp.exec_cmd("${monitor-by-position} focus left"))
-        hl.bind(mod .. " + E", hl.dsp.exec_cmd("${monitor-by-position} focus center"))
-        hl.bind(mod .. " + R", hl.dsp.exec_cmd("${monitor-by-position} focus right"))
-        hl.bind(mod .. " + SHIFT + W", hl.dsp.exec_cmd("${monitor-by-position} move left"))
-        hl.bind(mod .. " + SHIFT + E", hl.dsp.exec_cmd("${monitor-by-position} move center"))
-        hl.bind(mod .. " + SHIFT + R", hl.dsp.exec_cmd("${monitor-by-position} move right"))
+        hl.bind(mod .. " + W",         function() monitorByPosition("focus", "left")   end)
+        hl.bind(mod .. " + E",         function() monitorByPosition("focus", "center") end)
+        hl.bind(mod .. " + R",         function() monitorByPosition("focus", "right")  end)
+        hl.bind(mod .. " + SHIFT + W", function() monitorByPosition("move",  "left")   end)
+        hl.bind(mod .. " + SHIFT + E", function() monitorByPosition("move",  "center") end)
+        hl.bind(mod .. " + SHIFT + R", function() monitorByPosition("move",  "right")  end)
         hl.bind(mod .. " + TAB", hl.dsp.window.cycle_next())
         hl.bind(mod .. " + SHIFT + TAB", hl.dsp.window.cycle_next({ next = false }))
         hl.bind(mod .. " + COMMA", hl.dsp.layout("addmaster"))
