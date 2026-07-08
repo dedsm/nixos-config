@@ -110,20 +110,12 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             padding: 0 10px;
         }
       '';
-      settings = let
-        # Determine which WM is enabled for this user
-        useSway = homeManagerConfig.sway.enable or false;
-        useHyprland = homeManagerConfig.hyprland.enable or false;
-        # Define the workspace module name based on the enabled WM
-        # Note: The assertion in lib/host.nix guarantees only one will be true
-        workspacesModule = if useSway then "sway/workspaces" else "hyprland/workspaces";
-      in {
+      settings = {
         mainBar = {
           layer = "bottom";
           position = "top";
           height = 10;
-          # Conditionally include the correct workspace module
-          modules-left = [ workspacesModule "custom/right-arrow-dark" ];
+          modules-left = [ "hyprland/workspaces" "custom/right-arrow-dark" ];
           modules-center = [
             "custom/left-arrow-dark"
             "clock#1"
@@ -205,14 +197,7 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             tooltip = false;
           };
 
-          # Conditionally define sway/workspaces config
-          "sway/workspaces" = lib.mkIf useSway {
-            disable-scroll = true;
-            format = "{name}";
-          };
-
-          # Conditionally define hyprland/workspaces config
-          "hyprland/workspaces" = lib.mkIf useHyprland {
+          "hyprland/workspaces" = {
             disable-scroll = true;
             format = "{name}";
           };

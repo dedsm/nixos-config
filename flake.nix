@@ -111,7 +111,6 @@
       network-manager.enable = false;
       bluetooth.enable = false;
       wayland.enable = false;
-      sway.enable = false;
       hyprland.enable = false;
       theme.enable = true;
       defaults.enable = false;
@@ -277,7 +276,6 @@
       swaync.enable = false;
       network-manager.enable = false;
       bluetooth.enable = false;
-      sway.enable = false;
       hyprland.enable = false;
       wayland.enable = false;
       theme.enable = false;
@@ -293,6 +291,17 @@
       laptop.enable = true;
       gnome-programs.enable = true;
       gnome-services.enable = true;
+      hyprland.enable = true;
+      greetd.enable = true;
+      bluetooth.enable = true;
+      printing.enable = true;
+      scanning.enable = true;
+      virtualisation.enable = true;
+      onepassword.enable = true;
+      gnupg.enable = true;
+      peripherals.enable = true;
+      fwupd.enable = true;
+      ddclient.enable = true;
 
       systemUsers = {
         david = {
@@ -306,7 +315,6 @@
       david =
         (davidNixos pkgs)
         // {
-          sway.enable = false;
           hyprland.enable = true;
           anyrun.enable = true;
           packages = pkgs:
@@ -373,6 +381,10 @@
         system = "x86_64-linux";
         systemConfig = manweSystemConfig;
         userConfigFn = manweUserConfig;
+        hardwareModules = [
+          nixos-hardware.nixosModules.framework-amd-ai-300-series
+          ./hosts/manwe/hardware-configuration.nix
+        ];
       };
       # Example for a future host:
       # tower = host.mkHost {

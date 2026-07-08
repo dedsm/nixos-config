@@ -43,5 +43,10 @@ in {
       initrd.enable = true;
       opencl.enable = true;
     };
+
+    # `light` was removed from nixpkgs in 26.05; brightnessctl is avizo's
+    # lightctl backend and ships udev rules for the video group (no setuid).
+    environment.systemPackages = [pkgs.brightnessctl];
+    services.udev.packages = [pkgs.brightnessctl];
   };
 }

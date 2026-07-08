@@ -21,6 +21,91 @@ in {
     boot.loader.efi.canTouchEfiVariables = true;
     i18n = { defaultLocale = cfg.defaultLocale; };
 
+    networking.networkmanager = {
+      enable = true;
+      wifi.backend = "wpa_supplicant";
+      plugins = with pkgs; [ networkmanager-openvpn ];
+    };
+    systemd.services.NetworkManager-wait-online.enable = false;
+
+    fonts.packages = with pkgs; [
+      noto-fonts
+      noto-fonts-cjk-sans
+      noto-fonts-color-emoji
+      liberation_ttf
+      fira-code
+      fira-code-symbols
+      dina-font
+      proggyfonts
+      pkgs.unstable.nerd-fonts.inconsolata-go
+    ];
+
+    services.xserver = {
+      enable = true;
+      xkb = {
+        layout = "us";
+        model = "pc105";
+        variant = "altgr-intl";
+        options = "caps:super";
+      };
+    };
+    console.useXkbConfig = true;
+
+    services.dbus = {
+      enable = true;
+      packages = [ pkgs.dconf ];
+    };
+    programs.dconf.enable = true;
+
+    xdg = {
+      mime.enable = true;
+      icons.enable = true;
+      portal = {
+        enable = true;
+        xdgOpenUsePortal = false;
+        config.common.default = [ "gtk" ];
+        extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
+      };
+    };
+
+    services.avahi = {
+      enable = true;
+      nssmdns4 = true;
+    };
+
+    # Audio
+    services.pulseaudio.enable = false;
+    services.pipewire = {
+      enable = true;
+      alsa.enable = true;
+      alsa.support32Bit = true;
+      pulse.enable = true;
+    };
+
+    home-manager.useGlobalPkgs = false;
+    home-manager.useUserPackages = true;
+
+    # Allowing compiled binaries to run if configured correctly
+    programs.nix-ld.enable = true;
+
+    security.pam.services.login.enableKwallet = true;
+
+    environment.enableAllTerminfo = true;
+    environment.systemPackages = with pkgs; [
+      git
+      any-nix-shell
+      nixfmt
+      qt5.qtwayland
+      kdePackages.kwallet
+      kdePackages.kwallet-pam
+      ripgrep
+      nodejs
+      pnpm # Provides pnpm and pnpx
+      virtiofsd # Shared files with virt-manager
+      lm_sensors
+      inotify-tools
+    ];
+
     time = {
       timeZone = mkIf (!config.services.automatic-timezoned.enable or false) cfg.timeZone;
       hardwareClockInLocalTime = false;

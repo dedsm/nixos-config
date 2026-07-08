@@ -1,15 +1,8 @@
-attrs@{ nixos-hardware, nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, ... }: {
-  mkHost = { name, system, systemConfig, userConfigFn }:
+attrs@{ nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, ... }: {
+  mkHost = { name, system, systemConfig, userConfigFn, hardwareModules ? [] }:
     let
       pkgs = mkPkgs system;
       userConfig = userConfigFn pkgs;
-      # Helper to check if any user in the HM config enables a specific module
-      anyUserEnables = moduleName:
-        builtins.any (userCfg: userCfg.${moduleName}.enable or false) (builtins.attrValues userConfig);
-
-      anySway = anyUserEnables "sway";
-      anyHyprland = anyUserEnables "hyprland";
-
     in
     lib.nixosSystem {
       # inherit system; # System is set via nixpkgs.pkgs
@@ -17,8 +10,6 @@ attrs@{ nixos-hardware, nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, 
       specialArgs = attrs // {
         hc = userConfig;
         hostSystemConfig = systemConfig;
-        # Pass the original values down
-        inherit anySway anyHyprland;
       };
 
       modules = [
@@ -43,17 +34,10 @@ attrs@{ nixos-hardware, nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, 
             unstable.flake = unstable;
           };
           system.stateVersion = systemConfig.stateVersion;
-
-          # Define assertions using the standard mechanism
-          assertions = [
-            {
-              assertion = anySway != anyHyprland;
-              message = "Host \"${name}\" must have exactly one of Sway or Hyprland enabled across its users.";
-            }
-          ];
         }
-        nixos-hardware.nixosModules.framework-amd-ai-300-series
-        ../modules/hardware-configuration.nix
+      ]
+      ++ hardwareModules
+      ++ [
         ../modules/common
       ];
     };
