@@ -99,6 +99,17 @@ nix flake update                              # Bump input pins
 3. Register it under `nixosConfigurations` via `nixosHost.mkHost`, passing `hardwareModules` for that host's disk layout and any matching `nixos-hardware` module — see the `manwe` entry for reference.
 4. `sudo nixos-rebuild switch --flake .#<name>`.
 
+## Documentation
+
+Deeper dives on the more involved pieces live in [`docs/`](./docs/):
+
+- [`docs/claude-code.md`](./docs/claude-code.md) — package pinning, the managed-settings merge strategy, hooks, status line, editor integration
+- [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — how the Playwright MCP server is pointed at a Nix-managed browser instead of downloading its own
+- [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
+- [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill and how its store is bootstrapped/synced
+
+**Keep this README and `docs/` up to date.** Whenever a change here alters something they describe — a module moves, a toggle's default changes, a script's behavior changes, a new host or documented subsystem is added — update the relevant doc (or add a new one under `docs/` and link it from here) in the same change. See [`CLAUDE.md`](./CLAUDE.md) for the same rule applied to agent-facing docs.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
