@@ -9,3 +9,7 @@ modules/common/users/common/.DS_Store
 # Machine-local Claude Code state (permissions, MCP servers with secrets)
 .claude/settings.local.json
 .mcp.json
+
+# Dynamic-DNS credentials — must never be committed (see modules/nixos/ddclient)
+ddclient.conf
+ddclientPassword

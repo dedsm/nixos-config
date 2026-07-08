@@ -13,7 +13,10 @@ in {
   config = mkIf cfg.enable {
     services.ddclient = {
       enable = true;
-      configFile = "/etc/nixos/ddclient.conf";
+      # Kept outside the repo tree on purpose: /etc/nixos may be a symlink to
+      # this (public) flake, so a repo-relative path would risk committing the
+      # dynamic-DNS credentials. /var/lib/ddclient is machine-local state.
+      configFile = "/var/lib/ddclient/ddclient.conf";
     };
   };
 }
