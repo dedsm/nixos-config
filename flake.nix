@@ -84,10 +84,8 @@
         "video"
         "docker"
         "networkmanager"
-        "vboxusers"
         "lp"
         "scanner"
-        "libvirtd"
         "uinput" # solaar
       ];
     };
@@ -243,7 +241,6 @@
             slurp
             grim
             marksman
-            virt-manager
             pkgs.unstable.restream
             pkgs.unfree._1password-cli
           ]);

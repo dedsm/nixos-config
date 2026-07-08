@@ -4,7 +4,7 @@ let cfg = config.dedsm.virtualisation;
 in {
   options.dedsm.virtualisation = {
     enable = mkOption {
-      description = "Docker + libvirt/QEMU virtualisation";
+      description = "Docker";
       type = with types; bool;
       default = false;
     };
@@ -17,8 +17,5 @@ in {
       liveRestore = false;
       enableOnBoot = false; # Don't start Docker on boot - start on-demand via socket activation
     };
-
-    virtualisation.libvirtd.enable = true;
-    virtualisation.spiceUSBRedirection.enable = true;
   };
 }

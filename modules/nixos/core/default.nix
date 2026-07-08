@@ -101,7 +101,6 @@ in {
       ripgrep
       nodejs
       pnpm # Provides pnpm and pnpx
-      virtiofsd # Shared files with virt-manager
       lm_sensors
       inotify-tools
     ];
@@ -125,9 +124,6 @@ in {
     environment.variables = {
       VDPAU_DRIVER = "radeonsi";
     };
-
-    # Enable the OpenSSH daemon.
-    services.openssh.enable = true;
 
     services.accounts-daemon.enable = true;
 
