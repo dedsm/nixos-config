@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v5 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v6 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 
 Operating manual for this store. **Read this before any operation here.** The files are the
 source of truth; this manual tells an agent how to maintain them.
@@ -98,6 +98,7 @@ query; only drop to hand-editing page **bodies** (prose below the frontmatter).
 brain new <kind> <slug> [--title T --status S --summary "…" --due D --parent P --tags a,b]
                               # create a schema-perfect page in the right bucket
 brain set <page> <field> <value>   # set one field, validated; stamps updated (+ started/finished)
+brain unset <page> <field>         # remove one optional field (never a required one); stamps updated
 brain done <page>                  # status=done + finished=today + updated=today
 brain reindex                      # regenerate index.md's generated region from frontmatter
 brain q [--status S | --kind K | --tag T | --overdue | --due-before D | --stale DAYS] [--json]
@@ -107,9 +108,10 @@ brain log "<what changed> — [[page]]"  # prepend a dated log.md entry (date fr
 brain today                        # today's date from the system clock — never infer it
 ```
 
-- **Writers** (`new`/`set`/`done`) are the reason frontmatter stays clean: they only ever emit
-  legal enum values and ISO dates, and stamp `updated`/`started`/`finished` for you. Reach for
-  them instead of typing YAML.
+- **Writers** (`new`/`set`/`unset`/`done`) are the reason frontmatter stays clean: they only ever
+  emit legal enum values and ISO dates, and stamp `updated`/`started`/`finished` for you. Reach for
+  them instead of typing YAML — including `unset` to drop an optional field (it refuses required
+  ones), rather than hand-deleting a line.
 - **Dates come from the clock, never from the corpus.** The writers and `brain log` date
   everything from the system clock; `brain today` is the authoritative "now". **Never read a date
   out of `log.md`, git history, or a page and treat it as today** — those are recorded facts, not

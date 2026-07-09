@@ -12,6 +12,7 @@ Subcommands:
   q         structured query over frontmatter (status/overdue/stale/tag/kind)
   new       create a schema-perfect page in the right bucket
   set       set one frontmatter field (validated), stamping dates
+  unset     remove one optional frontmatter field (never a required one)
   done      mark a page done (status=done, finished=today)
   normalize repair-on-drift: canonicalise status/kind/tags in place
   log       prepend a dated activity entry to log.md (date from the system clock)
@@ -587,6 +588,31 @@ def cmd_set(args) -> int:
     return 0
 
 
+def cmd_unset(args) -> int:
+    # Remove an optional field. Required fields are refused (deleting one would
+    # produce an invalid page); the write is re-validated regardless.
+    field = args.field
+    if field in REQUIRED:
+        die(f"cannot unset required field '{field}' (required: {REQUIRED})")
+    path = resolve_page(args.page)
+    page = parse_page(path)
+    if not page.has_fm:
+        die(f"{path} has no frontmatter")
+    if field not in page.fields:
+        print(f"{rel(path)}: {field} already unset")
+        return 0
+    del page.fields[field]
+    if field in page.order:
+        page.order.remove(field)
+    page.fields["updated"] = today()
+    errs, _ = validate_page(page, required_fm=True)
+    if errs:
+        die("refusing to write invalid page:\n  " + "\n  ".join(errs))
+    write_page(page)
+    print(f"{rel(path)}: {field} unset")
+    return 0
+
+
 def cmd_done(args) -> int:
     path = resolve_page(args.page)
     page = parse_page(path)
@@ -720,6 +746,11 @@ def main() -> int:
     s.add_argument("field")
     s.add_argument("value")
     s.set_defaults(func=cmd_set)
+
+    u = sub.add_parser("unset", help="remove one optional frontmatter field")
+    u.add_argument("page")
+    u.add_argument("field")
+    u.set_defaults(func=cmd_unset)
 
     d = sub.add_parser("done", help="mark a page done")
     d.add_argument("page")
