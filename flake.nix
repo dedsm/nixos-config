@@ -139,6 +139,7 @@
             signingkey = "8655217C8614EB611CF2259DF287187DBA42E303";
           };
           commit.gpgsign = true;
+          tag.gpgsign = true;
           push = {default = "simple";};
           diff = {tool = "vimdiff";};
           pull = {ff = "only";};
