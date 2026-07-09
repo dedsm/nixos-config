@@ -10,6 +10,17 @@
 
   nix.optimise.automatic = true;
 
+  # Automatic garbage collection of old generations. Home-manager is embedded in
+  # the darwin system generation (useUserPackages), so pruning system
+  # generations reclaims old home closures too. Active dev shells pinned by
+  # direnv gcroots are always protected regardless of age. Note: launchd uses
+  # `interval` (StartCalendarInterval), not systemd's `dates`.
+  nix.gc = {
+    automatic = true;
+    interval = { Weekday = 0; Hour = 3; Minute = 0; };
+    options = "--delete-older-than 30d";
+  };
+
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
     max-jobs = 4;
@@ -46,7 +57,7 @@
     ];
     casks = [
       "keepingyouawake"
-      "logi-options-plus"
+      "logi-options+"
       "middleclick"
       "orbstack"
     ];

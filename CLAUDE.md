@@ -377,8 +377,10 @@ ls -la /nix/var/nix/profiles/system-*-link
 
 ### Performance Tips
 - `home-manager.useGlobalPkgs`/`useUserPackages` are set in `modules/nixos/core` for shared package cache
-- `nix.settings.auto-optimise-store = true` is enabled in `modules/nixos/core` for disk space
-- Regularly run `nix-collect-garbage -d` to clean old generations
+- `nix.settings.auto-optimise-store = true` (NixOS) / `nix.optimise.automatic = true` (Darwin) dedupe the store
+- Garbage collection is automatic via `nix.gc` — weekly `--delete-older-than 30d` in `modules/nixos/core` (systemd timer) and in `modules/darwin/default.nix` (launchd, `interval` instead of `dates`). Because home-manager is embedded in the system generation (`useUserPackages`, `enableLegacyProfileManagement` left at its default `false`), pruning system generations reclaims old home closures too — no separate user-context GC is needed. NixOS also caps the boot menu via `boot.loader.systemd-boot.configurationLimit`.
+- **Dev shells are not reclaimed by GC while their `.direnv` exists**: `nix-direnv` (`use flake`) registers the devShell closure and its flake inputs as live gcroots under `/nix/var/nix/gcroots/auto/`, which are protected regardless of `--delete-older-than`. They are reclaimed automatically only after the flake input is superseded (on `flake.lock` update + reload) or the `.direnv` is removed. To reclaim a stale project's shell, `rm -rf <project>/.direnv` then let the next GC run
+- For a manual sweep you can still run `nix-collect-garbage -d`
 
 ### Getting Help
 - Check NixOS manual: `nixos-help`

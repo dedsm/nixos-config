@@ -18,6 +18,7 @@ in {
 
   config = {
     boot.loader.systemd-boot.enable = true;
+    boot.loader.systemd-boot.configurationLimit = 20;
     boot.loader.efi.canTouchEfiVariables = true;
     i18n = { defaultLocale = cfg.defaultLocale; };
 
@@ -118,6 +119,17 @@ in {
 
     nix.settings.experimental-features = [ "nix-command" "flakes" ];
     nix.settings.auto-optimise-store = true;
+
+    # Automatic garbage collection of old generations. This prunes the system
+    # profile generations (which home-manager is embedded in via
+    # useUserPackages), so it reclaims old home closures too. Active dev shells
+    # pinned by direnv gcroots are always protected regardless of age.
+    nix.gc = {
+      automatic = true;
+      dates = "weekly";
+      randomizedDelaySec = "30min";
+      options = "--delete-older-than 30d";
+    };
     networking.firewall.enable = false;
 
     # Environment variables
