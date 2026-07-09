@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v2 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v5 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 
 Operating manual for this store. **Read this before any operation here.** The files are the
 source of truth; this manual tells an agent how to maintain them.
@@ -13,8 +13,9 @@ every session, from any repo or none. Plain markdown: durable, diffable, hand-ed
 openable directly in Obsidian with zero changes.
 
 Pattern: agent-compiled knowledge base (Karpathy "LLM-wiki"). Moving parts: raw inputs →
-compiled pages → a maintained `index.md`, plus an append-only `log.md` and a periodic
-self-reorganization (`lint`) pass.
+compiled pages → a **generated** `index.md`, plus an append-only `log.md` and a periodic
+self-reorganization (`lint`) pass. A small Nix-managed CLI (`brain`) owns the schema, so
+frontmatter is deterministic instead of hand-typed — see **Tooling** below.
 
 ## Systems of record (do not duplicate)
 
@@ -36,12 +37,20 @@ self-reorganization (`lint`) pass.
   themes that span many pages (one page may belong to several MOCs — folders cannot express this).
 - `raw/` — immutable captured inputs (pasted text, links) before compilation. Never edit; compile
   from here into pages.
-- `index.md` — master catalog, one line per page. Keep current.
-- `log.md` — append-only activity log, newest first. **Every entry is dated** — `- YYYY-MM-DD — <what changed> — [[page]]` — making it the canonical "what happened when" timeline.
+- `index.md` — master catalog. The section list is **generated** between the
+  `<!-- BEGIN generated -->` / `<!-- END generated -->` markers — never hand-edit inside them.
+  The pre-commit hook regenerates it from frontmatter on **every commit**, so it can't drift; you
+  can also run `brain reindex` explicitly to preview. Everything outside the markers (preamble, the
+  `▶ Current focus` pointer, hand-listed reference files) is preserved.
+- `log.md` — append-only activity log, newest first. **Every entry is dated** — `- YYYY-MM-DD — <what changed> — [[page]]` — making it the canonical "what happened when" timeline. When it grows
+  large (say past ~400 lines), rotate the older tail into `log-archive/YYYY.md` (or `-QN`) and keep
+  the recent window hot; `git log` remains the ultimate backstop timeline.
 
 ## Page schema (YAML frontmatter)
 
-Every page begins with:
+This schema is **enforced** by `brain check` — its machine-readable definition lives in the
+`brain` CLI (`brain.py`, shipped from nixos-config); the block below is the human mirror. Every
+page begins with:
 
 ```yaml
 ---
@@ -55,6 +64,8 @@ updated: YYYY-MM-DD          # ISO date — refresh on every edit
 started: YYYY-MM-DD          # optional — set when status → active
 finished: YYYY-MM-DD         # optional — set when status → done
 due: YYYY-MM-DD              # optional — target date, if any
+summary: "one-line catalog description — what index.md shows for this page"
+parent: "[[parent-page]]"    # optional — nests this page under another in index.md
 tags: [example, tag]
 links:                       # cross-references
   - "[[other-page]]"
@@ -63,8 +74,13 @@ links:                       # cross-references
 ---
 ```
 
+- **Required** (enforced, commit-blocking if missing/invalid): `title`, `kind`, `status`,
+  `created`, `updated`. `kind`/`status` must be from the sets above; date fields must be ISO
+  `YYYY-MM-DD`. Everything else is optional.
 - `status` is the kanban state — the field a GUI (Obsidian Bases/Kanban) or a query reads. Keep
   it accurate.
+- `summary` is what `brain reindex` prints for the page in `index.md` (falls back to `title` if
+  absent). Keep it to one crisp line.
 - For ADRs, record the ADR decision state (proposed/accepted/superseded) in the body; map
   `status` to the tracking state (e.g. accepted-but-rolling-out → `active`).
 - Internal links use `[[wikilinks]]` (Obsidian-native). External links are plain URLs.
@@ -72,79 +88,151 @@ links:                       # cross-references
   last edit. `started`/`finished`/`due` apply mainly to `project`/`initiative` pages and drive
   time-range queries — set `started` when `status` → `active`, `finished` when `status` → `done`.
 
+## Tooling — the `brain` CLI (prefer it over hand-editing frontmatter)
+
+`brain` is a Nix-managed command on `PATH` and is the **deterministic gate** for this store: it
+owns the schema, so a malformed heading can't slip in. Use it for every frontmatter write and
+query; only drop to hand-editing page **bodies** (prose below the frontmatter).
+
+```bash
+brain new <kind> <slug> [--title T --status S --summary "…" --due D --parent P --tags a,b]
+                              # create a schema-perfect page in the right bucket
+brain set <page> <field> <value>   # set one field, validated; stamps updated (+ started/finished)
+brain done <page>                  # status=done + finished=today + updated=today
+brain reindex                      # regenerate index.md's generated region from frontmatter
+brain q [--status S | --kind K | --tag T | --overdue | --due-before D | --stale DAYS] [--json]
+brain check [--staged] [--strict]  # validate frontmatter (the gate); exits non-zero on errors
+brain normalize [paths…]           # repair-on-drift: lowercase status/kind, map synonyms, sort tags
+brain log "<what changed> — [[page]]"  # prepend a dated log.md entry (date from the clock)
+brain today                        # today's date from the system clock — never infer it
+```
+
+- **Writers** (`new`/`set`/`done`) are the reason frontmatter stays clean: they only ever emit
+  legal enum values and ISO dates, and stamp `updated`/`started`/`finished` for you. Reach for
+  them instead of typing YAML.
+- **Dates come from the clock, never from the corpus.** The writers and `brain log` date
+  everything from the system clock; `brain today` is the authoritative "now". **Never read a date
+  out of `log.md`, git history, or a page and treat it as today** — those are recorded facts, not
+  the current date. If you must write a date by hand (e.g. a relative `due` like "next Friday"),
+  get today from `brain today` (or `date +%F`) and compute from it.
+- **`reindex`** makes `index.md` a projection of the pages. You rarely call it by hand: the
+  pre-commit hook regenerates and stages it on every commit. Run it explicitly only to preview the
+  catalog, or use `brain reindex --check` (exits non-zero if stale) as a drift detector.
+- **The gate**: a `pre-commit` hook in `~/brain/.git/hooks` (installed automatically on every Nix
+  rebuild) regenerates `index.md`, stages it, then runs `brain check --staged` — so a commit with a
+  malformed page is **rejected**, and the catalog is always fresh, for LLM edits, hand edits, and
+  Obsidian edits alike. Run `brain check` yourself before committing for fast feedback. `check`
+  reports enum / required-field / date-format problems as **errors** (blocking) and softer issues
+  (done without `finished`, etc.) as **warnings** (non-blocking).
+
+### ⚠️ Governance — the CLI, schema, and hook are Nix-managed (do not edit here)
+
+`brain.py`, the schema it enforces, and the pre-commit hook are **canonical artifacts shipped
+from nixos-config** (`~/Develop/personal/nixos-config`, at
+`modules/common/users/common/claude-code/skills/brain/`). The copies on this machine are
+Nix-store deployments.
+
+**If a check, the schema, or a hook needs to change** — a new `status`/`kind` value, a new field,
+a relaxed rule, a different hook — **STOP and ask David to update the skill in nixos-config**, then
+rebuild and run `/brain --sync`. Never:
+
+- hand-edit the deployed `brain` binary or the `pre-commit` hook,
+- work around a failing `brain check` by loosening/deleting the rule locally, or
+- `git commit --no-verify` to bypass the gate to force a malformed page in.
+
+A failing gate means either the page is wrong (fix the page) or the schema should change (a
+nixos-config change David makes) — never a local workaround.
+
 ## Workflows
 
 ### 1. CAPTURE / INGEST — "track this", "remember", an info dump
 
 1. If the input is substantial source material, save it verbatim to `raw/YYYY-MM-DD-slug.md`
    (skip for trivial one-liners).
-2. Create or update the relevant page under the right PARA bucket. Fill/refresh frontmatter: set
-   `created` once on new pages, refresh `updated`, and set `started`/`finished` as `status` crosses
-   `active`/`done`.
-3. Wire cross-references: add `[[links]]`, and add the page to every relevant MOC.
+2. Create or update the page: **`brain new <kind> <slug> --summary "…" [--status …]`** for a new
+   page, or **`brain set <page> <field> <value>`** to update fields on an existing one. Edit the
+   page **body** by hand. The writers set `created`/`updated`/`started`/`finished` for you.
+3. Wire cross-references: add `[[links]]` in the body, and add the page to every relevant MOC.
 4. If the input implies a personal next-action → create a dstask task and link it. If it is an
    issue that belongs in a team tracker → reference it there (per the active workspace's rules);
    do not duplicate.
-5. Update `index.md`. Prepend a **dated** entry to `log.md`: `- YYYY-MM-DD — <what changed> — [[page]]`.
-6. Commit: `git -C ~/brain add -A && git -C ~/brain commit -m "<concise message>"`.
+5. Record it: **`brain log "<what changed> — [[page]]"`** (it dates the entry from the clock —
+   don't hand-type the date). (`index.md` is refreshed by the commit hook; run `brain reindex`
+   first only if you want to read the updated catalog now.)
+6. **`brain check`**, then commit: `git -C ~/brain add -A && git -C ~/brain commit -m "<msg>"`
+   (the pre-commit hook reindexes + re-checks; a clean `check` means it passes).
 
 ### 2. QUERY — "what's the state of X", "what am I tracking"
 
-Read `index.md` first, then the relevant page(s)/MOC; grep as needed. Pull open dstask tasks and
-referenced external issues when relevant. Answer with current status. Never invent — if a field is
-stale, say so and offer to refresh.
+Read `index.md` first, then the relevant page(s)/MOC; use **`brain q …`** for structured cuts
+(`--status`, `--kind`, `--tag`, `--overdue`, `--due-before`, `--stale DAYS`) and `grep`/`rg` for
+free-text. Pull open dstask tasks and referenced external issues when relevant. Answer with
+current status. Never invent — if a field is stale, say so and offer to refresh.
 
 **Time-range queries** ("what did I work on in the past 3 months", "what shipped in Q1", "what's
-overdue") are answered from the dated `log.md` and the `created`/`started`/`finished`/`due`
-frontmatter, filtered to the window — with `git -C ~/brain log --since=…` as a backstop, plus
-dstask's resolved-task dates for personal tasks.
+overdue") — start with `brain q --overdue` / `--stale`, then the dated `log.md` (+ `log-archive/`)
+and the `created`/`started`/`finished`/`due` frontmatter filtered to the window, with
+`git -C ~/brain log --since=…` and dstask's resolved-task dates as backstops.
 
 ### 3. UPDATE STATUS
 
-Edit the page's frontmatter (`status`, `progress`) and body, bump `updated` (and set `started`
-when moving to `active`, `finished` when moving to `done`), reflect in `index.md`, append a dated
-`log.md` entry, commit.
+**`brain set <page> status <value>`** (or `brain done <page>`) — it bumps `updated` and stamps
+`started`/`finished` as the status crosses `active`/`done`. Edit the body for narrative, record it
+with **`brain log "…"`**, `brain check`, commit.
 
 ### 4. LINT / REORG — the self-reorganization pass (on request or when the store has grown)
 
 Run a health pass and fix:
 
-- Stale `updated` dates vs `log.md`; missing required frontmatter fields.
+- **`brain check --strict`** for schema/consistency issues (warnings become actionable here);
+  stale `updated` dates vs `log.md`.
 - Oversized pages → split; thin/duplicate pages → merge.
 - Orphan pages (in no MOC and no index line) → file them.
 - Broken `[[links]]`; pages whose `status` is `done`/`archived` → move to `archive/`.
 - Contradictions between pages → flag in the body and to the user.
-- Regenerate `index.md`; append a summary of changes to `log.md`; commit.
+- Rotate `log.md` if it has grown past ~400 lines (older tail → `log-archive/YYYY.md`).
+- **`brain reindex`**; append a summary of changes to `log.md`; commit.
 
 Prefer mechanical, reversible edits. Ask before destructive merges. Git is the safety net.
 
 ## Guardrails
 
-- Files are the source of truth; always leave `index.md` consistent with the pages.
+- Files are the source of truth; **`brain reindex`** keeps `index.md` consistent with the pages —
+  don't hand-maintain the generated region.
+- **Write frontmatter through the `brain` CLI**, not by hand — that's what keeps it schema-valid.
+- **Run `brain check` before committing**; never bypass the pre-commit gate (`--no-verify`) or
+  loosen a rule locally. To change a rule, see Governance above (ask David → change nixos-config).
+- **Dates come from the system clock, never inferred from the corpus.** Let the writers and
+  `brain log` stamp dates; use `brain today` for any date you must supply. A date seen in `log.md`
+  or a page is a recorded fact, not "today".
 - Never fabricate status. Mark gaps with `<!-- TODO: fill -->`.
 - Commit after every change set. No AI attribution in commit messages.
 - Never store secrets, credentials, or PII you don't need.
 
 ## Maintaining the conventions (keep machines in sync)
 
-This manual and the store scaffold are the **canonical brain template**, version-controlled with
-the skill in the nixos-config repo (`~/Develop/personal/nixos-config`):
+This manual, the `brain` CLI, and the store scaffold are the **canonical brain template**,
+version-controlled with the skill in the nixos-config repo (`~/Develop/personal/nixos-config`):
 
 - **Template (canonical):** `modules/common/users/common/claude-code/skills/brain/templates/`
   — this manual + the empty scaffold. Deployed read-only to `~/.claude/skills/brain/templates/`.
+- **CLI + schema (mechanism):** `modules/common/users/common/claude-code/skills/brain/brain.py`
+  — packaged to `PATH` as `brain`; also installs the `~/brain` pre-commit gate on rebuild.
 - **Skill (mechanism):** `modules/common/users/common/claude-code/skills/brain/SKILL.md`
 
-The store's **content** (pages, `index.md`, `log.md`) is never templated — only the scaffold/manual.
+The store's **content** (pages, `index.md`, `log.md`) is never templated — only the
+scaffold/manual/CLI.
 
-**To change the conventions** — buckets, page schema/frontmatter, workflows, guardrails, or the
-skill's behavior:
+**To change the conventions** — buckets, page schema/frontmatter, the `brain` CLI or its checks,
+the hook, workflows, guardrails, or the skill's behavior:
 
-1. Edit the template here (and `SKILL.md` if behavior changes); bump the `brain-template` version
-   comment at the top of this file; commit nixos-config.
-2. Rebuild each machine — Nix propagates the updated template + skill everywhere.
+1. Edit the template/CLI/`SKILL.md` here; bump the `brain-template` version comment at the top of
+   this file; commit nixos-config.
+2. Rebuild each machine — Nix propagates the updated template, CLI, and hook everywhere.
 3. On each machine, run **`/brain --sync`** — the skill migrates that machine's existing `~/brain`
    to the canonical template (updates this manual, creates missing buckets, migrates page
-   frontmatter, regenerates the index), showing a diff and committing.
+   frontmatter, reinstalls the hook, regenerates the index), showing a diff and committing.
 
-The bootstrap only *creates* a missing store; it never updates an existing one — `/brain --sync`
-is how existing stores catch up. Pure content edits (adding/updating pages) need none of this.
+The bootstrap only *creates* a missing store (and installs the hook); it never updates an existing
+store's content — `/brain --sync` is how existing stores catch up. Pure content edits
+(adding/updating pages) need none of this.
