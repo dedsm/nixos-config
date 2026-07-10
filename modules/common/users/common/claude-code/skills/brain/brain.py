@@ -17,7 +17,9 @@ Subcommands:
   normalize repair-on-drift: canonicalise status/kind/tags in place
   log       prepend a dated activity entry to log.md (date from the system clock)
   today     print today's date from the system clock (never infer it from the corpus)
-  install-hooks  install the pre-commit gate into ~/brain/.git/hooks
+
+The commit hooks (pre-commit gate + post-commit auto-push) are Nix-managed: the
+nixos-config activation installs them into ~/brain/.git/hooks on every rebuild.
 
 All dates come from the system clock, never from page/log content: the writers stamp
 created/updated/started/finished automatically, `log` dates entries, and `today` is the
@@ -686,22 +688,6 @@ def cmd_log(args) -> int:
     return 0
 
 
-def cmd_install_hooks(args) -> int:
-    hooks = brain_dir() / ".git" / "hooks"
-    if not (brain_dir() / ".git").is_dir():
-        die(f"{brain_dir()} is not a git repo (run `git init` first)")
-    hooks.mkdir(parents=True, exist_ok=True)
-    py = sys.executable
-    script = os.path.abspath(__file__)
-    hook = hooks / "pre-commit"
-    hook.write_text(
-        f"#!/bin/sh\n# Installed by `brain install-hooks` — Nix-managed gate.\n"
-        f"exec {py} {script} check --staged\n", encoding="utf-8")
-    hook.chmod(0o755)
-    print(f"installed {hook}")
-    return 0
-
-
 # --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
@@ -766,9 +752,6 @@ def main() -> int:
 
     td = sub.add_parser("today", help="print today's date (system clock) — don't infer it")
     td.set_defaults(func=cmd_today)
-
-    ih = sub.add_parser("install-hooks", help="install the pre-commit gate")
-    ih.set_defaults(func=cmd_install_hooks)
 
     args = p.parse_args()
     return args.func(args)

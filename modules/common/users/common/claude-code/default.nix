@@ -60,15 +60,33 @@ let
     patchShebangs $out/bin/brain
   '';
 
-  # The pre-commit gate installed into ~/brain/.git/hooks by the activation
-  # script. It regenerates index.md from frontmatter and stages it (so the
+  # The commit hooks installed into ~/brain/.git/hooks by the activation script.
+  # Nix is the single installer (the CLI has no `install-hooks` verb), so there is
+  # exactly one definition of each hook and no way for it to drift. All real logic
+  # lives in brainPkg, so the hook files themselves never need to change.
+  #
+  # pre-commit gate: regenerate index.md from frontmatter and stage it (so the
   # catalog can never drift in a commit — no reliance on anyone remembering to
-  # reindex), then validates the staged pages. All real logic lives in brainPkg,
-  # so the hook file itself never needs to change.
+  # reindex), then validate the staged pages.
   brainPreCommitHook = pkgs.writeShellScript "brain-pre-commit" ''
     ${brainPkg}/bin/brain reindex >/dev/null 2>&1 || true
     ${pkgs.git}/bin/git add -- index.md >/dev/null 2>&1 || true
     exec ${brainPkg}/bin/brain check --staged
+  '';
+
+  # post-commit auto-push: back the store up to its remote when one is configured,
+  # so a commit is also a backup + multi-machine sync (no reliance on anyone
+  # remembering `git push`). Non-fatal by design (the commit already happened) and
+  # it NEVER force-pushes; BatchMode keeps it from hanging on an SSH prompt, and a
+  # rejected/failed push just prints a reconcile hint.
+  brainPostCommitHook = pkgs.writeShellScript "brain-post-commit" ''
+    ${pkgs.git}/bin/git remote get-url origin >/dev/null 2>&1 || exit 0
+    if GIT_SSH_COMMAND='ssh -oBatchMode=yes' ${pkgs.git}/bin/git push --quiet origin HEAD 2>/dev/null; then
+      :
+    else
+      echo 'brain: auto-push failed (remote diverged or unreachable). Run `git -C ~/brain push`; on divergence `git -C ~/brain pull --rebase` first — never force.' >&2
+    fi
+    exit 0
   '';
 
   # === Managed Settings ===
@@ -159,12 +177,13 @@ lib.mkIf enable {
   #   1. the skill + its canonical template (the mechanism and the latest conventions),
   #   2. the `brain` CLI (schema/gate/writers, added to home.packages above), and
   #   3. a one-time bootstrap that seeds ~/brain from the template if it is missing,
-  #      plus idempotent (re)installation of the pre-commit gate on every switch.
+  #      plus idempotent (re)installation of the commit hooks (pre-commit gate +
+  #      post-commit auto-push) on every switch — Nix is their sole installer.
   # The store's living content (pages, index, log) is mutable user data — never
   # symlinked/managed here. The bootstrap is create-if-missing: it never touches an
   # existing store's content. Existing stores catch up to template changes via
-  # `/brain --sync`. The pre-commit hook is refreshed unconditionally so its store
-  # path always points at the current brainPkg.
+  # `/brain --sync`. The hooks are refreshed unconditionally so their store paths
+  # always point at the current brainPkg.
   home.file.".claude/skills/brain/SKILL.md".source = ./skills/brain/SKILL.md;
   home.file.".claude/skills/brain/templates".source = ./skills/brain/templates;
 
@@ -179,10 +198,12 @@ lib.mkIf enable {
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$brain"
         $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$brain" init -q
       fi
-      # Install/refresh the pre-commit gate (points at the Nix-managed brain check).
+      # Install/refresh the Nix-managed commit hooks: the pre-commit gate
+      # (reindex + validate) and the post-commit auto-push (backup + sync).
       if [ -d "$brain/.git" ]; then
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$brain/.git/hooks"
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m755 ${brainPreCommitHook} "$brain/.git/hooks/pre-commit"
+        $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m755 ${brainPostCommitHook} "$brain/.git/hooks/post-commit"
       fi
     '';
   };

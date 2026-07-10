@@ -55,7 +55,8 @@ repo's `.claude/` rules), not here. This skill is the generic mechanism.
 4. **Commit** after any change:
    `brain check` first, then `git -C ~/brain add -A && git -C ~/brain commit -m "<concise message>"`
    (no AI attribution). The pre-commit hook regenerates + stages `index.md` and re-runs
-   `brain check --staged`, rejecting malformed pages.
+   `brain check --staged`, rejecting malformed pages; a post-commit hook then pushes to the remote if
+   one is configured (never force — on a rejected push, `git -C ~/brain pull --rebase` then push).
 
 ## Governance — the CLI, schema, and hook are Nix-managed
 
@@ -89,7 +90,8 @@ latest conventions after the skill/template/CLI were updated (e.g. by a rebuild)
      migrated store is schema-valid.
    - Ensure `index.md` has the `<!-- BEGIN/END generated -->` markers, then regenerate it with
      `brain reindex`.
-   - Ensure the pre-commit gate is installed (`brain install-hooks`; a rebuild also installs it).
+   - The commit hooks (pre-commit gate + post-commit auto-push) are installed by the rebuild that
+     precedes sync; just verify they're present in `~/brain/.git/hooks` (a rebuild reinstalls them).
 4. **Report** a summary, append it to `log.md`, and commit.
 
 This touches only structure, schema, tooling, and the manual — never the substance of pages. Git
@@ -100,6 +102,8 @@ is the safety net; prefer mechanical, reversible edits.
 - Files are the source of truth; `brain reindex` keeps `index.md` consistent with the pages.
 - Write frontmatter through the `brain` CLI; run `brain check` before committing; never bypass the
   gate. To change a rule, follow **Governance** above (ask David → change nixos-config → `--sync`).
+- The post-commit hook auto-pushes to the remote when one exists. On a rejected push, reconcile
+  (`git -C ~/brain pull --rebase`) and push again — never force-push or disable the hooks.
 - **Dates come from the system clock, never inferred from the corpus.** The writers and
   `brain log` stamp dates automatically; use `brain today` (or `date +%F`) for any date you must
   supply by hand. A date seen in `log.md`/a page is a recorded fact, not today.

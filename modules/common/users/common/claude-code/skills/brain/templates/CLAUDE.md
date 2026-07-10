@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v6 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v7 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 
 Operating manual for this store. **Read this before any operation here.** The files are the
 source of truth; this manual tells an agent how to maintain them.
@@ -120,12 +120,17 @@ brain today                        # today's date from the system clock — neve
 - **`reindex`** makes `index.md` a projection of the pages. You rarely call it by hand: the
   pre-commit hook regenerates and stages it on every commit. Run it explicitly only to preview the
   catalog, or use `brain reindex --check` (exits non-zero if stale) as a drift detector.
-- **The gate**: a `pre-commit` hook in `~/brain/.git/hooks` (installed automatically on every Nix
-  rebuild) regenerates `index.md`, stages it, then runs `brain check --staged` — so a commit with a
-  malformed page is **rejected**, and the catalog is always fresh, for LLM edits, hand edits, and
-  Obsidian edits alike. Run `brain check` yourself before committing for fast feedback. `check`
-  reports enum / required-field / date-format problems as **errors** (blocking) and softer issues
-  (done without `finished`, etc.) as **warnings** (non-blocking).
+- **The gate**: a `pre-commit` hook in `~/brain/.git/hooks` regenerates `index.md`, stages it, then
+  runs `brain check --staged` — so a commit with a malformed page is **rejected**, and the catalog is
+  always fresh, for LLM edits, hand edits, and Obsidian edits alike. Run `brain check` yourself before
+  committing for fast feedback. `check` reports enum / required-field / date-format problems as
+  **errors** (blocking) and softer issues (done without `finished`, etc.) as **warnings** (non-blocking).
+- **Auto-push**: a `post-commit` hook pushes the store to its remote when one is configured, so a
+  commit is also a backup and multi-machine sync — no reliance on remembering `git push`. It **never
+  force-pushes**; if a push is rejected (the remote diverged — e.g. another machine pushed) or the
+  remote is unreachable, it prints a hint and the commit still stands — reconcile with
+  `git -C ~/brain pull --rebase`, then push again. **Both hooks are Nix-managed** — the nixos-config
+  activation installs them on every rebuild; the CLI has no install verb (so they can't drift).
 
 ### ⚠️ Governance — the CLI, schema, and hook are Nix-managed (do not edit here)
 
@@ -204,6 +209,9 @@ Prefer mechanical, reversible edits. Ask before destructive merges. Git is the s
 - **Write frontmatter through the `brain` CLI**, not by hand — that's what keeps it schema-valid.
 - **Run `brain check` before committing**; never bypass the pre-commit gate (`--no-verify`) or
   loosen a rule locally. To change a rule, see Governance above (ask David → change nixos-config).
+- **The store auto-pushes** to its remote (post-commit hook) when one exists. If a push is rejected,
+  reconcile with `git -C ~/brain pull --rebase` and push again — never force-push, and never disable
+  the hooks.
 - **Dates come from the system clock, never inferred from the corpus.** Let the writers and
   `brain log` stamp dates; use `brain today` for any date you must supply. A date seen in `log.md`
   or a page is a recorded fact, not "today".
@@ -219,7 +227,9 @@ version-controlled with the skill in the nixos-config repo (`~/Develop/personal/
 - **Template (canonical):** `modules/common/users/common/claude-code/skills/brain/templates/`
   — this manual + the empty scaffold. Deployed read-only to `~/.claude/skills/brain/templates/`.
 - **CLI + schema (mechanism):** `modules/common/users/common/claude-code/skills/brain/brain.py`
-  — packaged to `PATH` as `brain`; also installs the `~/brain` pre-commit gate on rebuild.
+  — packaged to `PATH` as `brain`. The commit hooks (pre-commit gate + post-commit auto-push) are
+  defined and installed by the module's `default.nix` activation on rebuild — Nix is their sole
+  installer.
 - **Skill (mechanism):** `modules/common/users/common/claude-code/skills/brain/SKILL.md`
 
 The store's **content** (pages, `index.md`, `log.md`) is never templated — only the
@@ -230,11 +240,12 @@ the hook, workflows, guardrails, or the skill's behavior:
 
 1. Edit the template/CLI/`SKILL.md` here; bump the `brain-template` version comment at the top of
    this file; commit nixos-config.
-2. Rebuild each machine — Nix propagates the updated template, CLI, and hook everywhere.
+2. Rebuild each machine — Nix propagates the updated template + CLI and reinstalls the hooks everywhere.
 3. On each machine, run **`/brain --sync`** — the skill migrates that machine's existing `~/brain`
    to the canonical template (updates this manual, creates missing buckets, migrates page
-   frontmatter, reinstalls the hook, regenerates the index), showing a diff and committing.
+   frontmatter, regenerates the index), showing a diff and committing. (The rebuild in step 2 — not
+   sync — installs/refreshes the hooks.)
 
-The bootstrap only *creates* a missing store (and installs the hook); it never updates an existing
+The bootstrap only *creates* a missing store (and installs the hooks); it never updates an existing
 store's content — `/brain --sync` is how existing stores catch up. Pure content edits
 (adding/updating pages) need none of this.
