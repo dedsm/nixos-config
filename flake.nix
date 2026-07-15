@@ -327,7 +327,7 @@
               pkgs.unstable.synology-drive-client
               pkgs.unstable.ledger-live-desktop
               pkgs.unstable.avizo
-              awscli2
+              pkgs.unstable.awscli2
             ]);
         };
       root = rootCommon;
