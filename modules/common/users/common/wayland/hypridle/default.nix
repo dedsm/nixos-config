@@ -5,7 +5,9 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
       general = {
         lock_cmd = "${pkgs.hyprlock}/bin/hyprlock";
         before_sleep_cmd = "${pkgs.systemd}/bin/loginctl lock-session";
-        after_sleep_cmd = "${pkgs.hyprland}/bin/hyprctl dispatch dpms on";
+        # Hyprland 0.55+ hyprctl dispatch takes a Lua expression; dpms needs a
+        # table arg — a bare string like dpms("on") silently means "toggle"
+        after_sleep_cmd = "${pkgs.hyprland}/bin/hyprctl dispatch 'hl.dsp.dpms({ action = \"on\" })'";
         ignore_dbus_inhibit = false;
       };
       listener = [
@@ -15,8 +17,8 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         }
         {
           timeout = 600; # 10 minutes
-          on-timeout = "${pkgs.hyprland}/bin/hyprctl dispatch dpms off";
-          on-resume = "${pkgs.hyprland}/bin/hyprctl dispatch dpms on";
+          on-timeout = "${pkgs.hyprland}/bin/hyprctl dispatch 'hl.dsp.dpms({ action = \"off\" })'";
+          on-resume = "${pkgs.hyprland}/bin/hyprctl dispatch 'hl.dsp.dpms({ action = \"on\" })'";
         }
       ];
     };
