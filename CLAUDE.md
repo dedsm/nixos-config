@@ -295,6 +295,7 @@ nix build .#snyk-ls
 
 ## Security Considerations
 
+- **Login/lock flow**: greetd autologins into Hyprland (`dedsm.greetd.autologinUser`); hyprlock is the actual auth gate (password-only after boot/suspend, fingerprint otherwise) and unlocks gnome-keyring via PAM — see [`docs/login-flow.md`](./docs/login-flow.md)
 - **SSH keys**: Managed through Home Manager SSH configuration
 - **GPG setup**: Configured for git signing with a specified key ID; agent enablement is opt-in via the `gnupg` NixOS module
 - **1Password integration**: CLI + GUI, opt-in via the `onepassword` NixOS module
@@ -395,5 +396,6 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — Playwright MCP browser wiring
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill
+- [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin, hyprlock as the auth gate, fingerprint policy, gnome-keyring PAM unlock, boot-speed rationale
 
 Remember the mandate at the top of this file: these all need to stay current.

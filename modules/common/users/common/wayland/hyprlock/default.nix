@@ -1,4 +1,17 @@
 attrs@{ lib, homeManagerConfig, pkgs, ... }: {
+  # Password-only variant used for the boot and resume locks: the "password
+  # required after boot/suspend" policy and the PAM gnome-keyring unlock both
+  # need a typed password, so fingerprint auth is disabled. hyprlang applies
+  # values in order, so this override wins over the sourced base config.
+  xdg.configFile."hypr/hyprlock-strict.conf".text = ''
+    source = ~/.config/hypr/hyprlock.conf
+    auth {
+      fingerprint {
+        enabled = false
+      }
+    }
+  '';
+
   programs.hyprlock = {
     enable = true;
     settings = {

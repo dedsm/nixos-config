@@ -107,6 +107,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — how the Playwright MCP server is pointed at a Nix-managed browser instead of downloading its own
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill and how its store is bootstrapped/synced
+- [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin with hyprlock as the auth gate, fingerprint policy, keyring unlock, boot-speed rationale
 
 **Keep this README and `docs/` up to date.** Whenever a change here alters something they describe — a module moves, a toggle's default changes, a script's behavior changes, a new host or documented subsystem is added — update the relevant doc (or add a new one under `docs/` and link it from here) in the same change. See [`CLAUDE.md`](./CLAUDE.md) for the same rule applied to agent-facing docs.
 

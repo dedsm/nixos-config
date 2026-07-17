@@ -290,7 +290,10 @@
       gnome-programs.enable = true;
       gnome-services.enable = true;
       hyprland.enable = true;
-      greetd.enable = true;
+      greetd = {
+        enable = true;
+        autologinUser = "david";
+      };
       bluetooth.enable = true;
       printing.enable = true;
       scanning.enable = true;

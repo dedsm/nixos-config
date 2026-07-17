@@ -117,6 +117,13 @@ with lib;
 
         -- Autostart
         hl.on("hyprland.start", function()
+          -- Lock immediately: with greetd autologin this is the actual auth
+          -- gate (strict config: password only, which also unlocks the
+          -- gnome-keyring via PAM). If hyprlock dies within 5s it failed to
+          -- start — end the session so it falls back to tuigreet rather than
+          -- sit exposed. A later non-zero exit is fine: that's the hypridle
+          -- sleep hook replacing the locker, and the session stays locked.
+          hl.exec_cmd([[sh -c 't0=$(date +%s); ${pkgs.hyprlock}/bin/hyprlock --immediate-render -c "$HOME/.config/hypr/hyprlock-strict.conf"; s=$?; [ "$s" -ne 0 ] && [ $(( $(date +%s) - t0 )) -lt 5 ] && uwsm stop']])
           hl.exec_cmd("uwsm app -- avizo-service")
           hl.exec_cmd("uwsm app -- solaar -w hide")
           hl.exec_cmd("uwsm app -- wl-paste -t text --watch clipman store --no-persist")

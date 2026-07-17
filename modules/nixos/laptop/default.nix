@@ -32,6 +32,14 @@ in {
     services.upower = { enable = true; };
     services.power-profiles-daemon.enable = true;
     powerManagement.powertop.enable = true;
+    # powertop --auto-tune takes ~6s; as a boot job it delays the login prompt
+    # (see the greetd module's Type override). Run it off a timer instead of
+    # inside the boot transaction.
+    systemd.services.powertop.wantedBy = mkForce [ ];
+    systemd.timers.powertop = {
+      wantedBy = [ "timers.target" ];
+      timerConfig.OnBootSec = "30s";
+    };
     powerManagement.powerDownCommands = ''
       # Disable all ACPI wakeup sources except the power button (PWRB) before suspend
       for dev in $(${pkgs.gawk}/bin/awk '$3 == "*enabled" && $1 != "PWRB" {print $1}' /proc/acpi/wakeup); do
