@@ -89,16 +89,12 @@ in {
     # Allowing compiled binaries to run if configured correctly
     programs.nix-ld.enable = true;
 
-    security.pam.services.login.enableKwallet = true;
-
     environment.enableAllTerminfo = true;
     environment.systemPackages = with pkgs; [
       git
       any-nix-shell
       nixfmt
       qt5.qtwayland
-      kdePackages.kwallet
-      kdePackages.kwallet-pam
       ripgrep
       nodejs
       pnpm # Provides pnpm and pnpx

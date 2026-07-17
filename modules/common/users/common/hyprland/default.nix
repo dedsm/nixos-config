@@ -122,7 +122,6 @@ with lib;
           hl.exec_cmd("uwsm app -- wl-paste -t text --watch clipman store --no-persist")
           hl.exec_cmd("uwsm app -- ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1")
           hl.exec_cmd("uwsm app -- sh -c 'sleep 5 && ${pkgs.unstable.synology-drive-client}/bin/synology-drive'")
-          hl.exec_cmd("uwsm app -- ${pkgs.kdePackages.kwallet-pam}/libexec/pam_kwallet_init")
         ${lib.optionalString (homeManagerConfig.swaync.enable or false) ''  hl.exec_cmd("uwsm app -- ${screencast-inhibit}")
         ''}end)
 
