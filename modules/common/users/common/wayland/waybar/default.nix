@@ -283,6 +283,7 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
               critical = 15;
             };
             format = "{icon} {capacity}%";
+            format-charging = "{icon} {capacity}% ";
             format-icons = [ "" "" "" "" "" ];
           };
           disk = {
