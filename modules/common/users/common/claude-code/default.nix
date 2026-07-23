@@ -128,6 +128,11 @@ let
       commit = "";
       pr = "";
     };
+    env = {
+      # Disable non-essential background traffic (auto-updates, telemetry, error
+      # reporting, etc.) — see anthropics/claude-code#80015.
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1";
+    };
   }
   // (cfg.extraSettings or { });
 

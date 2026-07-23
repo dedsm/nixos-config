@@ -14,7 +14,7 @@ This fetches the release manifest and rewrites `version.json`. Commit the result
 
 ## Managed settings, not owned settings
 
-`~/.claude/settings.json` is user-editable (slash commands, project state, etc.), so this module never overwrites it wholesale. Instead `default.nix` defines a `managedSettings` attrset (hooks, status line, file-suggestion command, `alwaysThinkingEnabled`, attribution) and a `home.activation.mergeClaudeSettings` step that JSON-merges it into the existing file (`jq -s '.[0] * .[1]'`) on every `home-manager switch`. Anything Claude Code itself writes into `settings.json` survives; anything under `managedSettings` gets reasserted every rebuild. Extend it via the `extraSettings` option instead of editing the merge logic.
+`~/.claude/settings.json` is user-editable (slash commands, project state, etc.), so this module never overwrites it wholesale. Instead `default.nix` defines a `managedSettings` attrset (hooks, status line, file-suggestion command, `alwaysThinkingEnabled`, attribution, and an `env` block that sets `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`) and a `home.activation.mergeClaudeSettings` step that JSON-merges it into the existing file (`jq -s '.[0] * .[1]'`) on every `home-manager switch`. Anything Claude Code itself writes into `settings.json` survives; anything under `managedSettings` gets reasserted every rebuild. Extend it via the `extraSettings` option instead of editing the merge logic.
 
 ## Hooks
 
