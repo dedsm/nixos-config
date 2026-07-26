@@ -1,0 +1,6 @@
+# Obsidian app-local config (machine state, not knowledge)
+.obsidian/
+
+# Python bytecode from anything under resources/scripts/
+__pycache__/
+*.pyc

@@ -202,6 +202,11 @@ lib.mkIf enable {
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/cp -R ${./skills/brain/templates}/. "$brain"/
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$brain"
         $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$brain" init -q
+        # Scaffold pages ship with a sentinel date (a static template cannot know
+        # the seeding date); normalize restamps them, then record the version so
+        # a fresh store isn't reported as behind.
+        $DRY_RUN_CMD env BRAIN_DIR="$brain" ${brainPkg}/bin/brain normalize >/dev/null || true
+        $DRY_RUN_CMD env BRAIN_DIR="$brain" ${brainPkg}/bin/brain version --stamp >/dev/null || true
       fi
       # Install/refresh the Nix-managed commit hooks: the pre-commit gate
       # (reindex + validate) and the post-commit auto-push (backup + sync).
