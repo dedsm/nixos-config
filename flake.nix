@@ -183,8 +183,12 @@
           # K8S
           k9s
 
-          # rtk
-          pkgs.unstable.rtk
+          # rtk (Rust Token Killer) — token-optimizing CLI proxy.
+          # Pinned to stable: unstable's 0.43.0 fails its test build under
+          # `-D warnings` on upstream dead code (FILTERS_TOML,
+          # TomlFilterRegistry::load). Revert to `pkgs.unstable.rtk` once
+          # unstable ships a version that compiles cleanly.
+          rtk
         ];
     };
 
