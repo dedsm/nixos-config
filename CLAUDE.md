@@ -397,5 +397,6 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill
 - [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin, hyprlock as the auth gate, fingerprint policy, gnome-keyring PAM unlock, boot-speed rationale
+- [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB RAM, suspend-then-hibernate settings, why `boot.resumeDevice` must be set explicitly with a systemd initrd, `pm_async=0` resume workaround
 
 Remember the mandate at the top of this file: these all need to stay current.

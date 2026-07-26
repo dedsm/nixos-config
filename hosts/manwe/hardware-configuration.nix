@@ -60,6 +60,15 @@
 
   swapDevices = [{device = "/dev/disk/by-uuid/4e4839b8-9c9f-4499-85de-5e0bf952b11a";}];
 
+  # Same device as swapDevices above. This is NOT redundant: with a systemd
+  # initrd (boot.initrd.systemd.enable), nixpkgs emits `resume=` on the kernel
+  # cmdline only from boot.resumeDevice — there is no swapDevices fallback like
+  # the scripted initrd has (NixOS/nixpkgs#273053). Without it, resume depends
+  # entirely on the volatile EFI HibernateLocation variable, and a lost variable
+  # means a cold boot with the session gone. Also raises the resume job timeout
+  # from 2 minutes to infinity.
+  boot.resumeDevice = "/dev/disk/by-uuid/4e4839b8-9c9f-4499-85de-5e0bf952b11a";
+
   # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
   # (the default) this is the recommended approach. When using systemd-networkd it's
   # still possible to use this option, but it's recommended to use it in conjunction

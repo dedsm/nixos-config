@@ -26,7 +26,14 @@ in {
       HibernateOnACPower = "no";
     };
 
-    systemd.tmpfiles.rules = [ "w /sys/power/image_size - - - - 0" ];
+    systemd.tmpfiles.rules = [
+      "w /sys/power/image_size - - - - 0"
+      # Serialise device resume. Hibernate resume on Ryzen AI 300 is a known
+      # unfixed AMD/Framework bug; pm_async=0 is a community A/B-tested
+      # workaround for this exact LVM-on-LUKS layout. Experimental (n=1
+      # upstream) — drop it if a kernel fix lands.
+      "w /sys/power/pm_async - - - - 0"
+    ];
 
     # Power management
     services.upower = { enable = true; };
