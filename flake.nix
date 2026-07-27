@@ -263,7 +263,6 @@
           ++ (with pkgs; [
             ripgrep
             gnupg
-            pkgs.unstable.antigravity
             any-nix-shell
             watch
           ]);

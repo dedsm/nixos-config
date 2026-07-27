@@ -4,39 +4,20 @@ let
   enable = cfg.enable or false;
   ideEnable = cfg.ide.enable or true;
   cliEnable = cfg.cli.enable or true;
-  useUpstream = cfg.useUpstream or false;
 
-  isLinux = pkgs.stdenv.isLinux;
-
-  versionInfo = lib.importJSON ./version.json;
-
-  pinnedIde = pkgs.unstable.callPackage ./ide.nix {
-    versionInfo = versionInfo.ide;
-    commandLineArgs = "--password-store=gnome-libsecret";
-  };
-  pinnedCli = pkgs.unstable.callPackage ./cli.nix { versionInfo = versionInfo.cli; };
-
-  # Once nixpkgs lands the rename + 2.x bump and the CLI package, flip useUpstream
-  # to consume those directly instead of the pinned builds in this module.
-  baseUpstreamIde = pkgs.unstable.antigravity-ide or pkgs.unstable.antigravity or null;
+  # The IDE keeps credentials in the desktop keyring on Linux; macOS uses the
+  # system keychain and takes no flag.
   idePkg =
-    if useUpstream then
-      if baseUpstreamIde != null && baseUpstreamIde ? override then
-        baseUpstreamIde.override { commandLineArgs = "--password-store=gnome-libsecret"; }
-      else
-        baseUpstreamIde
+    if pkgs.stdenv.isLinux then
+      pkgs.unstable.antigravity-ide.override {
+        commandLineArgs = "--password-store=gnome-libsecret";
+      }
     else
-      pinnedIde;
-
-  cliPkg =
-    if useUpstream then
-      pkgs.unstable.antigravity-cli or pinnedCli
-    else
-      pinnedCli;
+      pkgs.unstable.antigravity-ide;
 
 in
-lib.mkIf (enable && isLinux) {
+lib.mkIf enable {
   home.packages =
     lib.optional ideEnable idePkg
-    ++ lib.optional cliEnable cliPkg;
+    ++ lib.optional cliEnable pkgs.unstable.antigravity-cli;
 }
