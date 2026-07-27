@@ -174,8 +174,11 @@
           krew
           prettier
 
-          # Personal task tracker (git-backed); used by the `brain` Claude skill
+          # Personal task tracker (git-backed); used by the `brain` Claude skill.
+          # `dstask-note` wraps `dstask note` in a pty — the bare command
+          # silently no-ops without a TTY (see pkgs/dstask-note/default.nix).
           dstask
+          pkgs.local.dstask-note
 
           # Github CLI
           gh

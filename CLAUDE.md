@@ -24,7 +24,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 - **Aerospace**: Tiling window manager (macOS)
 - **Ghostty**: Terminal emulator (macOS)
 - **Framework laptop hardware**: Via a `nixos-hardware` module, wired per-host (see "Host Configuration Management" below)
-- **Custom overlays**: For packages not in nixpkgs (Cursor AI, Snyk LSP, Slack wrapper, `cli-notify`)
+- **Custom overlays**: For packages not in nixpkgs (Cursor AI, Snyk LSP, Slack wrapper, `cli-notify`, `dstask-note`)
 
 ## Architecture Overview
 
@@ -53,7 +53,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │       ├── default.nix       # macOS system defaults
 │       └── aerospace/         # Aerospace window manager
 ├── pkgs/                  # Custom package overlays
-│   ├── cursor-appimage/ slack/ snyk-ls/ cli-notify/
+│   ├── cursor-appimage/ slack/ snyk-ls/ cli-notify/ dstask-note/
 ├── docs/                  # Deeper docs for specific subsystems — see "Further documentation"
 └── custom/                # Custom scripts and utilities
     └── david/
@@ -276,6 +276,7 @@ pkgs/cursor-appimage/     # Cursor AI editor AppImage wrapper
 pkgs/snyk-ls/             # Snyk Language Server
 pkgs/slack/               # Slack wrapper with custom settings
 pkgs/cli-notify/          # Native notification helper (used by the claude-code module on Darwin)
+pkgs/dstask-note/         # pty-wrapped `dstask note` (bare command silently no-ops without a TTY)
 
 # Testing custom packages
 nix build .#cursor-appimage

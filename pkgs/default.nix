@@ -1,4 +1,5 @@
-{ hyprlandPkgs, unstablePkgs }: self: super: 
+{ hyprlandPkgs, unstablePkgs }:
+self: super:
 let
   pkgsPath = ./.;
 in
@@ -10,4 +11,6 @@ in
   slack = super.callPackage ./slack { slack = unstablePkgs.slack; };
 
   cli-notify = super.callPackage ./cli-notify { };
+
+  dstask-note = super.callPackage ./dstask-note { };
 }

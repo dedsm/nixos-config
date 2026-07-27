@@ -58,7 +58,11 @@ repo's `.claude/` rules), not here. This skill is the generic mechanism.
      Promote someone to a page with `brain new resource <slug> --person` once they outgrow a row.
      Person pages are excluded from `index.md` by design — they are not orphans.
 3. **Personal tasks** (via dstask, driven by Bash):
-   - `dstask add <desc> +<tag>` · `dstask` (list) · `dstask start|stop|done <id>` · `dstask note <id>`.
+   - `dstask add <desc> +<tag>` · `dstask` (list) · `dstask start|stop|done <id>`.
+   - **Notes: use `dstask-note <id> "<text>"`, never `dstask note`.** The bare command gates on a
+     controlling TTY and, run headlessly, **exits 0 while writing nothing** — no note, no commit, no
+     error. `dstask-note` (Nix-managed, on `PATH`) wraps it in a pty and works on both hosts. Every
+     other verb above is fine headlessly.
    - Cross-link: put `dstask:<id>` in the page's `links`; reference the page in the task note.
    - **Routing rule:** discrete personal next-action → dstask. Overall initiative state/narrative →
      a `~/brain` page (frontmatter + body). Work that belongs in an external/team tracker → that
