@@ -46,7 +46,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, fonts, xserver/xkb,
 │   │   │                         dbus, xdg portals, audio, home-manager wiring, base packages
-│   │   ├── laptop/ gnome-services/ gnome-programs/
+│   │   ├── laptop/ performance/ gnome-services/ gnome-programs/
 │   │   ├── hyprland/ greetd/ bluetooth/ printing/ scanning/
 │   │   └── virtualisation/ onepassword/ gnupg/ peripherals/ fwupd/ ddclient/
 │   └── darwin/              # Darwin system-level modules
@@ -397,6 +397,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill
 - [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin, hyprlock as the auth gate, fingerprint policy, gnome-keyring PAM unlock, boot-speed rationale
+- [`docs/performance.md`](./docs/performance.md) — the `dedsm.performance` module: sched_ext/`scx_lavd`, ananicy-cpp with CachyOS rules, writeback sysctls sized for 128 GiB, and what was deliberately *not* ported from CachyOS
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB RAM, suspend-then-hibernate settings, why `boot.resumeDevice` must be set explicitly with a systemd initrd, `pm_async=0` resume workaround
 
 Remember the mandate at the top of this file: these all need to stay current.

@@ -24,6 +24,7 @@ modules/
 ├── nixos/                 # NixOS system modules (dedsm.<name>.enable toggles)
 │   ├── core/                # Always-on baseline: networking, fonts, audio, xdg, base packages
 │   ├── laptop/               # Power management, lid/sleep behaviour
+│   ├── performance/          # sched_ext scheduler, ananicy, writeback sysctls
 │   ├── hyprland/ greetd/ bluetooth/ printing/ scanning/
 │   ├── virtualisation/ onepassword/ gnupg/ peripherals/ fwupd/ ddclient/
 │   └── gnome-services/ gnome-programs/
@@ -109,6 +110,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill and how its store is bootstrapped/synced
 - [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin with hyprlock as the auth gate, fingerprint policy, keyring unlock, boot-speed rationale
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB, suspend-then-hibernate settings, why `boot.resumeDevice` is set explicitly, resume reliability caveats
+- [`docs/performance.md`](./docs/performance.md) — desktop responsiveness tuning ported from CachyOS: sched_ext (`scx_lavd`), ananicy-cpp with the CachyOS rule set, writeback sysctls sized for 128 GiB, and what was deliberately left out
 
 **Keep this README and `docs/` up to date.** Whenever a change here alters something they describe — a module moves, a toggle's default changes, a script's behavior changes, a new host or documented subsystem is added — update the relevant doc (or add a new one under `docs/` and link it from here) in the same change. See [`CLAUDE.md`](./CLAUDE.md) for the same rule applied to agent-facing docs.
 

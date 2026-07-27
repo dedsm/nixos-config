@@ -2,6 +2,7 @@
   imports = [
     ./core
     ./laptop
+    ./performance
     ./gnome-services
     ./gnome-programs
     ./hyprland

@@ -290,6 +290,7 @@
     # Define the unified configuration for the 'manwe' host
     manweSystemConfig = {
       laptop.enable = true;
+      performance.enable = true;
       gnome-programs.enable = true;
       gnome-services.enable = true;
       hyprland.enable = true;
