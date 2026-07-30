@@ -101,10 +101,14 @@ attrs @ {
     style.name = "adwaita";
   };
 
+  # NOTE: `color-scheme` and `gtk-theme` are deliberately NOT set here. They are
+  # owned exclusively by the `theme` module (darkman) at runtime — see
+  # docs/theme.md. Declaring them statically makes every home-manager activation
+  # `dconf load` them back to their light values, which the xdg-desktop-portal-gtk
+  # Settings backend then broadcasts to every portal-aware app (Firefox, Slack,
+  # ...), silently knocking them back to light mid-session.
   dconf.settings = {
     "org/gnome/desktop/interface" = {
-      color-scheme = "prefer-light";
-      gtk-theme = "Adwaita";
       icon-theme = "Papirus";
     };
   };
@@ -123,10 +127,10 @@ attrs @ {
         -gtk-key-bindings: no-emoji;
       }
     '';
-    gtk4.extraConfig = {
-      gtk-application-prefer-dark-theme = 0;
-    };
-    # 26.05: gtk4.theme no longer mirrors gtk.theme; GTK4 apps use libadwaita.
+    # 26.05: gtk4.theme no longer mirrors gtk.theme; GTK4 apps use libadwaita,
+    # which follows the `color-scheme` dconf key darkman drives. Pinning
+    # `gtk-application-prefer-dark-theme` in settings.ini here would hard-lock
+    # GTK4/libadwaita apps to light regardless of the current mode.
     gtk4.theme = null;
     cursorTheme = {
       package = pkgs.vanilla-dmz;
@@ -139,10 +143,12 @@ attrs @ {
       name = "Papirus";
     };
 
-    theme = {
-      package = pkgs.gnome-themes-extra;
-      name = "Adwaita";
-    };
+    # `theme.name` is left unset on purpose: home-manager mirrors it into BOTH
+    # gtk-3.0/settings.ini and the `gtk-theme` dconf key, which would re-pin the
+    # light Adwaita variant on every activation and fight darkman. The package is
+    # still installed below so the Adwaita/Adwaita-dark pair darkman switches
+    # between is actually on disk.
+    theme = null;
   };
 
   xsession.preferStatusNotifierItems = true;
@@ -153,6 +159,9 @@ attrs @ {
   };
 
   home = {
+    # Provides both Adwaita and Adwaita-dark for the GTK3 side of darkman's switch.
+    packages = [pkgs.gnome-themes-extra];
+
     pointerCursor = {
       package = pkgs.vanilla-dmz;
       gtk = {enable = true;};

@@ -59,6 +59,45 @@ let
     source-file ${tmuxDarkCustom}
   '';
 
+  # The two dconf keys every portal-aware app ultimately reads: xdg-desktop-portal-gtk
+  # exposes them over org.freedesktop.portal.Settings, and Firefox/Electron follow that.
+  # Nothing else in this repo may declare them statically — see the note in
+  # modules/common/users/common/defaults/common/default.nix.
+  # `run` is "" for darkman's own scripts and "$DRY_RUN_CMD …" from activation scripts.
+  # `|| true` matters on the activation path: home-manager activation runs under
+  # `set -eu`, and a theme write that can't reach a bus must not fail the whole rebuild.
+  gtkModeSettings = run: scheme: theme: ''
+    ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/color-scheme "'${scheme}'" || true
+    ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'${theme}'" || true
+  '';
+  gtkDarkSettings = gtkModeSettings "" "prefer-dark" "Adwaita-dark";
+  gtkLightSettings = gtkModeSettings "" "prefer-light" "Adwaita";
+
+  # darkman persists the active mode here, so activation scripts can learn it without a
+  # session bus (`darkman get` is a D-Bus call, and home-manager-<user>.service runs with
+  # no DBUS_SESSION_BUS_ADDRESS — it would fail there and silently read as light).
+  darkmanModeFile = "\${XDG_CACHE_HOME:-$HOME/.cache}/darkman/mode.txt";
+  isDarkNow = ''[ "$(${pkgs.coreutils}/bin/cat "${darkmanModeFile}" 2>/dev/null)" = "dark" ]'';
+
+  # Two things had to be fixed here for the border colour to actually follow the theme:
+  #
+  #  * darkman's transition scripts are spawned by the systemd user manager, which never
+  #    inherited HYPRLAND_INSTANCE_SIGNATURE from the compositor's session — a bare
+  #    hyprctl call just logged "is hyprland running?" and did nothing. Recover the
+  #    signature from the runtime dir instead.
+  #  * Since the 0.55 lua-config migration (`configType = "lua"` in the hyprland module)
+  #    `hyprctl keyword` is refused outright with "keyword can't work with non-legacy
+  #    parsers. Use eval." — so drive the same option through `hyprctl eval` instead.
+  #    That applies live; it needs no reload and no companion file in ~/.config/hypr.
+  hyprlandBorder = color: ''
+    for instance in "$XDG_RUNTIME_DIR"/hypr/*/; do
+      [ -S "$instance/.socket.sock" ] || continue
+      HYPRLAND_INSTANCE_SIGNATURE="$(${pkgs.coreutils}/bin/basename "$instance")" \
+        ${pkgs.hyprland}/bin/hyprctl eval \
+          'hl.config({ general = { col = { active_border = "rgb(${builtins.substring 1 6 color})" } } })' || true
+    done
+  '';
+
 in {
   options.homeManagerConfig.theme = {
     enable = mkEnableOption "automatic dark/light mode toggling";
@@ -84,10 +123,7 @@ in {
       
       # Scripts to execute on transition
       darkModeScripts = {
-        gtk-theme = ''
-          ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/color-scheme "'prefer-dark'"
-          ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'Adwaita-dark'"
-        '';
+        gtk-theme = gtkDarkSettings;
         foot-theme = ''
           # foot: SIGUSR1 switches to [colors-dark] (dark)
           ${pkgs.procps}/bin/pkill -x -USR1 foot || true
@@ -102,16 +138,11 @@ in {
             ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedDarkTheme} || true
           done
         '';
-        hyprland-theme = mkIf homeManagerConfig.hyprland.enable ''
-          ${pkgs.hyprland}/bin/hyprctl keyword general:col.active_border "0xff${builtins.substring 1 6 colors.blue}" || true
-        '';
+        hyprland-theme = mkIf homeManagerConfig.hyprland.enable (hyprlandBorder colors.blue);
       };
 
       lightModeScripts = {
-        gtk-theme = ''
-          ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/color-scheme "'prefer-light'"
-          ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'Adwaita'"
-        '';
+        gtk-theme = gtkLightSettings;
         foot-theme = ''
           # foot: SIGUSR2 switches to [colors-light] (light)
           ${pkgs.procps}/bin/pkill -x -USR2 foot || true
@@ -126,9 +157,7 @@ in {
             ${pkgs.tmux}/bin/tmux -S "$sock" source-file ${solarizedLightTheme} || true
           done
         '';
-        hyprland-theme = mkIf homeManagerConfig.hyprland.enable ''
-          ${pkgs.hyprland}/bin/hyprctl keyword general:col.active_border "0xff${builtins.substring 1 6 colors.red}" || true
-        '';
+        hyprland-theme = mkIf homeManagerConfig.hyprland.enable (hyprlandBorder colors.red);
       };
     };
 
@@ -184,11 +213,46 @@ in {
     # Initialize the tmux symlink on activation
     home.activation.initTmuxTheme = ''
       $DRY_RUN_CMD mkdir -p $HOME/.local/state/tmux
-      if ${if isLinux then "${pkgs.darkman}/bin/darkman get 2>/dev/null | grep -q dark" else ''[[ "$(/usr/bin/defaults read -g AppleInterfaceStyle 2>/dev/null)" == "Dark" ]]''}; then
+      if ${if isLinux then isDarkNow else ''[[ "$(/usr/bin/defaults read -g AppleInterfaceStyle 2>/dev/null)" == "Dark" ]]''}; then
         $DRY_RUN_CMD ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
       else
         $DRY_RUN_CMD ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
       fi
     '';
+
+    # home-manager's `dconf load` runs on every activation, and its dconf-cleanup pass
+    # resets keys that a generation stopped managing back to their (light) schema
+    # defaults. Either one bumps the dconf shm invalidation flag, so live apps re-read
+    # the light value the next time they repaint — which is why a mid-afternoon rebuild
+    # used to knock Firefox/Slack back to light minutes after darkman had switched them.
+    # Re-assert the mode darkman actually wants, ordered after home-manager's own write.
+    # NOTE: the DAG entry is spelled out rather than built with `lib.hm.dag.entryAfter`.
+    # modules/common/default.nix `import`s these files with the NixOS `lib`, so the
+    # home-manager extensions (`lib.hm`) are not in scope here.
+    home.activation.reassertColorScheme = mkIf isLinux {
+      after = ["dconfSettings"];
+      before = [];
+      data = ''
+        # `dconf write` needs a session bus. home-manager-<user>.service has none, so
+        # prefer the live user bus when the session is up — writing on the real bus lets
+        # xdg-desktop-portal-gtk emit SettingChanged and apps repaint immediately instead
+        # of waiting for their next dconf read. Fall back to a throwaway bus otherwise
+        # (the write still lands in the database, which is what matters at boot).
+        reassertBus=""
+        if [ -z "''${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+          if [ -S "/run/user/$(${pkgs.coreutils}/bin/id -u)/bus" ]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(${pkgs.coreutils}/bin/id -u)/bus"
+          else
+            reassertBus="${pkgs.dbus}/bin/dbus-run-session --dbus-daemon=${pkgs.dbus}/bin/dbus-daemon"
+          fi
+        fi
+
+        if ${isDarkNow}; then
+        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-dark" "Adwaita-dark"}
+        else
+        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-light" "Adwaita"}
+        fi
+      '';
+    };
   };
 }

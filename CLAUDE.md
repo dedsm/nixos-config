@@ -42,7 +42,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │   │   ├── default.nix       # Home Manager user configuration bridge
 │   │   ├── fonts.nix          # Font configuration
 │   │   └── users/common/      # Home Manager user modules — tmux, herdr, nvim, zsh, git, hyprland,
-│   │                            ghostty, sketchybar, claude-code, playwright, brain skill, ...
+│   │                            ghostty, sketchybar, theme, claude-code, playwright, brain skill, ...
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, fonts, xserver/xkb,
 │   │   │                         dbus, xdg portals, audio, home-manager wiring, base packages
@@ -398,6 +398,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration
 - [`docs/herdr.md`](./docs/herdr.md) — the `herdr` agent-aware multiplexer: why it coexists with tmux, settings rationale (prefix, no `ctrl+alt` chords, sidebar layout), restart semantics, and the plugin/agent-integration bits deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill
+- [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching: darkman as the **sole** owner of the `color-scheme`/`gtk-theme` dconf keys (and the list of home-manager options that must therefore stay unset), the darkman → dconf → xdg-desktop-portal-gtk → Firefox/Slack chain, the post-`dconfSettings` activation guard, and the Hyprland/foot/tmux transition mechanics
 - [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin, hyprlock as the auth gate, fingerprint policy, gnome-keyring PAM unlock, boot-speed rationale
 - [`docs/performance.md`](./docs/performance.md) — the `dedsm.performance` module: sched_ext/`scx_lavd`, ananicy-cpp with CachyOS rules, writeback sysctls sized for 128 GiB, and what was deliberately *not* ported from CachyOS
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB RAM, suspend-then-hibernate settings, why `boot.resumeDevice` must be set explicitly with a systemd initrd, `pm_async=0` resume workaround
