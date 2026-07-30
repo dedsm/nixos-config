@@ -32,13 +32,16 @@ modules/
     └── aerospace/
 
 pkgs/                    # Custom package overlays (pkgs.local.*)
-├── cursor-appimage/       # Cursor AI editor
 ├── slack/                 # Slack wrapper
-├── snyk-ls/                # Snyk Language Server
-└── cli-notify/
+├── cli-notify/            # Native notification helper
+├── dstask-note/           # pty-wrapped `dstask note`
+└── vim-herdr-navigation/  # herdr plugin: vim-aware ctrl+h/j/k/l navigation
 
 custom/                  # One-off scripts referenced by modules (e.g. i3xmonadhelper.py)
-scripts/                 # Maintenance scripts (update pins, power/sleep diagnostics)
+scripts/                 # Maintenance scripts
+├── update-packages.sh     # Bump every hand-pinned source (`--list` to see them)
+├── updaters/              # Per-thing updaters run by the above (update-<name>.sh)
+└── power-summary.sh, sleep-drain-test.sh   # Diagnostics
 ```
 
 Every system module lives under the `dedsm.*` option namespace and follows the same shape:

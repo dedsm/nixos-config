@@ -76,6 +76,10 @@
 
     inherit (util) nixosHost darwinHost;
 
+    # The systems the hosts below are built for. Only used to decide which
+    # `packages` outputs to expose.
+    supportedSystems = ["x86_64-linux" "aarch64-darwin"];
+
     defaultUser = {
       name = "david";
       groups = [
@@ -418,5 +422,18 @@
         userConfigFn = morgothUserConfig;
       };
     };
+
+    # The `pkgs/` overlay, exposed so `nix build .#<name>` works and so
+    # `nix-update --flake <name>` (see scripts/update-packages.sh) has an
+    # attribute path to resolve. Packages that cannot evaluate for a system —
+    # cursor-appimage on Darwin, say — are dropped rather than breaking
+    # `nix flake show` for everything else.
+    packages = lib.genAttrs supportedSystems (
+      system: let
+        pkgs = mkPkgs system;
+        evaluates = p: (builtins.tryEval (p.drvPath or null)).success;
+      in
+        lib.filterAttrs (_: p: lib.isDerivation p && evaluates p) pkgs.local
+    );
   };
 }

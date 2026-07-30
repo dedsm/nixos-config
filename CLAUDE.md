@@ -24,7 +24,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 - **Aerospace**: Tiling window manager (macOS)
 - **Ghostty**: Terminal emulator (macOS)
 - **Framework laptop hardware**: Via a `nixos-hardware` module, wired per-host (see "Host Configuration Management" below)
-- **Custom overlays**: For packages not in nixpkgs (Cursor AI, Snyk LSP, Slack wrapper, `cli-notify`, `dstask-note`)
+- **Custom overlays**: For packages not in nixpkgs (Slack wrapper, `cli-notify`, `dstask-note`, `vim-herdr-navigation`)
 
 ## Architecture Overview
 
@@ -53,7 +53,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │       ├── default.nix       # macOS system defaults
 │       └── aerospace/         # Aerospace window manager
 ├── pkgs/                  # Custom package overlays
-│   ├── cursor-appimage/ slack/ snyk-ls/ cli-notify/ dstask-note/
+│   ├── slack/ cli-notify/ dstask-note/ vim-herdr-navigation/
 ├── docs/                  # Deeper docs for specific subsystems — see "Further documentation"
 └── custom/                # Custom scripts and utilities
     └── david/
@@ -272,27 +272,60 @@ Custom packages are defined in `pkgs/` with an overlay system:
 
 ```bash
 # Package locations
-pkgs/cursor-appimage/     # Cursor AI editor AppImage wrapper
-pkgs/snyk-ls/             # Snyk Language Server
 pkgs/slack/               # Slack wrapper with custom settings
 pkgs/cli-notify/          # Native notification helper (used by the claude-code module on Darwin)
 pkgs/dstask-note/         # pty-wrapped `dstask note` (bare command silently no-ops without a TTY)
+pkgs/vim-herdr-navigation/ # herdr plugin: vim-aware ctrl+h/j/k/l navigation, registered by the herdr module
 
-# Testing custom packages
-nix build .#cursor-appimage
-nix build .#snyk-ls
+# Testing custom packages — the `pkgs/` overlay is exposed as the flake's
+# `packages` output, filtered per system (cli-notify is Darwin-only)
+nix build .#vim-herdr-navigation
+nix build .#slack
+nix flake show
 ```
 
+### Updating pinned packages
+
+```bash
+scripts/update-packages.sh --list        # what can be updated, and how
+scripts/update-packages.sh               # update everything
+scripts/update-packages.sh claude-code   # or just one
+```
+
+The runner collects two kinds of updater and needs no list of its own for the first:
+
+- **`passthru.updateScript` on a `pkgs/` package** — the nixpkgs convention, discovered
+  from the flake's `packages` output. In practice a `nix-update --flake <attr>` invocation
+  (`--version=branch` for pins that follow a branch rather than tags). Adding one to a
+  package is all that's needed for the runner to pick it up.
+- **`scripts/updaters/update-<name>.sh`** — for things that aren't packages in `pkgs/`.
+  The directory *is* the registry: any executable script matching that name is discovered
+  and exposed as `<name>`. Currently just `claude-code`, whose `version.json` pin (two
+  platform hashes, version from a release manifest) is beyond what `nix-update` can rewrite
+  — nixpkgs' own `claude-code` uses a bespoke `update.sh` for the same reason.
+
+`MANUAL_ONLY` records anything that deliberately has no updater, with the reason. It is
+currently empty — it exists so a package that can't be automated is documented rather than
+silently missing.
+
+Two traps worth knowing: a package that *wraps* a nixpkgs package inherits **nixpkgs'**
+`updateScript`, which would try to update a nixpkgs checkout — strip it with
+`passthru = builtins.removeAttrs (oldAttrs.passthru or { }) [ "updateScript" ];`, as
+`pkgs/slack` does. And nothing here runs automatically: review with `git diff`, then rebuild.
+
 ### Package Access
-- Custom packages: `pkgs.local.cursor-appimage`, `pkgs.local.slack`
+- Custom packages: `pkgs.local.slack`, `pkgs.local.vim-herdr-navigation`
 - Unstable packages: `pkgs.unstable.spotify`, `pkgs.unstable.vscode`
 - Unfree packages: `pkgs.unfree.dropbox`
 
 ### Adding New Packages
 1. Create package directory in `pkgs/`
 2. Write `default.nix` with proper meta attributes
-3. Add to `pkgs/default.nix` overlay
-4. Reference in user packages list via `pkgs.local.<package-name>`
+3. If the source is pinned by `rev`/`hash`, add `passthru.updateScript` (see "Updating
+   pinned packages" above) so `scripts/update-packages.sh` picks it up — or add it to that
+   script's `MANUAL_ONLY` with the reason it can't be automated
+4. Add to `pkgs/default.nix` overlay
+5. Reference in user packages list via `pkgs.local.<package-name>`
 
 ## Security Considerations
 
@@ -315,7 +348,6 @@ nix build .#snyk-ls
 - Neovim: hand-rolled config (no plugin manager, all plugins declared in Nix), LSP/formatting/linting all Nix-provisioned — see [`docs/nvim.md`](./docs/nvim.md)
 - Claude Code: pinned version, managed-but-mergeable settings, hooks, status line, `brain` skill — see [`docs/claude-code.md`](./docs/claude-code.md) and [`docs/brain-skill.md`](./docs/brain-skill.md)
 - Playwright MCP: points at a Nix-managed Chromium instead of downloading its own — see [`docs/playwright-mcp.md`](./docs/playwright-mcp.md)
-- Cursor AI editor available as custom package (Linux)
 
 ### Debugging
 ```bash
@@ -396,7 +428,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/claude-code.md`](./docs/claude-code.md) — Claude Code package pinning, settings-merge strategy, hooks, status line
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — Playwright MCP browser wiring
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration
-- [`docs/herdr.md`](./docs/herdr.md) — the `herdr` agent-aware multiplexer: why it coexists with tmux, settings rationale (prefix, no `ctrl+alt` chords, sidebar layout), restart semantics, and the plugin/agent-integration bits deliberately left unmanaged
+- [`docs/herdr.md`](./docs/herdr.md) — the `herdr` agent-aware multiplexer: why it coexists with tmux, settings rationale (prefix, vim-aware prefix-free `ctrl+h/j/k/l` pane movement and what it costs, sidebar layout), restart semantics, how plugins are packaged and registered from an activation script, and the agent-integration bits deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill
 - [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching: darkman as the **sole** owner of the `color-scheme`/`gtk-theme` dconf keys (and the list of home-manager options that must therefore stay unset), the darkman → dconf → xdg-desktop-portal-gtk → Firefox/Slack chain, the post-`dconfSettings` activation guard, and the Hyprland/foot/tmux transition mechanics
 - [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin, hyprlock as the auth gate, fingerprint policy, gnome-keyring PAM unlock, boot-speed rationale
