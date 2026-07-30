@@ -6,15 +6,73 @@
 }: let
   tomlFormat = pkgs.formats.toml {};
 
+  herdrPkg = pkgs.unstable.herdr;
+
+  navPkg = pkgs.local.vim-herdr-navigation;
+  navRoot = "${navPkg}/share/vim-herdr-navigation";
+
+  # Registered with `herdr plugin link` at activation, and pruned from the
+  # registry when dropped from this list. See "Plugins" in docs/herdr.md.
+  plugins = [
+    {
+      id = "vim-herdr-navigation";
+      root = navRoot;
+    }
+  ];
+
+  # `ctrl+h/j/k/l` go through the navigation plugin rather than binding
+  # `focus_pane_*` directly, which is what makes them vim-aware: the action
+  # forwards the key into the pane when it is running Vim/Neovim and moves
+  # herdr's focus otherwise. herdr rejects a key that is bound twice, so the
+  # `focus_pane_*` actions keep only their `prefix+` defaults.
+  navKeybinds =
+    map
+    (d: {
+      key = "ctrl+${d.key}";
+      type = "plugin_action";
+      command = "vim-herdr-navigation.${d.dir}";
+      description = "Navigate ${d.dir} (vim/herdr)";
+    })
+    [
+      {
+        key = "h";
+        dir = "left";
+      }
+      {
+        key = "j";
+        dir = "down";
+      }
+      {
+        key = "k";
+        dir = "up";
+      }
+      {
+        key = "l";
+        dir = "right";
+      }
+    ];
+
   settings = {
+    # The first-run notification setup. herdr shows it whenever this key is
+    # missing, then persists `onboarding = false` back into config.toml once
+    # dismissed — a write that fails against a store symlink ("Read-only file
+    # system"), so the welcome screen came back on every launch. Declaring the
+    # post-onboarding value here is the fix; the notification preferences that
+    # modal asks about are set under `ui` below.
+    onboarding = false;
+
     keys = {
       # Same prefix as tmux, so the muscle memory carries over while both
       # multiplexers are installed side by side.
-      #
-      # Deliberately no prefix-free `ctrl+alt+h/j/k/l` chords: `CTRL + ALT + L`
-      # is already the hyprlock bind on manwe, and a binding set that differs
-      # per host is worse than one extra keypress on both.
       prefix = "ctrl+f";
+
+      # Prefix-free pane movement on the same chords `vim-tmux-navigator`
+      # already owns under tmux, via the plugin actions defined above.
+      #
+      # `ctrl+alt+h/j/k/l` is herdr's own suggestion and is not used: `CTRL +
+      # ALT + L` is the hyprlock bind on manwe, and diverging per host is worse
+      # than picking a chord that is free on both.
+      command = navKeybinds;
 
       # tmux muscle memory, kept as aliases beside the herdr defaults. herdr
       # names a split after the divider it draws, so "vertical" is the
@@ -42,6 +100,22 @@
       # same thing). Leaving capture off also hands mouse events to whatever TUI
       # is running inside the pane rather than eating them at the multiplexer.
       mouse_capture = false;
+
+      # herdr owns agent notifications, for every recognised agent rather than
+      # just Claude Code — whose own notification hooks are disabled in the
+      # claude-code module so the same prompt does not notify twice. See
+      # "Notifications" in docs/herdr.md.
+      #
+      # "system" hands off to the OS notification service: `notify-send` (hence
+      # libnotify below) into swaync on Linux, `osascript`/`display
+      # notification` into Notification Center on Darwin. The alternatives are
+      # "herdr" (in-app toasts, invisible while detached) and "terminal" (OSC
+      # 9/777, dependent on the outer terminal).
+      toast.delivery = "system";
+
+      # Agent state changes in *background* workspaces. Unchanged herdr default,
+      # pinned because the skipped onboarding modal would have asked.
+      sound.enabled = true;
 
       # Order the agent panel as an attention queue rather than grouping by
       # workspace (upstream's "spaces" default). That is what makes
@@ -91,10 +165,66 @@
 in
   with lib;
     mkIf (homeManagerConfig.herdr.enable or false) {
-      home.packages = [pkgs.unstable.herdr];
+      # `ui.toast.delivery = "system"` shells out to `notify-send` by name on
+      # Linux, so libnotify has to be on PATH. Darwin needs nothing extra —
+      # herdr goes through osascript there.
+      home.packages = [herdrPkg] ++ optional pkgs.stdenv.isLinux pkgs.libnotify;
 
       # Single-file link on purpose: `~/.config/herdr/` stays a real directory so
       # herdr can still write its logs and session state next to the config.
-      xdg.configFile."herdr/config.toml".source =
-        tomlFormat.generate "herdr-config.toml" settings;
+      xdg.configFile."herdr/config.toml" = {
+        source = tomlFormat.generate "herdr-config.toml" settings;
+
+        # Apply on rebuild instead of waiting for the next launch. `|| true`
+        # because there is usually no server running during activation. Copied
+        # from the `programs.herdr` module on home-manager master, which this
+        # module replaces until that lands in a release — see docs/herdr.md.
+        onChange = "${getExe herdrPkg} server reload-config || true";
+      };
+
+      # The editor half of the navigation plugin: `<C-h/j/k/l>` move between
+      # Neovim splits and cross into the neighbouring herdr pane at an edge. It
+      # lives in `after/plugin` so it wins over the `vim-tmux-navigator`
+      # mappings, and falls back to them when $HERDR_PANE_ID is unset, i.e. under
+      # tmux. The nvim module links `config/` recursively and has no `after/`,
+      # so this is the only thing there.
+      xdg.configFile."nvim/after/plugin/herdr-nav.lua" =
+        mkIf (homeManagerConfig.nvim.enable or false)
+        {source = "${navRoot}/editor/nvim.lua";};
+
+      # `plugins.json` is deliberately *not* a store symlink: herdr rewrites it
+      # on every link/unlink/enable/disable, so managing it declaratively would
+      # reproduce the read-only failure the `onboarding` setting used to hit.
+      # `herdr plugin link` needs no running server, is idempotent, and replaces
+      # the entry for an id when its path changes — which it does on every
+      # rebuild that bumps a plugin's store path.
+      home.activation.herdrPlugins = {
+        after = ["writeBoundary"];
+        before = [];
+        data = ''
+          herdrPluginIds="${concatMapStringsSep " " (p: p.id) plugins}"
+
+          ${concatMapStringsSep "\n" (p: ''
+              $DRY_RUN_CMD ${getExe herdrPkg} plugin link ${p.root} >/dev/null || true
+            '')
+            plugins}
+
+          # Drop store-linked plugins that are no longer declared here. Anything
+          # linked by hand from outside the store is left alone on purpose.
+          #
+          # `link` and `list` fall back to editing plugins.json directly, but
+          # `unlink` always goes through herdr.sock — with no server up it fails
+          # with a bare ENOENT for the socket. So this half is best-effort: a
+          # plugin removed from the list above may linger in the registry until
+          # the next activation that happens while herdr is running.
+          ${getExe herdrPkg} plugin list --json 2>/dev/null \
+            | ${getExe pkgs.jq} -r '.result.plugins[]? | select(.plugin_root | startswith("/nix/store")) | .plugin_id' \
+            | while read -r id; do
+                case " $herdrPluginIds " in
+                  *" $id "*) ;;
+                  *) $DRY_RUN_CMD ${getExe herdrPkg} plugin unlink "$id" >/dev/null || true ;;
+                esac
+              done
+        '';
+      };
     }

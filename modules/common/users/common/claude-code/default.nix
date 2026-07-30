@@ -10,7 +10,8 @@ let
   isDarwin = pkgs.stdenv.isDarwin;
 
   # Claude Code package with optional version pin via version.json
-  # Run ./update-claude-code.sh to fetch the latest version and hashes
+  # Bump with `scripts/update-packages.sh claude-code`, which runs
+  # scripts/updaters/update-claude-code.sh to fetch the latest version and hashes
   baseClaudeCode = pkgs.unstable.claude-code;
   versionFile = ./version.json;
   hasVersionPin = builtins.pathExists versionFile;
@@ -97,27 +98,22 @@ let
     };
     hooks = {
       Stop = [ ];
-      Notification = [
-        {
-          hooks = [
-            {
-              type = "command";
-              command = "~/.local/bin/claude-notify.sh";
-            }
-          ];
-        }
-      ];
-      UserPromptSubmit = [
-        {
-          matcher = "*";
-          hooks = [
-            {
-              type = "command";
-              command = "~/.local/bin/claude-dismiss-notification.sh";
-            }
-          ];
-        }
-      ];
+
+      # Desktop notifications are herdr's job now: it sees every recognised
+      # agent rather than just Claude Code, and `prefix+o` jumps to the pane
+      # that raised one, which a swaync popup cannot do. Leaving these hooks
+      # enabled would notify twice for the same prompt. See "Notifications" in
+      # docs/herdr.md.
+      #
+      # These must stay as empty *lists* rather than being deleted:
+      # `mergeClaudeSettings` merges with `jq -s '.[0] * .[1]'`, so a key
+      # dropped from managedSettings keeps whatever value is already in
+      # ~/.claude/settings.json instead of going away. The scripts themselves
+      # are still installed below, so re-enabling is a one-line revert.
+      Notification = [ ];
+
+      # Only ever existed to dismiss the notification the hook above raised.
+      UserPromptSubmit = [ ];
     };
     statusLine = {
       type = "command";

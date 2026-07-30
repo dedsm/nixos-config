@@ -21,6 +21,13 @@ Lua config lives under `config/` and is symlinked wholesale into `~/.config/nvim
 - **Light/dark sync**: a pinned `dark-notify` plugin reacts to the OS appearance — `dark-notify` binary on Darwin, `darkman` on Linux (see the `theme` home-manager module) — and flips the colorscheme automatically.
 - **Misc quality-of-life**: `gitsigns-nvim`, `which-key-nvim`, `todo-comments-nvim`, `vim-tmux-navigator` (pane navigation shared with tmux), `vim-lastplace`, `vim-sleuth`, `mini-nvim`, `fidget-nvim` (LSP progress UI).
 
+One file arrives from outside this module: the **herdr** module links
+`~/.config/nvim/after/plugin/herdr-nav.lua` (from `pkgs/vim-herdr-navigation`) whenever both
+`nvim.enable` and `herdr.enable` are set. It re-maps `<C-h/j/k/l>` so a split edge crosses
+into the neighbouring herdr pane, and defers to `vim-tmux-navigator` when `$HERDR_PANE_ID`
+is unset — `after/plugin` is what lets it win over the plugin's own mappings. This config's
+`config/` tree has no `after/` of its own. See [`herdr.md`](./herdr.md).
+
 ## Adding a plugin
 
 Add it to the `plugins` list in `modules/common/users/common/nvim/default.nix` (from `pkgs.unstable.vimPlugins.*` if available, otherwise a `buildVimPlugin`/`fetchFromGitHub` pin like `solarized-nvim`), then add or extend a `config/lua/config/*.lua` module and `require()` it from `init.lua` if it needs setup.

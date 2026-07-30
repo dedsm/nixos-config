@@ -75,7 +75,7 @@ The prefix is `ctrl+f`. `prefix+?` lists live bindings and is authoritative over
 | Panes | |
 |---|---|
 | Split right / down | `prefix+v` or `prefix+\|` &nbsp;·&nbsp; `prefix+-` or `prefix+\` |
-| Focus left/down/up/right | `prefix+h` `j` `k` `l` |
+| Focus left/down/up/right | `ctrl+h` `j` `k` `l` &nbsp;·&nbsp; `prefix+h` `j` `k` `l` |
 | Cycle panes forward / back | `prefix+tab` · `prefix+shift+tab` |
 | Zoom · close · resize mode | `prefix+z` · `prefix+x` · `prefix+r` |
 | Rename pane · scrollback | `prefix+shift+p` · `prefix+e` |
@@ -140,10 +140,29 @@ Existing worktrees just need a workspace, via `herdr workspace create --cwd` or
 already pins, so there is no entry under `pkgs/` and no extra flake input. It builds for
 both `aarch64-darwin` and `x86_64-linux`.
 
-Home Manager 26.05 ships no `programs.herdr` module, so the config file is rendered from a
-Nix attrset with `pkgs.formats.toml` and linked with `xdg.configFile`. That keeps the
-settings readable as Nix — the same shape as `programs.ghostty.settings` and
-`programs.starship.settings` — rather than a quoted heredoc.
+Home Manager 26.05 ships no `programs.herdr` module — the flake pins
+`home-manager/release-26.05`, and a grep for "herdr" across its 396 program modules finds
+nothing. So the config file is rendered here from a Nix attrset with `pkgs.formats.toml` and
+linked with `xdg.configFile`, which keeps the settings readable as Nix — the same shape as
+`programs.ghostty.settings` and `programs.starship.settings` — rather than a quoted heredoc.
+
+`modules/programs/herdr.nix` *does* exist on home-manager **master**, and it works exactly
+this way: `pkgs.formats.toml` → `xdg.configFile."herdr/config.toml"`, with a free-form
+`settings` attrset (its own example sets `onboarding = false`). When it reaches a release the
+migration is mechanical — the `settings` binding in this module is already the right shape:
+
+```nix
+programs.herdr = {
+  enable = true;
+  package = pkgs.unstable.herdr;   # the option defaults to pkgs.herdr, i.e. stable
+  inherit settings;
+};
+```
+
+Until then the one thing worth borrowing is its `onChange`, which this module now carries:
+`herdr server reload-config || true` after the file changes, so a rebuild applies keybindings
+to the running server instead of waiting for the next launch. The `|| true` covers activation
+with no server up.
 
 The link is on `herdr/config.toml` specifically, not on the `herdr/` directory. Herdr
 writes logs and session state into that directory at runtime, so it has to stay a real
@@ -153,14 +172,39 @@ directory rather than a symlink into the store.
 
 | Setting | Rationale |
 |---|---|
+| `onboarding = false` | Skips the first-run notification setup. See "Onboarding and the read-only config" below. |
 | `keys.prefix = "ctrl+f"` | Matches the tmux prefix, so muscle memory survives running both. |
+| `keys.focus_pane_* = ["prefix+…", "ctrl+…"]` | Prefix-free `ctrl+h/j/k/l` pane movement, the chords `vim-tmux-navigator` owns under tmux. See "Prefix-free pane movement" below for what it costs. |
 | `keys.focus_agent` / `next_agent` / `previous_agent` | Reaching an agent directly instead of via its workspace. All three ship unset. See "Agent navigation" below. |
 | `ui.agent_panel_sort = "priority"` | Orders the agent panel as an attention queue instead of grouping by workspace, which is what makes `next_agent` mean "next agent waiting on me". See "Agent navigation" below. |
 | `ui.mouse_capture = false` | Herdr markets itself mouse-first; this config is keyboard-only, matching `vim.opt.mouse = ""` in the Neovim config. Leaving capture off also passes mouse events through to inner TUIs instead of eating them at the multiplexer. |
 | `ui.sidebar.spaces.rows` | Shows `branch` + `git_status` per workspace. With bare repos and many `work/<branch>` checkouts, that is more useful than a pane title. |
 | `ui.sidebar.agents.rows_by_agent.claude` | Claude Code writes its current activity to the terminal title, so `terminal_title_stripped` becomes a live "what is this agent doing" column. The override key must be Herdr's canonical agent id. |
+| `ui.toast.delivery = "system"` | Herdr owns desktop notifications for every agent; Claude Code's own hooks are disabled to avoid notifying twice. See "Notifications" below. |
+| `ui.sound.enabled = true` | Sound on agent state changes in background workspaces. Herdr's default, pinned because the skipped onboarding modal would have asked. |
 | `session.resume_agents_on_restore = true` | See "Restart behaviour" below. |
 | `theme.*` | Solarized, switching with the host terminal's appearance. See "Theming" below. |
+
+### Onboarding and the read-only config
+
+Herdr shows a first-run notification-setup modal whenever the top-level `onboarding` key is
+*missing*, and on dismissal writes `onboarding = false` back into `config.toml`. That write
+cannot succeed here — the file is a symlink into the Nix store — so the server logged
+
+```
+WARN failed to write config … context="onboarding setting" err="Read-only file system (os error 30)"
+```
+
+and the modal returned on every launch. Declaring the post-onboarding value in Nix is the
+fix: with `onboarding = false` present, Herdr never opens the modal and never attempts the
+write.
+
+The same applies to anything else Herdr persists into `config.toml` at runtime — the
+settings overlay (`prefix+s`) can toggle theme, toasts, sound, and a few `ui`/`experimental`
+flags, and those toggles will apply for the session but fail to save with the same warning.
+Settings changed there have to be moved into the module to survive a restart. Runtime state
+that is *not* config (`session.json`, logs, the plugin lock) lives beside it in a real
+directory and writes normally.
 
 ### Theming
 
@@ -203,8 +247,8 @@ a split after the divider it draws, so its "vertical" is tmux's `split-window -h
 nowhere in the binary, so `\` has no *named* form — it is bound here as a literal printable
 key, which the documented syntax ("plain keys") should accept but which nothing offline
 confirms. `herdr config check` only validates that the file parses — it reports `config: ok`
-for these bindings — so the only reliable check is `prefix+?`, which lists live bindings. If either alias
-is missing there, drop it; the `prefix+v` / `prefix+minus` defaults remain bound either way.
+for these bindings — so the only reliable check is `prefix+?`, which lists live bindings. If
+either alias is missing there, drop it; the `prefix+v` / `prefix+minus` defaults remain bound either way.
 
 `switch_workspace` ships unset upstream and is bound to `prefix+shift+1..9`. It only reaches
 nine, so `goto` (`prefix+g`) remains the way past the ninth worktree.
@@ -262,15 +306,39 @@ for *all* workspaces on every close, since the numbers are positional. Until the
 (picker) and `prefix+g` (fuzzy goto) are the way to pick a workspace by name instead of by
 count.
 
-### No prefix-free chords
+### Prefix-free pane movement
 
-Herdr's docs recommend `ctrl+alt+…` for prefix-free bindings, but `CTRL + ALT + L` is
-already bound to `loginctl lock-session` in the Hyprland config on **manwe**. Binding it to
-"focus pane right" would lock the screen mid-navigation.
+`ctrl+h/j/k/l` move between panes without the prefix — the same chords `vim-tmux-navigator`
+owns under tmux — and they are **vim-aware**: inside a Neovim pane they move between Neovim
+splits and only cross into the neighbouring Herdr pane at a split edge.
 
-Rather than diverge per host, no bare chords are bound on either. Pane movement is
-`prefix+h/j/k/l` everywhere. If a seamless-navigation plugin is added later it will own
-`ctrl+h/j/k/l` directly and the question goes away.
+They are not bound to `focus_pane_*` directly. Each is a `[[keys.command]]` entry of
+`type = "plugin_action"` pointing at the navigation plugin (see "Plugins" below), which is
+what makes the vim-awareness possible; Herdr rejects a key bound twice, so `focus_pane_*`
+keeps only its `prefix+h/j/k/l` defaults.
+
+```toml
+[[keys.command]]
+key = "ctrl+h"
+type = "plugin_action"
+command = "vim-herdr-navigation.left"
+```
+
+`ctrl+alt+h/j/k/l` is Herdr's own suggestion for prefix-free bindings and is deliberately
+not used — `CTRL + ALT + L` is bound to `loginctl lock-session` in the Hyprland config on
+**manwe**, so "focus pane right" would lock the screen mid-navigation, and diverging per
+host is worse than picking a chord that is free on both.
+
+**What this still costs.** Forwarding only happens for Vim/Neovim panes, so in an ordinary
+shell pane **`ctrl+l`** (clear screen), **`ctrl+k`** (kill line) and **`ctrl+j`** are
+consumed by the navigation. tmux has the same problem and keeps an escape hatch —
+`bind C-l send-keys 'C-l'` in `tmux.conf` — which Herdr cannot express: there is no
+send-keys *binding* type, only the `herdr pane send-keys` CLI. Use `clear` instead. Other
+TUIs that own these chords can be added to the plugin's `HERDR_NAV_PASSTHROUGH_RE`.
+
+`ctrl+h` and Backspace share byte `0x08` unless the kitty keyboard protocol is active. foot
+(manwe) and Ghostty (morgoth) both speak it, so Backspace should stay distinct — but that,
+like the split aliases above, is only truly settled by trying it.
 
 ## Automatic workspace naming
 
@@ -301,6 +369,66 @@ Renaming is per *workspace*, so in a workspace holding panes in different direct
 last `cd` wins — the same behaviour the tmux hook already has for a window holding several
 panes.
 
+## Notifications
+
+Herdr is the notification system for agents on both hosts. `ui.toast.delivery = "system"`
+hands each one to the OS notification service — `notify-send` into swaync on Linux (hence
+`libnotify` in the module's `home.packages`; Herdr calls it by name, not by store path),
+`osascript`/`display notification` into Notification Center on Darwin. Both paths were
+verified in the respective 0.7.5 binaries.
+
+The other deliveries are `herdr` (in-app toasts, useless while detached), `terminal` (OSC
+9/777, dependent on the outer terminal), and `off`. `ui.sound.enabled` is independent of
+`delivery` and fires on agent state changes in background workspaces;
+`[ui.sound.agents] <id> = "off"` mutes one agent if a particular one gets noisy.
+
+### Why not Claude Code's hooks
+
+They are disabled — `Notification = [ ]` and `UserPromptSubmit = [ ]` in the claude-code
+module's `managedSettings`. Running both would notify twice for one permission prompt.
+Herdr was chosen to own it because:
+
+- it covers **every recognised agent**, not just Claude Code, so a codex or gemini pane
+  raises notifications on the same terms;
+- `prefix+o` (`open_notification_target`) jumps to the pane that raised the notification,
+  which no swaync popup can do;
+- the hook path had no Herdr awareness at all — `notify.nix` titles from the **tmux**
+  window name and otherwise falls back to the cwd basename, so inside Herdr every
+  notification was titled `Claude Code <dirname>`.
+
+What is lost, and worth knowing before deciding it was the right call:
+
+- **Urgency.** The Linux hook raised `permission_prompt`/`idle_prompt` at
+  `urgency=critical` and everything else at `normal`. Herdr does not distinguish.
+- **Replace-and-dismiss.** The hook tracked a notification id per session in `/tmp` so a
+  new notification replaced the previous one, and `UserPromptSubmit` dismissed it once you
+  replied. Herdr's notifications stand until the service times them out.
+- **Per-type sounds on Darwin.** `cli-notify` played Basso for prompts and Glass for
+  completion.
+
+Reverting is a one-line change per hook array; the scripts are still installed. See
+[`docs/claude-code.md`](./claude-code.md).
+
+### Two limits of the system delivery
+
+Herdr invokes `notify-send -- <title> <body>` with no flags at all — no `-A/--action`, no
+`-u/--urgency`, no `-t/--expire-time` (verified against the string literals adjacent to
+`notify-send` in the 0.7.5 binary). Two consequences, both accepted rather than worked
+around:
+
+- **Clicking a notification does not jump to the agent.** With no action attached there is
+  nothing for swaync to invoke, so a click only dismisses. `prefix+o`
+  (`open_notification_target`) is the way to reach the pane that raised one.
+- **They expire after 10s.** No `-u` means normal urgency, which lands on swaync's
+  `timeout = 10` ([`swaync`](../modules/common/users/common/swaync/default.nix)); only
+  `timeout-critical` is `0`/never. Nothing is lost — swaync's control center keeps them,
+  and `notification-grouping` is on.
+
+Both are fixable only by the sender. A `notify-send` shim on `PATH` (Herdr calls it by
+name, not by store path) could add `-u critical` and an action handler, at the cost of
+intercepting every other caller and leaving one blocked process per notification — not
+worth it for what it buys.
+
 ## Restart behaviour
 
 Detaching (`prefix+q`) leaves the server up and every process running, exactly like tmux.
@@ -316,13 +444,91 @@ Scrollback contents are **not** restored. That needs `[experimental] pane_histor
 is off by default upstream because terminal history can contain secrets, and is left off
 here for the same reason.
 
-## Deliberately not managed here
+## Plugins
 
-**Plugins.** `herdr plugin install <owner>/<repo>` clones from GitHub and runs build
-commands as a runtime side effect, which does not belong in a Nix closure. `herdr plugin
-link <path>` skips the build step and can point at a store path, but registration is still
-a call against a running server. Nothing is wired up for this yet; add plugins by hand and
-they persist in Herdr's own state.
+One is installed: [`vim-herdr-navigation`](https://github.com/paulbkim-dev/vim-herdr-navigation),
+which is what makes `ctrl+h/j/k/l` vim-aware. It is packaged in
+[`pkgs/vim-herdr-navigation`](../pkgs/vim-herdr-navigation/default.nix) and registered from
+the herdr module — no `herdr plugin install`, no clone-and-build at runtime.
+
+### How registration works
+
+Herdr's plugin registry is `~/.config/herdr/plugins.json`, a plain JSON array. `herdr
+plugin link <path>` appends a record to it: the plugin's `herdr-plugin.toml` denormalized
+into JSON, plus `plugin_root`, `manifest_path`, `enabled`, and `source.kind = "local"`.
+Three properties of that command make it safe from an activation script, all verified
+against 0.7.5:
+
+- it does **not** need a running server (it takes `.plugins.lock` and writes the file
+  itself; when a server *is* up the CLI routes through the socket and the server persists);
+- it is idempotent — linking the same path twice leaves one entry;
+- linking a different path for an id already present **replaces** that entry, which is what
+  every rebuild does when a plugin's store path changes.
+
+So the module keeps a list of `{ id, root }`, links each at activation, then prunes: any
+registry entry whose `plugin_root` is under `/nix/store` but is no longer declared gets
+unlinked. Entries linked by hand from outside the store are left alone, so a local
+checkout you are hacking on survives a rebuild.
+
+One asymmetry, worth knowing because the error message is misleading: `unlink` *does*
+require a running server. `link` and `list` fall back to editing `plugins.json` directly
+under `.plugins.lock`; `unlink` has no such fallback — it connects to `herdr.sock`
+unconditionally, and with no server the bare `Error: Os { code: 2, kind: NotFound }` it
+prints is that missing socket, not a missing plugin (confirmed with `strace`: the failing
+call is `connect(AF_UNIX, "…/herdr.sock")`, and nothing under the config dir is ever
+opened).
+
+So the prune is best-effort: a plugin dropped from the list lingers in the registry until
+the next activation that runs while Herdr is up. In practice rebuilds happen from a
+terminal inside Herdr, so that is the common case — verified end to end by linking a
+throwaway store-rooted plugin, running the activation script, and watching it disappear
+while `vim-herdr-navigation` was re-linked in place.
+
+### Why not a declarative `plugins.json`
+
+Every field of that file is derivable at eval time, so `xdg.configFile` could render it —
+but Herdr rewrites it on every link/unlink/enable/disable, and a store symlink is read-only.
+That is exactly the failure the `onboarding` setting used to hit, and it would also mean
+`herdr plugin enable/disable` silently failing at runtime. Leaving the file mutable and
+converging it at activation avoids the whole class.
+
+### Packaging notes
+
+The manifest ships `command = ["bash", "navigate.sh", "<dir>"]`, which assumes a `PATH` and
+a working directory. The derivation rewrites those four lines to point at a wrapper that
+puts `jq` on `PATH` (without it the plugin degrades to plain focus movement, no Vim
+detection) and sets `HERDR_BIN_PATH` to the same `pkgs.unstable.herdr` the user runs.
+
+Upstream tags nothing, so the pin follows the default branch and the version carries the
+commit date. Bumping it is `scripts/update-packages.sh vim-herdr-navigation` — the package
+carries a `passthru.updateScript` of `nix-update --flake --version=branch`, so there is no
+rev or hash to edit by hand. It does *not* move with `nix flake update`.
+
+The editor half is linked to `~/.config/nvim/after/plugin/herdr-nav.lua` by the *herdr*
+module, gated on `nvim.enable`. `after/plugin` is what lets it win over the
+`vim-tmux-navigator` mappings, and the file itself falls back to `TmuxNavigate*` when
+`$HERDR_PANE_ID` is unset — so it is a superset of the tmux setup rather than a conflict,
+and needs no `HERDR_ENV` guard. The nvim module links its `config/` recursively and has no
+`after/` of its own, so nothing collides.
+
+### The alternatives
+
+All three known ports work the same way as `vim-tmux-navigator`: the Herdr half inspects the
+focused pane with `herdr pane process-info` and either forwards the key via `herdr pane
+send-keys` or moves focus with `herdr pane focus --direction`, while the editor half falls
+out to Herdr when a window is already at the edge.
+
+| Plugin | Shape |
+|---|---|
+| [`paulbkim-dev/vim-herdr-navigation`](https://github.com/paulbkim-dev/vim-herdr-navigation) | **In use.** The closest 1:1 port of the tmux setup. Herdr plugin plus `editor/nvim.lua`. Has a `HERDR_NAV_PASSTHROUGH_RE` escape hatch for TUIs that never report an edge (lazygit and friends). |
+| [`lmilojevicc/herdr-splits.nvim`](https://github.com/lmilojevicc/herdr-splits.nvim) | `smart-splits.nvim` flavour: adds `alt+h/j/k/l` resizing, `at_edge` behaviour, sidebar/float awareness, auto-unzoom. Its `setup()` regenerates `~/.config/herdr/plugins/config/herdr-splits/herdr-splits.conf` — harmless, that is not the store-linked `config.toml` — but its eight keybinds would still have to be declared in this module. |
+| [`willfish/herdr-navigator`](https://github.com/willfish/herdr-navigator) | Herdr side only, `alt+h/j/k/l`, pairs with a separate `herdr-navigator.nvim`. |
+
+The plugin-free alternative, if these ever become a maintenance problem, is a small `pkgs/`
+script bound with `[[keys.command]] type = "shell"` doing the same `process-info` →
+`send-keys`/`focus` dance with no registry involved.
+
+## Deliberately not managed here
 
 **Agent detection.** `herdr integration install claude` writes hooks into the Claude Code
 configuration so that Claude reports its own state via `herdr pane report-agent`. It is not
@@ -338,9 +544,13 @@ Because state is *pushed* by that integration rather than sniffed from process n
 ```bash
 herdr --version
 herdr status                 # server/client health
+herdr config check           # parse the rendered config.toml and print diagnostics
 herdr agent list             # what it currently recognises as an agent
 herdr agent explain <target> --json   # why something was or wasn't detected
-herdr server reload-config   # after a rebuild, without restarting the server
+herdr server reload-config   # normally automatic via onChange; manual re-apply
+herdr plugin list --json     # registered plugins; roots should be store paths
+herdr plugin action list     # the actions the keybindings resolve against
+herdr plugin log             # what a plugin action actually ran, and its output
 ```
 
 The rendered config lands at `~/.config/herdr/config.toml` as a symlink into the store;
