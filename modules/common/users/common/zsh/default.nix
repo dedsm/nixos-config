@@ -55,16 +55,14 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       # Enable PATH-based discovery for nix-shell compatibility
       zstyle ':completion-sync:path' enabled true
 
-      # Auto-rename tmux window to directory basename (with dedup)
-      # For git worktrees, shows "repo:dir" when dir differs from repo name
-      function _tmux_rename_window() {
-        [[ -z "$TMUX" || -z "$TMUX_PANE" ]] && return
-
-        local dir_name repo_name name
+      # Display name for $PWD: "repo:dir" for a git checkout whose directory
+      # differs from the repo name (worktrees), otherwise the bare basename.
+      # Shared by the tmux and herdr renamers below.
+      function _workspace_display_name() {
+        local dir_name repo_name git_dir
         dir_name=$(basename "$PWD")
 
         # Detect git repo name (use common dir for worktrees and bare repos)
-        local git_dir
         git_dir=$(realpath "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
         if [[ -n "$git_dir" ]]; then
           if [[ "$(basename "$git_dir")" == ".git" ]]; then
@@ -75,15 +73,29 @@ mkIf (homeManagerConfig.zsh.enable or false) {
             repo_name=$(basename "$git_dir")
           fi
           if [[ "$repo_name" != "$dir_name" ]]; then
-            name="''${repo_name}:''${dir_name}"
-          else
-            name="$dir_name"
+            print -r -- "''${repo_name}:''${dir_name}"
+            return
           fi
-        else
-          name="$dir_name"
         fi
+        print -r -- "$dir_name"
+      }
 
-        local current_window
+      # Auto-rename the herdr workspace. No dedup pass: tmux's " 2" suffix exists
+      # because windows are a flat namespace, whereas a second view of one
+      # worktree in herdr is a tab inside the workspace, so names don't collide.
+      function _herdr_rename_workspace() {
+        [[ -z "$HERDR_ENV" || -z "$HERDR_WORKSPACE_ID" ]] && return
+        herdr workspace rename "$HERDR_WORKSPACE_ID" \
+          "$(_workspace_display_name)" >/dev/null 2>&1
+      }
+
+      # Auto-rename tmux window to directory basename (with dedup)
+      function _tmux_rename_window() {
+        [[ -z "$TMUX" || -z "$TMUX_PANE" ]] && return
+
+        local name current_window
+        name=$(_workspace_display_name)
+
         current_window=$(tmux display-message -p -t "$TMUX_PANE" '#{window_index}')
 
         # collect names from OTHER windows
@@ -106,7 +118,9 @@ mkIf (homeManagerConfig.zsh.enable or false) {
       }
       autoload -Uz add-zsh-hook
       add-zsh-hook chpwd _tmux_rename_window
-      _tmux_rename_window  # run once on shell init
+      add-zsh-hook chpwd _herdr_rename_workspace
+      _tmux_rename_window       # run once on shell init
+      _herdr_rename_workspace   # no-op unless $HERDR_ENV is set
 
       ${homeManagerConfig.zsh.initContent or ""}
       any-nix-shell zsh --info-right | source /dev/stdin

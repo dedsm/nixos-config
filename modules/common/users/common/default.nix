@@ -1,6 +1,7 @@
 attrs@{ config, pkgs, lib, ... }:
 let
   tmux = import ./tmux attrs;
+  herdr = import ./herdr attrs;
   nvim = import ./nvim attrs;
   zsh = import ./zsh attrs;
   kdeconnect = import ./kdeconnect attrs;
@@ -28,6 +29,7 @@ let
   defaults = import ./defaults attrs;
 in lib.mkMerge [
   tmux
+  herdr
   nvim
   zsh
   kdeconnect

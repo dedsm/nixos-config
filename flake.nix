@@ -95,6 +95,7 @@
     # Define reusable common user settings
     davidShared = pkgs: {
       tmux.enable = true;
+      herdr.enable = true;
       nvim.enable = true;
       zsh.enable = true;
       starship.enable = true;

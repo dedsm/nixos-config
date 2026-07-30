@@ -41,7 +41,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │   ├── common/             # Shared modules (both platforms)
 │   │   ├── default.nix       # Home Manager user configuration bridge
 │   │   ├── fonts.nix          # Font configuration
-│   │   └── users/common/      # Home Manager user modules — tmux, nvim, zsh, git, hyprland,
+│   │   └── users/common/      # Home Manager user modules — tmux, herdr, nvim, zsh, git, hyprland,
 │   │                            ghostty, sketchybar, claude-code, playwright, brain skill, ...
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, fonts, xserver/xkb,
@@ -396,6 +396,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/claude-code.md`](./docs/claude-code.md) — Claude Code package pinning, settings-merge strategy, hooks, status line
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — Playwright MCP browser wiring
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration
+- [`docs/herdr.md`](./docs/herdr.md) — the `herdr` agent-aware multiplexer: why it coexists with tmux, settings rationale (prefix, no `ctrl+alt` chords, sidebar layout), restart semantics, and the plugin/agent-integration bits deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill
 - [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin, hyprlock as the auth gate, fingerprint policy, gnome-keyring PAM unlock, boot-speed rationale
 - [`docs/performance.md`](./docs/performance.md) — the `dedsm.performance` module: sched_ext/`scx_lavd`, ananicy-cpp with CachyOS rules, writeback sysctls sized for 128 GiB, and what was deliberately *not* ported from CachyOS

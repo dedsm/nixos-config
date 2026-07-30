@@ -20,7 +20,7 @@ hosts/
 
 modules/
 ├── common/               # Home Manager modules, shared across platforms
-│   └── users/common/       # tmux, nvim, zsh, git, hyprland, ghostty, sketchybar, claude-code, ...
+│   └── users/common/       # tmux, herdr, nvim, zsh, git, hyprland, ghostty, sketchybar, claude-code, ...
 ├── nixos/                 # NixOS system modules (dedsm.<name>.enable toggles)
 │   ├── core/                # Always-on baseline: networking, fonts, audio, xdg, base packages
 │   ├── laptop/               # Power management, lid/sleep behaviour
@@ -107,6 +107,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 - [`docs/claude-code.md`](./docs/claude-code.md) — package pinning, the managed-settings merge strategy, hooks, status line, editor integration
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — how the Playwright MCP server is pointed at a Nix-managed browser instead of downloading its own
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
+- [`docs/herdr.md`](./docs/herdr.md) — the agent-aware terminal multiplexer running alongside tmux: settings rationale, restart behaviour, and what is deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill and how its store is bootstrapped/synced
 - [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin with hyprlock as the auth gate, fingerprint policy, keyring unlock, boot-speed rationale
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB, suspend-then-hibernate settings, why `boot.resumeDevice` is set explicitly, resume reliability caveats
