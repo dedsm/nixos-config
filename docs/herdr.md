@@ -94,13 +94,18 @@ The prefix is `ctrl+f`. `prefix+?` lists live bindings and is authoritative over
 | New worktree | `prefix+shift+g` |
 | Toggle sidebar | `prefix+b` |
 
+| Agents | |
+|---|---|
+| Jump to 1–9 | `prefix+ctrl+1` … `prefix+ctrl+9` |
+| Next / previous (attention order) | `prefix+a` · `prefix+shift+a` |
+
 | Session | |
 |---|---|
 | Detach (leaves everything running) | `prefix+q` |
 | Reload config · settings · help | `prefix+shift+r` · `prefix+s` · `prefix+?` |
 
 Past nine workspaces the numbered jumps run out, so `prefix+g` is the practical way around a
-repo with more worktrees than that.
+repo with more worktrees than that. Agents have no such picker — see "Agent navigation".
 
 **Navigate mode** is a separate surface where plain keys work with no prefix: `up`/`down`
 move between workspaces, `h`/`j`/`k`/`l` between panes.
@@ -108,13 +113,11 @@ move between workspaces, `h`/`j`/`k`/`l` between panes.
 ### Bindings that ship unset
 
 Upstream leaves these empty, and the herdr docs present some of them as though they were
-defaults. Only `switch_workspace` is bound by this module:
+defaults. This module binds `switch_workspace`, `focus_agent`, `next_agent` and
+`previous_agent`; what remains unset is:
 
-`open_worktree` · `remove_worktree` · `previous_workspace` · `next_workspace` ·
-`previous_agent` · `next_agent` · `focus_agent` · `last_pane`
+`open_worktree` · `remove_worktree` · `previous_workspace` · `next_workspace` · `last_pane`
 
-`focus_agent`'s documented example uses `prefix+alt+1..9`; upstream's own comment warns that
-`alt+…` "may depend on your terminal/tmux setup", which on macOS is the Option-key problem.
 Note also that `backslash`, `bracketleft` and `bracketright` are not key names the binary
 recognises.
 
@@ -151,6 +154,8 @@ directory rather than a symlink into the store.
 | Setting | Rationale |
 |---|---|
 | `keys.prefix = "ctrl+f"` | Matches the tmux prefix, so muscle memory survives running both. |
+| `keys.focus_agent` / `next_agent` / `previous_agent` | Reaching an agent directly instead of via its workspace. All three ship unset. See "Agent navigation" below. |
+| `ui.agent_panel_sort = "priority"` | Orders the agent panel as an attention queue instead of grouping by workspace, which is what makes `next_agent` mean "next agent waiting on me". See "Agent navigation" below. |
 | `ui.mouse_capture = false` | Herdr markets itself mouse-first; this config is keyboard-only, matching `vim.opt.mouse = ""` in the Neovim config. Leaving capture off also passes mouse events through to inner TUIs instead of eating them at the multiplexer. |
 | `ui.sidebar.spaces.rows` | Shows `branch` + `git_status` per workspace. With bare repos and many `work/<branch>` checkouts, that is more useful than a pane title. |
 | `ui.sidebar.agents.rows_by_agent.claude` | Claude Code writes its current activity to the terminal title, so `terminal_title_stripped` becomes a live "what is this agent doing" column. The override key must be Herdr's canonical agent id. |
@@ -197,12 +202,65 @@ a split after the divider it draws, so its "vertical" is tmux's `split-window -h
 **These two aliases are unverified.** `backslash`, `bracketleft` and `bracketright` appear
 nowhere in the binary, so `\` has no *named* form — it is bound here as a literal printable
 key, which the documented syntax ("plain keys") should accept but which nothing offline
-confirms. There is no config validator: `herdr status` parses the file without checking key
-names, and the only reliable check is `prefix+?`, which lists live bindings. If either alias
+confirms. `herdr config check` only validates that the file parses — it reports `config: ok`
+for these bindings — so the only reliable check is `prefix+?`, which lists live bindings. If either alias
 is missing there, drop it; the `prefix+v` / `prefix+minus` defaults remain bound either way.
 
 `switch_workspace` ships unset upstream and is bound to `prefix+shift+1..9`. It only reaches
 nine, so `goto` (`prefix+g`) remains the way past the ninth worktree.
+
+### Agent navigation
+
+Herdr's agent surface is exactly three actions — an indexed jump plus step forward/back —
+and all three ship unset, which left the sidebar read-only: it told you *which* agent was
+blocked, and you then reached it by jumping to its workspace. They are bound here:
+
+```toml
+focus_agent = "prefix+ctrl+1..9"
+next_agent = "prefix+a"
+previous_agent = "prefix+shift+a"
+```
+
+`ctrl` is the free modifier for the indexed jump: `prefix+1..9` is `switch_tab` and
+`prefix+shift+1..9` is `switch_workspace` above.
+
+**`ctrl+digit` is the one uncertain part.** `herdr config check` accepts the binding — and it
+genuinely validates rather than rubber-stamping, since `prefix+wibble+1..9` gets
+`invalid keybinding … disabling binding` — but that only proves the *config* parses. `ctrl+1`
+has no distinct legacy encoding: most terminals send a bare `0x31`, indistinguishable from
+plain `1`. Without the kitty keyboard protocol active, `prefix+ctrl+1` would therefore arrive
+as `prefix+1` and silently switch *tab* instead, with no error anywhere. Herdr carries the
+protocol machinery (`TerminalRuntime::keyboard_protocol`, and the `CSI = …u` / `CSI < u`
+push/pop sequences are in the binary) and foot and Ghostty both speak it, so it should
+disambiguate — but as with the split aliases above, only pressing it settles this. If it
+switches tabs, fall back to upstream's own example of `prefix+alt+1..9`: `alt` survives legacy
+encoding as an ESC prefix, at the cost of the macOS Option-key problem on morgoth
+(`macos-option-as-alt` is not set in the ghostty module, so Ghostty's default applies).
+
+**Past nine agents there is no picker.** `prefix+w` and `prefix+g` are workspace-only; the
+action list in the binary has `WorkspacePicker` and `OpenNavigator` but nothing agent-shaped
+that opens one. So the answer past nine is not an indexed key but
+`ui.agent_panel_sort = "priority"`, which reorders the agent panel from upstream's
+workspace-grouped `"spaces"` default into an attention queue — `next_agent` then walks "next
+thing waiting on me" rather than workspace order, which is the useful traversal regardless of
+count. The uncapped escape hatch is `herdr agent list` piped into `herdr agent focus <id>`.
+
+### No index column in the sidebar
+
+The workspace numbers `prefix+shift+1..9` refers to are real and exposed by the API —
+`herdr workspace list` reports a `number` per workspace — but they cannot be *displayed*. The
+space row token table in the binary is exactly `state_icon`, `state_text`, `workspace`,
+`branch`, `git_status`, with no index or ordinal token, so `ui.sidebar.spaces.rows` has
+nothing to put a number in.
+
+The only lever is the `$name` custom token, fed by `herdr workspace report-metadata
+<workspace_id> --source <id> --token num=<n>`. That is a plugin's job rather than a config
+setting: herdr's plugin event hooks include `workspace_created`, `workspace_closed` and
+`workspace_renamed`, so a plugin could re-push every workspace's number on each of those and
+`rows` could then read `$num`. Nothing like that is installed, and it would need re-pushing
+for *all* workspaces on every close, since the numbers are positional. Until then `prefix+w`
+(picker) and `prefix+g` (fuzzy goto) are the way to pick a workspace by name instead of by
+count.
 
 ### No prefix-free chords
 

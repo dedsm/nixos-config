@@ -25,6 +25,16 @@
       # Jump straight to a worktree. Ships unset; only 1..9 are reachable, so
       # `goto` (prefix+g) stays the answer past the ninth workspace.
       switch_workspace = "prefix+shift+1..9";
+
+      # Agent navigation. All three ship unset upstream; without them the
+      # sidebar is read-only and reaching an agent means jumping to its
+      # workspace. `prefix+1..9` is switch_tab and `prefix+shift+1..9` is
+      # switch_workspace above, so ctrl is the free modifier for the indexed
+      # jump — see "Agent navigation" in docs/herdr.md for the caveat, and
+      # `ui.agent_panel_sort` below for what next/previous_agent walks.
+      focus_agent = "prefix+ctrl+1..9";
+      next_agent = "prefix+a";
+      previous_agent = "prefix+shift+a";
     };
 
     ui = {
@@ -32,6 +42,13 @@
       # same thing). Leaving capture off also hands mouse events to whatever TUI
       # is running inside the pane rather than eating them at the multiplexer.
       mouse_capture = false;
+
+      # Order the agent panel as an attention queue rather than grouping by
+      # workspace (upstream's "spaces" default). That is what makes
+      # `next_agent` mean "next agent waiting on me" — and it is the only
+      # answer past nine agents, since `focus_agent` stops at 9 and herdr has
+      # no agent equivalent of the `goto` workspace picker.
+      agent_panel_sort = "priority";
 
       sidebar = {
         # Worktree-oriented layout: bare repos with many `work/<branch>`
