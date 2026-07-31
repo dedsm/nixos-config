@@ -96,10 +96,15 @@
     };
 
     ui = {
-      # Keyboard-only workflow (`vim.opt.mouse = ""` in the nvim config says the
-      # same thing). Leaving capture off also hands mouse events to whatever TUI
-      # is running inside the pane rather than eating them at the multiplexer.
-      mouse_capture = false;
+      # Mouse at the multiplexer level: click to focus a pane, drag a border to
+      # resize, wheel-scroll the scrollback. herdr still forwards events to an
+      # inner TUI that asks for mouse reporting, so this costs the terminal's
+      # own click-drag selection (hold shift for that) rather than app input.
+      #
+      # There is no runtime toggle to fall back on — herdr 0.7.5 has no
+      # `:set mouse` equivalent, and nothing mouse-related in its bindable
+      # action list — so this key is the only switch.
+      mouse_capture = true;
 
       # herdr owns agent notifications, for every recognised agent rather than
       # just Claude Code — whose own notification hooks are disabled in the

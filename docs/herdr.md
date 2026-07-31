@@ -79,6 +79,7 @@ The prefix is `ctrl+f`. `prefix+?` lists live bindings and is authoritative over
 | Cycle panes forward / back | `prefix+tab` · `prefix+shift+tab` |
 | Zoom · close · resize mode | `prefix+z` · `prefix+x` · `prefix+r` |
 | Rename pane · scrollback | `prefix+shift+p` · `prefix+e` |
+| Copy mode (keyboard scrollback) | `prefix+[` |
 
 | Tabs | |
 |---|---|
@@ -109,6 +110,12 @@ repo with more worktrees than that. Agents have no such picker — see "Agent na
 
 **Navigate mode** is a separate surface where plain keys work with no prefix: `up`/`down`
 move between workspaces, `h`/`j`/`k`/`l` between panes.
+
+**Copy mode** (`prefix+[`, the tmux chord, and a Herdr default rather than something set
+here) is the keyboard route through scrollback: a cursor with vim motions, page scrolling,
+`/` search, and a visual selection that yanks to the clipboard. `prefix+e` is the other
+half — it dumps the pane's scrollback into `$EDITOR` when searching it is easier there.
+Neither depends on `ui.mouse_capture`; both worked before it was enabled and still do.
 
 ### Bindings that ship unset
 
@@ -177,7 +184,7 @@ directory rather than a symlink into the store.
 | `keys.focus_pane_* = ["prefix+…", "ctrl+…"]` | Prefix-free `ctrl+h/j/k/l` pane movement, the chords `vim-tmux-navigator` owns under tmux. See "Prefix-free pane movement" below for what it costs. |
 | `keys.focus_agent` / `next_agent` / `previous_agent` | Reaching an agent directly instead of via its workspace. All three ship unset. See "Agent navigation" below. |
 | `ui.agent_panel_sort = "priority"` | Orders the agent panel as an attention queue instead of grouping by workspace, which is what makes `next_agent` mean "next agent waiting on me". See "Agent navigation" below. |
-| `ui.mouse_capture = false` | Herdr markets itself mouse-first; this config is keyboard-only, matching `vim.opt.mouse = ""` in the Neovim config. Leaving capture off also passes mouse events through to inner TUIs instead of eating them at the multiplexer. |
+| `ui.mouse_capture = true` | Click-to-focus panes, drag-to-resize borders, wheel scrollback. See "Mouse" below for the trade — and for why it has to be a config key rather than a toggle. |
 | `ui.sidebar.spaces.rows` | Shows `branch` + `git_status` per workspace. With bare repos and many `work/<branch>` checkouts, that is more useful than a pane title. |
 | `ui.sidebar.agents.rows_by_agent.claude` | Claude Code writes its current activity to the terminal title, so `terminal_title_stripped` becomes a live "what is this agent doing" column. The override key must be Herdr's canonical agent id. |
 | `ui.toast.delivery = "system"` | Herdr owns desktop notifications for every agent; Claude Code's own hooks are disabled to avoid notifying twice. See "Notifications" below. |
@@ -339,6 +346,38 @@ TUIs that own these chords can be added to the plugin's `HERDR_NAV_PASSTHROUGH_R
 `ctrl+h` and Backspace share byte `0x08` unless the kitty keyboard protocol is active. foot
 (manwe) and Ghostty (morgoth) both speak it, so Backspace should stay distinct — but that,
 like the split aliases above, is only truly settled by trying it.
+
+### Mouse
+
+`ui.mouse_capture = true` gives the multiplexer the mouse: click a pane to focus it, drag a
+border to resize, wheel-scroll the scrollback.
+
+Capture is not all-or-nothing per event. Herdr tracks whether the focused pane's program has
+asked for mouse reporting and forwards to it when it has, so a TUI that wants the mouse
+still gets it — Neovim here does not (`vim.opt.mouse = ""` in the nvim config), so Herdr
+keeps those events. What capture does cost is the **host terminal's** own click-drag
+selection, since Herdr now claims the events foot and Ghostty would have used for it. Hold
+**shift** while dragging to bypass the application and select with the terminal directly;
+that is a terminal-level escape hatch, not a Herdr binding.
+
+`ui.copy_on_select` and `ui.mouse_scroll_lines` are the two related knobs, both left at
+Herdr's defaults.
+
+**There is no runtime toggle.** Herdr 0.7.5 has no `:set mouse` equivalent: its bindable
+action list — `prefix`, the `navigate_*`/`focus_pane_*`/`swap_pane_*` families,
+`new_workspace`, `new_worktree`, `open_worktree`, `remove_worktree`, `close_workspace`,
+`detach`, `reload_config`, `open_notification_target`, `previous`/`next_workspace`,
+`previous`/`next_agent`, `focus_agent`, `remote_image_paste`, the `*_tab` family,
+`rename_pane`, `edit_scrollback`, `copy_mode`, `cycle_pane_next`/`previous`, `last_pane`,
+`split_vertical`/`horizontal`, `close_pane`, `resize_mode`, `toggle_sidebar`, `indexed` —
+contains nothing mouse-related, `toggle_sidebar` being its only toggle at all. The socket
+API has no mouse method either, and `herdr config` offers only `check` and `reset-keys`. So
+the config key is the sole switch: flip it back to `false` here and rebuild, which reaches a
+running server through the `onChange` reload described under "Packaging".
+
+A per-session toggle would have to be a plugin action that rewrites `config.toml` and calls
+`reload_config` — which the store symlink makes impossible for the same reason it broke the
+`onboarding` write below. Enabling it wholesale is the cheaper experiment.
 
 ## Automatic workspace naming
 
