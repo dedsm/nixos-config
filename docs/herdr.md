@@ -440,6 +440,24 @@ the same bargain as tmux-resurrect/continuum.
 The difference is `session.resume_agents_on_restore`: supported agents reopen their own
 conversation session rather than starting cold. tmux has no equivalent.
 
+That resume is only as good as what the pane recorded, and **it depends on `python3` being
+on `PATH`**. Herdr cannot see a Claude session id by itself; the only channel is the
+`SessionStart` hook installed by `herdr integration install claude`, which reports
+`pane.report_agent_session` (the session UUID plus the transcript path) over `herdr.sock`.
+That hook is `sh` for a dozen lines and then a `python3` heredoc — Herdr is Rust, but the
+script it writes into the agent's config needs a JSON parser and a unix-socket client in
+whatever environment the agent's hooks run in, and it assumes `python3` for the shell-hook
+agents the way it assumes node for the `.ts`/`.js` ones. Without it the hook exits **0** at
+`command -v python3 >/dev/null 2>&1 || exit 0`, so nothing is reported, no `agent_session`
+lands in `session.json`, and there is no id left to build `claude --resume <uuid>` from.
+
+Nothing else here puts a bare `python3` on `PATH` — `brain`, Neovim's `withPython3`, and
+`i3xmonadhelper` all resolve an interpreter by store path — so it is listed explicitly in
+`davidShared`'s packages in `flake.nix` for this. The failure is silent on both ends (the
+hook exits clean, Herdr simply never hears from the pane); `herdr agent list` is what shows
+it, as a pane with no `agent_session` field. Pane layout, cwd and focus restore regardless
+— that is Herdr's own state and never touches the hook.
+
 Scrollback contents are **not** restored. That needs `[experimental] pane_history`, which
 is off by default upstream because terminal history can contain secrets, and is left off
 here for the same reason.
@@ -538,6 +556,16 @@ before mixing them.
 
 Because state is *pushed* by that integration rather than sniffed from process names, Nix's
 `claude` → `.claude-wrapped` wrapper is not an obstacle to detection.
+
+The two do coexist as installed: the merge in the Claude Code module is `jq -s '.[0] * .[1]'`,
+which recurses into objects, so its managed `hooks` block leaves the integration's
+`SessionStart` entry alone. The one thing provided *for* the integration is the `python3`
+its hook needs on `PATH`, in `davidShared`'s packages — see "Restart behaviour" above. The
+alternative
+considered and rejected was replacing the hook with a Nix-authored one calling
+`herdr pane report-agent-session` (the same request, no interpreter needed): it takes
+ownership of a file whose own header says reinstalling the integration overwrites it, and
+pins Herdr's `v7` field set by hand.
 
 ## Verifying
 
