@@ -65,6 +65,13 @@ with lib;
             disable_hyprland_logo = true;
             # vfr (variable frame rate) is default-true and moved to debug: in 0.55.
             vrr = 1;
+            # Both default to false: without them the *only* thing that can undo
+            # hypridle's dpms-off is hypridle's own on-resume, so any hiccup in
+            # its idle bookkeeping leaves a black screen on a live, typing-and-
+            # authenticating session. Compositor-level backstop; see
+            # docs/login-flow.md.
+            mouse_move_enables_dpms = true;
+            key_press_enables_dpms = true;
           };
           master = {
             new_status = "slave";

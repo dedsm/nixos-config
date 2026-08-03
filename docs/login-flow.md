@@ -43,6 +43,45 @@ Hyprland keeps the session locked when the locker dies until a new one
 attaches — and hypridle holds a sleep inhibitor until the script exits, so
 the strict locker is up before the machine actually sleeps.
 
+## Idle, DPMS, and the black-screen backstops
+
+`modules/common/users/common/wayland/hypridle/` drives two idle listeners off
+`ext_idle_notifier_v1`: **300s → `loginctl lock-session`**, **600s → DPMS off**.
+Nothing else in the repo writes DPMS.
+
+Both listeners turn the display back on when you resume, which looks redundant
+and is not. hypridle recreates *every* listener's idle notification whenever a
+dbus inhibit is taken or released — Firefox does this each time audio starts and
+stops. That resets the timers **and** clears each listener's internal "idled"
+flag. If the DPMS listener had already fired, the panels stay physically off
+while hypridle believes they are on, so on resume it fires no `on-resume` for
+that listener and nothing turns them back on.
+
+That is a real incident, not a hypothetical (2026-07-31): DPMS off at 18:36, a
+Firefox audio inhibit released at 18:55:58 re-armed both listeners, and the
+resume at 19:01 restored nothing. The session was fully alive underneath — the
+fingerprint reader even reported `verify-match` — but the screens were dark and
+the machine looked hung. Only replugging the dock (forcing output
+re-enumeration) brought the picture back.
+
+Two independent guards, deliberately both:
+
+- **`on-resume = dpms "on"` on the 300s lock listener.** Idempotent, and covers
+  the case above because the *lock* listener's resume did still fire.
+- **`misc.mouse_move_enables_dpms` / `misc.key_press_enables_dpms`** in
+  `modules/common/users/common/hyprland/`. Both default to **false**, which is
+  what made the state unrecoverable from the keyboard. These make the compositor
+  wake the display on input regardless of what hypridle thinks.
+
+Keep the second one in mind before trusting any single idle daemon: it is the
+only guard that survives hypridle being wrong, wedged, or dead.
+
+If a black screen ever recurs, the machine is probably fine — check
+`journalctl -b -1 | grep hypridle` for an `Idled:` with no matching `Resumed:`
+for the same rule id before concluding the GPU hung, and confirm with a clean
+`grep -i amdgpu` (a real hang shows ring timeouts / GPU reset, not just
+`DMUB HPD IRQ` dock events).
+
 ## Keyring unlock (gnome-keyring)
 
 With autologin no password flows through PAM at login, so the login keyring
