@@ -104,7 +104,24 @@ update_one() {
   fi
 
   echo "==> $name"
-  mapfile -t cmd < <(nix eval --json ".#packages.${system}.${name}.updateScript" | jq -r '.[]')
+  # Read the command by building it into a JSON file rather than `nix eval`ing
+  # it: eval strips the string context recording which store paths the command
+  # references, so the tool it points at may not exist locally (e.g. right
+  # after a flake.lock bump). Building a writeText realizes every referenced
+  # path as an ordinary dependency — the same mechanism nixpkgs'
+  # maintainers/scripts/update.nix uses. Accepts the conventional updateScript
+  # forms: a list, a bare executable, or { command, ... }.
+  local json cmd
+  json="$(nix build --no-link --print-out-paths --impure --expr "
+    let
+      flake = builtins.getFlake \"$REPO_DIR\";
+      us = flake.packages.\"$system\".\"$name\".updateScript;
+      pkgs = flake.inputs.nixpkgs.legacyPackages.\"$system\";
+    in
+    pkgs.writeText \"update-command.json\"
+      (builtins.toJSON (map toString (pkgs.lib.toList (us.command or us))))
+  ")"
+  mapfile -t cmd < <(jq -r '.[]' "$json")
   "${cmd[@]}"
 }
 
