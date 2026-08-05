@@ -34,7 +34,6 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         #pulseaudio,
         #memory,
         #cpu,
-        #custom-cpu-temp,
         #battery,
         #disk,
         #idle_inhibitor,
@@ -78,9 +77,6 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         #cpu {
             color: #6c71c4;
         }
-        #custom-cpu-temp {
-            color: #cb4b16; /* Orange */
-        }
         #battery {
             color: #859900;
         }
@@ -103,7 +99,6 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
         #pulseaudio,
         #memory,
         #cpu,
-        #custom-cpu-temp,
         #battery,
         #idle_inhibitor,
         #disk {
@@ -140,7 +135,6 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             "custom/left-arrow-light"
             "custom/left-arrow-dark"
             "cpu"
-            "custom/cpu-temp"
             "custom/left-arrow-light"
             "custom/left-arrow-dark"
             "battery"
@@ -262,19 +256,6 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
           cpu = {
             interval = 5;
             format = "CPU {usage:2}%";
-          };
-          "custom/cpu-temp" = {
-            exec = let
-              cpuTempScript = pkgs.writeShellScriptBin "waybar-cpu-temp" ''
-                #!${pkgs.bash}/bin/bash
-                temp=$(${pkgs.lm_sensors}/bin/sensors acpitz-acpi-0 | ${pkgs.gnugrep}/bin/grep '^temp1:' | ${pkgs.gawk}/bin/awk '{print $2}' | ${pkgs.gnused}/bin/sed 's/+//;s/°C//')
-                printf "%.0f" "$temp"
-              '';
-            in "${cpuTempScript}/bin/waybar-cpu-temp";
-            critical-threshold = 80;
-            format = "{} 🌡️";
-            format-critical = "{} <span color=\"red\">🔥</span>";
-            interval = 5;
           };
           battery = {
             states = {
