@@ -29,10 +29,20 @@
   };
 
   boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  # ttm.pages_limit / ttm.page_pool_size are raised to 100 GiB (26214400 * 4 KiB)
+  # on purpose: running LLMs on the iGPU needs model weights resident in GTT, far
+  # past the default cap. These are deliberate — don't "tidy" them away.
+  #
+  # amdgpu.gttsize=102400 (also 100 GiB) used to sit here too, but the kernel
+  # deprecates it: "Configuring gttsize via module parameter is deprecated, please
+  # use ttm.pages_limit". With gttsize unset, amdgpu derives GTT size from
+  # ttm.pages_limit, which already asks for the same 100 GiB — so it was redundant,
+  # not load-bearing. Verify after a rebuild that dmesg still reports
+  # "102400M of GTT memory ready".
   boot.kernelParams = [
     "amdgpu.abmlevel=0"
     "amdgpu.dcdebugmask=0x40410"
-    "amdgpu.gttsize=102400"
     "ttm.pages_limit=26214400"
     "ttm.page_pool_size=26214400"
   ];
