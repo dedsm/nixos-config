@@ -53,7 +53,10 @@ repo's `.claude/` rules), not here. This skill is the generic mechanism.
    - **Review** → the recurring pass: `brain review`, then re-verify what's gone quiet, resolve
      contradictions, trim `mocs/now.md` down to judgment only, roll the focus pointer.
    - **Lint/reorg** → run the health pass (`brain check --strict`; split/merge/re-file;
-     rotate `log.md` if large; `brain reindex`; flag contradictions).
+     rotate `log.md` if large; `brain reindex`; flag contradictions). A page still oversized after
+     its status sections are collapsed gets **split into a hub + `kind: resource` children** — pin
+     the pre-split commit, move sections **verbatim by line range**, summarise only event
+     narratives, and verify by diffing heading sets. Full procedure in `CLAUDE.md` § LINT.
    - **People** → `mocs/people.md` is the directory (table; columns are open, not required).
      Promote someone to a page with `brain new resource <slug> --person` once they outgrow a row.
      Person pages are excluded from `index.md` by design — they are not orphans.

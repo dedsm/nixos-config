@@ -47,7 +47,7 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 8      # bump with templates/CLAUDE.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 9      # bump with templates/CLAUDE.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 KINDS = ["adr", "initiative", "project", "area", "resource", "moc"]

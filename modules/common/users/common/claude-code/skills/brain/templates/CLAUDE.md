@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v8 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v9 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -272,9 +272,11 @@ Run a health pass and fix:
 
 - **`brain check --strict`** for schema/consistency issues (warnings become actionable here);
   stale `updated` dates vs `log.md`; over-long `summary` fields that have become changelogs.
-- Oversized pages → split. A page grows past ~300 lines when dated status sections **accumulate**
-  instead of being rewritten (two "where it stands" sections, one per month). Collapse them into
-  one rewritten `## Current state` and move the history into `## Decisions` or `log.md`.
+- Oversized pages → collapse first, split second. A page grows past ~300 lines when dated status
+  sections **accumulate** instead of being rewritten (two "where it stands" sections, one per
+  month). Collapse those into one rewritten `## Current state` and move the history into
+  `## Decisions` or `log.md`. If it is still oversized after that, the page is carrying more than
+  one *kind* of content — split it (below).
 - Orphan pages (in no MOC and no index line) → file them. **Person pages are not orphans**: they
   are deliberately absent from `index.md` and cataloged by the people MOC instead.
 - Broken `[[links]]`; pages whose `status` is `done`/`archived` → move to `archive/`.
@@ -283,6 +285,40 @@ Run a health pass and fix:
 - **`brain reindex`**; append a summary of changes to `log.md`; commit.
 
 Prefer mechanical, reversible edits. Ask before destructive merges. Git is the safety net.
+
+#### Splitting a page into a hub + children
+
+For a page that stays oversized after collapsing its status sections — it has become a project's
+whole filing cabinet. The goal is a **hub** that answers "what is true now" in one screen, with the
+reference material behind it. Propose the split before doing it; this deletes from a page you cannot
+reconstruct from memory.
+
+1. **Pin a restore point.** `git -C ~/brain rev-parse --short HEAD` *before* touching anything. It
+   goes in the hub, with the command to read the old page:
+   `git -C ~/brain show <sha>:projects/<page>.md`. Nothing summarised is ever actually lost.
+2. **Classify sections by nature, not by date.** Three buckets: *live* (status, open, decisions —
+   stays on the hub), *reference* (the worked-out design, invariants, runbooks — moves to a child),
+   *event narrative* (meetings, reviews, one-off passes — gets summarised).
+3. **Move verbatim, by line range.** Extract with `sed -n 'A,Bp'` and concatenate; never rewrite a
+   section in the same step as relocating it. Rewriting while moving is how content goes missing
+   without anyone noticing.
+4. **Children are `kind: resource` with `parent: "[[hub]]"`.** Note that `reindex` groups by bucket,
+   so a `resource` child does **not** nest under a `project` parent in `index.md` — the hub needs its
+   own `## Sub-pages` section, which is the actual directory. Do not promote a child to
+   `kind: project` just to game the index; it is reference material, not an initiative.
+5. **Summarise only what is genuinely spent.** An event narrative whose rulings already live in
+   `## Decisions` or a child page compresses to a paragraph; keep whatever it alone records. Link
+   the restore commit from the summary.
+6. **Verify nothing was lost.** Diff the heading sets:
+   `git show <sha>:<page> | grep -E '^#{2,3} ' | sort` against the same over the hub plus every
+   child. The only headings that may disappear are the ones you deliberately summarised — anything
+   else is an extraction bug.
+7. **Commit in stages** (mechanical → collapse → split), so a bad step reverts on its own.
+
+**Abandon a merge that stops making sense.** Sections whose titles look redundant often are not —
+"the invariants" and "the worked-out design" cover the same ground at different altitudes and for
+different readers. If reading them shows a merge would cost content for a cosmetic gain, say so and
+stop, rather than completing an approved plan you no longer believe in.
 
 ## Page bodies — rewrite vs. append
 
