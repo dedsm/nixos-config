@@ -272,11 +272,22 @@ Run a health pass and fix:
 
 - **`brain check --strict`** for schema/consistency issues (warnings become actionable here);
   stale `updated` dates vs `log.md`; over-long `summary` fields that have become changelogs.
-- Oversized pages → collapse first, split second. A page grows past ~300 lines when dated status
-  sections **accumulate** instead of being rewritten (two "where it stands" sections, one per
-  month). Collapse those into one rewritten `## Current state` and move the history into
-  `## Decisions` or `log.md`. If it is still oversized after that, the page is carrying more than
-  one *kind* of content — split it (below).
+- Oversized pages → work the ladder below, cheapest first. **Splitting is the last resort, not the
+  first move** — most oversized pages are carrying weight they should not be carrying at all, and
+  three of these four steps only delete.
+  1. **Delete what a tool now generates.** Hand-maintained status prose, "next action" lists and
+     link inventories are superseded by the `next` / `progress` frontmatter, `brain review`, and
+     `links:`. Keeping a copy guarantees it goes stale.
+  2. **Delete what duplicates a system of record.** A section restating a Notion page, a tracker
+     issue or a repo doc is drift waiting to happen — link it and cut the copy.
+  3. **Delete superseded body sections**, noting the asymmetry: a superseded *decision* stays in
+     `## Decisions`, struck through, pointing at what replaced it — that trail is the point. A
+     superseded *analysis* in the body goes, because the section that superseded it already
+     carries the conclusion.
+  4. **Collapse accumulated status.** Two "where it stands" sections, one per month, become one
+     rewritten `## Current state`; the history moves to `## Decisions` or `log.md`.
+  5. **Split into a hub + children** (below) — only if it is *still* oversized, which means the
+     page holds several different **kinds** of content rather than too much of one.
 - Orphan pages (in no MOC and no index line) → file them. **Person pages are not orphans**: they
   are deliberately absent from `index.md` and cataloged by the people MOC instead.
 - Broken `[[links]]`; pages whose `status` is `done`/`archived` → move to `archive/`.
@@ -288,8 +299,9 @@ Prefer mechanical, reversible edits. Ask before destructive merges. Git is the s
 
 #### Splitting a page into a hub + children
 
-For a page that stays oversized after collapsing its status sections — it has become a project's
-whole filing cabinet. The goal is a **hub** that answers "what is true now" in one screen, with the
+For a page that stays oversized after steps 1–4 above — it has become a project's whole filing
+cabinet. Do the deletions first: they are cheaper, they are not destructive of anything the store
+still needs, and they often make the split unnecessary. The goal is a **hub** that answers "what is true now" in one screen, with the
 reference material behind it. Propose the split before doing it; this deletes from a page you cannot
 reconstruct from memory.
 
