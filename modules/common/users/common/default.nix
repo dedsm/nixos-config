@@ -13,6 +13,7 @@ let
   wayland = import ./wayland attrs;
   starship = import ./starship attrs;
   git = import ./git attrs;
+  gh = import ./gh attrs;
   direnv = import ./direnv attrs;
   fzf = import ./fzf attrs;
   zoxide = import ./zoxide attrs;
@@ -41,6 +42,7 @@ in lib.mkMerge [
   wayland
   starship
   git
+  gh
   direnv
   fzf
   zoxide

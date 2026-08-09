@@ -122,6 +122,7 @@
       zoxide.enable = true;
       ssh.enable = true;
       ghostty.enable = false;
+      gh.enable = true;
 
       git = {
         enable = true;
@@ -184,9 +185,6 @@
           # silently no-ops without a TTY (see pkgs/dstask-note/default.nix).
           dstask
           pkgs.local.dstask-note
-
-          # Github CLI
-          gh
 
           # K8S
           k9s
