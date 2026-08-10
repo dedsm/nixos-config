@@ -101,6 +101,51 @@ cannot be unlocked from a screen locker (auth phase only stashes; the unlock
 lives in the session phase, which lockers never run), and everything in the
 old wallet file had already been re-created in gnome-keyring.
 
+## Rebuilds and the uwsm session units — carried patch
+
+`nixos-rebuild switch` restarts *user* units whose definition changed, and
+uwsm's session units are booby-trapped for that. `wayland-session-bindpid@.service`
+exists solely to translate "the thing I was watching went away" into "tear down
+the graphical session" (`OnSuccess=wayland-session-shutdown.target`,
+`OnSuccessJobMode=replace-irreversibly`). So a rebuild that merely *rebuilds
+uwsm* — any flake input bump that touches its closure — stops that unit, and
+uwsm dutifully SIGKILLs the whole session: Hyprland, every `app-Hyprland-*.scope`,
+your terminals, and the `nixos-rebuild` process itself, which dies mid-switch and
+leaves the system half-activated.
+
+Not hypothetical: it happened on 2026-06-23, 07-21, 07-30 and 08-08, always with
+the same signature ~2s after `switching to system configuration`:
+
+```
+systemd[1]:    Reexecution requested from client PID … ('.switch-to-conf')
+systemd[USER]: Stopping Bind graphical session to PID …
+systemd[USER]: wayland-session-bindpid@…: Triggering OnSuccess= dependencies.
+systemd[USER]: app-Hyprland-foot-….scope: Killing process … (.nixos-rebuild-) with signal SIGKILL
+```
+
+Upstream fixed this in [nixpkgs#532275](https://github.com/NixOS/nixpkgs/pull/532275)
+(merged to master 2026-06-16, merge commit `a75cd823`) by setting
+`restartIfChanged = false` on `wayland-wm@` and `wayland-session-bindpid@` — the
+same treatment `niri.nix` and the display-manager modules already had. It was
+**not** backported to release-26.05, so `modules/nixos/hyprland/` carries it
+locally. `enableDefaultPath = false` goes with it: without it the generated
+drop-in would carry NixOS' default `PATH=`, clobbering the PATH uwsm imported
+into the user manager and breaking `uwsm app` spawns.
+
+The patch expires by itself. Three assertions in that module fail the build when
+the pinned nixpkgs starts setting `restartIfChanged` on those units (delete the
+local block and this section), when uwsm's module moves upstream, or when the
+pin advances past the recheck date. The clock is `nixpkgs.lastModified`, not
+wall time — deliberately, since the bug can only bite on a rebuild that advances
+the pin, and pure eval has no wall clock anyway.
+
+Verify the drop-in survives any refactor here — `X-RestartIfChanged` is read
+from the `[Service]` section, not `[Unit]`:
+
+```bash
+cat result/etc/systemd/user/wayland-session-bindpid@.service.d/overrides.conf
+```
+
 ## Boot-speed rationale
 
 Two systemd interactions used to delay the login prompt and are worked around
