@@ -4,15 +4,35 @@ let
   # table arg — a bare string like dpms("on") silently means "toggle"
   dpms = action: "${pkgs.hyprland}/bin/hyprctl dispatch 'hl.dsp.dpms({ action = \"${action}\" })'";
 
-  # Password is required after suspend: make sure the locker active during
-  # sleep is the strict (no-fingerprint) one. Killing a running hyprlock is
-  # safe — under ext-session-lock Hyprland keeps the session locked until a
-  # new locker attaches. The trailing sleep gives the new instance time to
-  # attach before hypridle releases its sleep inhibitor.
+  # Password is required after suspend: replace any running locker with the
+  # strict (no-fingerprint) one. Sequenced — kill, wait for exit, then start —
+  # because Hyprland denies a second lock client while the first still holds
+  # the lock, and a denied replacement leaves the session locked with no
+  # locker. Needs misc:allow_session_lock_restore (hyprland module).
+  # hypridle holds a sleep inhibitor until this exits, so the waits also keep
+  # the machine awake until the strict locker is up.
   sleep-lock = pkgs.writeShellScript "hyprlock-sleep-lock" ''
-    ${pkgs.procps}/bin/pkill -x hyprlock || true
+    waitgone() { # $1 = deciseconds to wait for every hyprlock to exit
+      for _ in $(${pkgs.coreutils}/bin/seq "$1"); do
+        ${pkgs.procps}/bin/pgrep -x hyprlock >/dev/null || return 0
+        ${pkgs.coreutils}/bin/sleep 0.1
+      done
+      return 1
+    }
+
+    if ${pkgs.procps}/bin/pgrep -x hyprlock >/dev/null; then
+      ${pkgs.procps}/bin/pkill -x hyprlock || true
+      waitgone 20 || { ${pkgs.procps}/bin/pkill -KILL -x hyprlock || true; waitgone 10 || true; }
+    fi
+
     ${pkgs.hyprlock}/bin/hyprlock --immediate-render -c "$HOME/.config/hypr/hyprlock-strict.conf" &
-    ${pkgs.coreutils}/bin/sleep 1
+
+    # Let the new locker bind and draw before releasing the inhibitor.
+    for _ in $(${pkgs.coreutils}/bin/seq 30); do
+      ${pkgs.procps}/bin/pgrep -x hyprlock >/dev/null && break
+      ${pkgs.coreutils}/bin/sleep 0.1
+    done
+    ${pkgs.coreutils}/bin/sleep 0.5
   '';
 in {
   services.hypridle = {

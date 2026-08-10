@@ -38,10 +38,47 @@ fingerprint allowed for locks while the machine stays awake.**
 hyprlock cannot switch auth modes at runtime, so the suspend case is handled
 by hypridle's `before_sleep_cmd`
 (`modules/common/users/common/wayland/hypridle/`): it kills any running
-hyprlock and launches the strict one. This is safe — under ext-session-lock,
-Hyprland keeps the session locked when the locker dies until a new one
-attaches — and hypridle holds a sleep inhibitor until the script exits, so
-the strict locker is up before the machine actually sleeps.
+hyprlock and launches the strict one. hypridle holds a sleep inhibitor until
+the script exits, so the strict locker is up before the machine sleeps.
+
+### Why the swap is sequenced, and `allow_session_lock_restore`
+
+Replacing a *live* locker is the delicate case, and it is not a matter of
+"the session stays locked, so anything goes":
+
+- Under `ext-session-lock`, the compositor keeps the session locked when a
+  locker dies without unlocking. That is the protocol's whole point — a
+  crashing locker must not expose the desktop.
+- Hyprland tracks that as a protocol-level locked flag which **outlives the
+  locker process**, and by default *denies* any subsequent lock client while
+  it is set (`Cannot re-lock, misc:allow_session_lock_restore is disabled`;
+  the client logs `Seems we got yeeten`).
+
+So a locked session whose locker is gone is a dead end: no lock surface to
+type into, no unlock path, and every normal keybind filtered out because the
+session is locked. Reboot only. Overlapping the kill and the spawn gets the
+*replacement* denied and lands exactly there — reachable from a plain lid
+close whenever the 300s idle timeout has already locked the screen. Two
+guards, both required:
+
+- **`misc:allow_session_lock_restore = true`** (hyprland module) — lets a new
+  locker take over the lock instead of being denied.
+- **Sequencing in the hook** — kill, wait for the process to actually exit,
+  *then* start. Kill-then-start rather than start-then-kill, because the
+  dying locker's destroy handler tears down whichever lock the manager is
+  holding, which would be the replacement's if it fired second.
+
+**`CTRL+ALT+SHIFT+L` is the escape hatch**: bound with Hyprland's `locked`
+flag (ordinary binds do not run while the session is locked) it spawns a
+fresh strict locker, so a locker crash is recoverable in place rather than by
+power-cycling. It relies on `allow_session_lock_restore` to be granted the
+lock.
+
+The trade-off of `allow_session_lock_restore` is that a lock screen can be
+*replaced* rather than only *added*, so a hostile client could swap in a fake
+prompt. That requires access to the Wayland socket, i.e. already running code
+as this user, which is past the boundary hyprlock defends — whereas the
+failure it prevents is a routine lid-close bricking the session.
 
 ## Idle, DPMS, and the black-screen backstops
 

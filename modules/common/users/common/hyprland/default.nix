@@ -72,6 +72,12 @@ with lib;
             # docs/login-flow.md.
             mouse_move_enables_dpms = true;
             key_press_enables_dpms = true;
+            # Let a new locker take over an already-locked session. Off, the
+            # locked flag outlives a dead locker and every later lock client is
+            # denied, so a session whose locker is gone can only be rebooted
+            # out of. Required by the hypridle sleep hook and the recovery bind
+            # below. See docs/login-flow.md.
+            allow_session_lock_restore = true;
           };
           master = {
             new_status = "slave";
@@ -196,6 +202,10 @@ with lib;
         hl.bind("ALT + SHIFT + P", hl.dsp.exec_cmd("uwsm app -- nautilus"))
         hl.bind("ALT + SHIFT + C", hl.dsp.exec_cmd("uwsm app -- gnome-calculator"))
         hl.bind("CTRL + ALT + L", hl.dsp.exec_cmd("uwsm app -- ${pkgs.systemd}/bin/loginctl lock-session"))
+        -- Respawns the locker on a locked session that has lost one. `locked`
+        -- is required for the bind to run at all while locked; taking the lock
+        -- needs misc:allow_session_lock_restore above.
+        hl.bind("CTRL + ALT + SHIFT + L", hl.dsp.exec_cmd([[${pkgs.hyprlock}/bin/hyprlock --immediate-render -c "$HOME/.config/hypr/hyprlock-strict.conf"]]), { locked = true })
         hl.bind(mod .. " + P", hl.dsp.exec_cmd("uwsm app -- anyrun"))
         hl.bind(mod .. " + X", hl.dsp.exec_cmd("uwsm app -- playerctl play-pause"))
         hl.bind(mod .. " + Z", hl.dsp.exec_cmd("uwsm app -- playerctl previous"))
