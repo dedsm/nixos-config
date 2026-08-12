@@ -18,6 +18,10 @@ Subcommands:
   normalize repair-on-drift: canonicalise status/kind/tags in place
   capture   append a timestamped entry to raw/inbox.md (or a raw file from stdin)
   log       prepend a dated activity entry to log.md (date from the system clock)
+  rotate-log  move log.md's older tail into log-archive/YYYY.md (mechanical)
+  health    one-line store vitals; exits non-zero when something needs attention
+  sync      mechanical template refresh + stamp (stops before stamping when a
+            registered judgment migration is pending — finish via /brain --sync)
   version   print CLI/store template version; --stamp writes .brain-version
   today     print today's date from the system clock (never infer it from the corpus)
 
@@ -47,7 +51,7 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 9      # bump with templates/CLAUDE.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 10     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 KINDS = ["adr", "initiative", "project", "area", "resource", "moc"]
@@ -405,12 +409,12 @@ def cmd_check(args) -> int:
         print(f"error: {e}", file=sys.stderr)
 
     # Version drift is a note, never an error: a rebuild ships a new CLI before
-    # `/brain --sync` runs, and the pre-commit gate must not block in that window.
+    # `brain sync` runs, and the pre-commit gate must not block in that window.
     sv = store_version()
     if sv != TEMPLATE_VERSION:
         seen = "unstamped" if sv is None else f"v{sv}"
         print(f"note: store is {seen}, CLI expects v{TEMPLATE_VERSION} — "
-              f"run `/brain --sync`", file=sys.stderr)
+              f"run `brain sync`", file=sys.stderr)
 
     if args.strict and all_warnings:
         all_errors = all_errors + all_warnings
@@ -817,11 +821,24 @@ def cmd_new(args) -> int:
     if status not in STATUSES:
         die(f"status must be one of {STATUSES}")
     bucket = KIND_BUCKET[kind]
-    path = brain_dir() / bucket / f"{args.slug}.md"
+    # A slug may carry subdirectory components (`new resource scripts/deploy`),
+    # matching what the store already grows organically (nested resources are
+    # discovered by rglob, validated, and indexed by path) — without this, the
+    # constrained writer couldn't create the very pages the gate covers.
+    if not args.slug or Path(args.slug).is_absolute():
+        die(f"invalid slug '{args.slug}'")
+    slug = args.slug.strip("/")
+    parts = Path(slug).parts
+    # Component whitelist rather than a ".."-blacklist: pathlib normalises "."
+    # away entirely (Path(".").parts == ()), and backslashes, spaces or hidden
+    # files should never become page filenames either.
+    if not parts or not all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", s) for s in parts):
+        die(f"invalid slug '{args.slug}'")
+    path = brain_dir() / bucket / f"{slug}.md"
     if path.exists():
         die(f"page already exists: {path.relative_to(brain_dir())}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    title = args.title or args.slug.replace("-", " ").title()
+    title = args.title or parts[-1].replace("-", " ").title()
     fields = {
         "title": title, "kind": kind, "status": status, "owner": "me",
         "created": today(), "updated": today(),
@@ -939,13 +956,20 @@ def cmd_done(args) -> int:
     if not page.fields.get("finished"):
         page.fields["finished"] = today()
     page.fields["updated"] = today()
+    errs, _ = validate_page(page, required_fm=True)
+    if errs:
+        # The problems necessarily pre-date this command (done only touches
+        # status/finished/updated) — point at the remedy, not just the refusal.
+        die("refusing to write invalid page — these problems pre-date `done`; "
+            "fix the listed fields (or run /brain --sync) and retry:\n  "
+            + "\n  ".join(errs))
     write_page(page)
     print(f"{rel(path)}: done ({page.fields['finished']})")
     return 0
 
 
-def cmd_normalize(args) -> int:
-    paths = ([Path(p).resolve() for p in args.paths] if args.paths else all_pages())
+def _normalize_paths(paths: list) -> list:
+    """The repair-on-drift pass; returns the store-relative paths it changed."""
     changed = []
     for path in paths:
         if not path.exists():
@@ -970,6 +994,12 @@ def cmd_normalize(args) -> int:
         if before != after:
             write_page(page)
             changed.append(rel(path))
+    return changed
+
+
+def cmd_normalize(args) -> int:
+    paths = ([Path(p).resolve() for p in args.paths] if args.paths else all_pages())
+    changed = _normalize_paths(paths)
     for c in changed:
         print(f"normalized {c}")
     if not changed:
@@ -992,19 +1022,21 @@ NOW_MAX_LINES = 60        # a `now` page past this is holding generated content
 
 def _read_focus() -> str | None:
     index = brain_dir() / "index.md"
-    if not index.exists():
+    try:
+        text = index.read_text(encoding="utf-8")
+    except (FileNotFoundError, UnicodeDecodeError, OSError):
         return None
-    m = re.search(r"^\*\*▶ Current focus:\*\*\s*(.+)$",
-                  index.read_text(encoding="utf-8"), re.M)
+    m = re.search(r"^\*\*▶ Current focus:\*\*\s*(.+)$", text, re.M)
     return m.group(1).strip() if m else None
 
 
 def _recent_log(limit: int) -> list:
     log = brain_dir() / "log.md"
-    if not log.exists():
+    try:
+        text = log.read_text(encoding="utf-8")
+    except (FileNotFoundError, UnicodeDecodeError, OSError):
         return []
-    return [ln for ln in log.read_text(encoding="utf-8").splitlines()
-            if ln.startswith("- ")][:limit]
+    return [ln for ln in text.splitlines() if ln.startswith("- ")][:limit]
 
 
 def _log_dates() -> list:
@@ -1030,22 +1062,34 @@ def _dstask_open() -> list:
 
 def _inbox_count() -> int:
     inbox = brain_dir() / "raw" / "inbox.md"
-    if not inbox.exists():
+    try:
+        text = inbox.read_text(encoding="utf-8")
+    except (FileNotFoundError, UnicodeDecodeError, OSError):
         return 0
-    return sum(1 for ln in inbox.read_text(encoding="utf-8").splitlines()
-               if ln.startswith("- "))
+    return sum(1 for ln in text.splitlines() if ln.startswith("- "))
 
 
 def _page_lines(page: Page) -> int:
     try:
         return len(page.path.read_text(encoding="utf-8").splitlines())
-    except OSError:
+    except (OSError, UnicodeDecodeError):
         return 0
 
 
 def _collect(stale_days: int) -> dict:
-    pages = [parse_page(p) for p in all_pages()]
-    pages = [p for p in pages if p.has_fm]
+    # One unreadable file (a non-UTF-8 export dropped into resources/, say)
+    # must not take review/health down with a traceback: health runs
+    # unattended, and a crash there silently blanks ALL vitals. The gate
+    # (check) still hard-fails on such files; here they become a signal.
+    pages, unreadable = [], []
+    for path in all_pages():
+        try:
+            pg = parse_page(path)
+        except (UnicodeDecodeError, OSError):
+            unreadable.append(rel(path))
+            continue
+        if pg.has_fm:
+            pages.append(pg)
     live = [p for p in pages if is_live_work(p)]
     now = today()
 
@@ -1070,6 +1114,7 @@ def _collect(stale_days: int) -> dict:
         "oversized": sorted(((p, n) for p in pages
                              if (n := _page_lines(p)) > OVERSIZE_LINES),
                             key=lambda t: -t[1]),
+        "unreadable": unreadable,
         "pages": pages,
     }
 
@@ -1078,8 +1123,11 @@ def _now_warning() -> str | None:
     now_page = brain_dir() / "mocs" / "now.md"
     if not now_page.exists():
         return None
-    lines = len(now_page.read_text(encoding="utf-8").splitlines())
-    page = parse_page(now_page)
+    try:
+        lines = len(now_page.read_text(encoding="utf-8").splitlines())
+        page = parse_page(now_page)
+    except (UnicodeDecodeError, OSError):
+        return None
     upd = page.fields.get("updated") if page.has_fm else None
     dates = _log_dates()
     behind = None
@@ -1124,6 +1172,7 @@ def cmd_review(args) -> int:
                          "unverified")},
             "quiet": [dict(page_json(p), quiet_days=n) for p, n in d["quiet"]],
             "oversized": [dict(page_json(p), lines=n) for p, n in d["oversized"]],
+            "unreadable": d["unreadable"],
             "dstask_open": len(_dstask_open()),
             "inbox_pending": _inbox_count(),
         }, indent=2))
@@ -1156,6 +1205,9 @@ def cmd_review(args) -> int:
     if d["oversized"]:
         out += ["", f"Oversized > {OVERSIZE_LINES} lines ({len(d['oversized'])})"]
         out += [f"  {page_ref(p):{w}} {n} lines" for p, n in d["oversized"]]
+    if d["unreadable"]:
+        out += ["", f"Unreadable ({len(d['unreadable'])})",
+                "  " + ", ".join(d["unreadable"])]
 
     nw = _now_warning()
     if nw:
@@ -1268,6 +1320,26 @@ def cmd_today(args) -> int:
     return 0
 
 
+def _append_log_entry(message: str) -> str:
+    """Prepend a dated entry (newest first), dating it from the system clock."""
+    log = brain_dir() / "log.md"
+    entry = f"- {today()} — {message}"
+    if not log.exists():
+        log.write_text(f"# Log\n\nAppend-only activity log. Newest first.\n\n{entry}\n",
+                       encoding="utf-8")
+        return entry
+    lines = log.read_text(encoding="utf-8").splitlines()
+    idx = next((i for i, ln in enumerate(lines) if ln.startswith("- ")), None)
+    if idx is None:
+        while lines and not lines[-1].strip():
+            lines.pop()
+        lines += ["", entry]
+    else:
+        lines.insert(idx, entry)  # newest first, above existing entries
+    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return entry
+
+
 def cmd_log(args) -> int:
     log = brain_dir() / "log.md"
 
@@ -1287,25 +1359,384 @@ def cmd_log(args) -> int:
 
     if not args.message:
         die("log needs a message (or --for <page> to read a page's entries)")
-    # Prepend a dated activity entry, dating it from the system clock so the
-    # date is never hand-typed (and thus never inferred from the corpus).
-    entry = f"- {today()} — {args.message}"
+    # The date comes from the system clock so it is never hand-typed (and thus
+    # never inferred from the corpus).
+    print(_append_log_entry(args.message))
+    return 0
+
+
+# --------------------------------------------------------------------------
+# rotate-log — mechanical rotation of log.md's tail into log-archive/
+#
+# Pure mechanics, no judgment: entries move verbatim, newest-first order is
+# preserved everywhere, and nothing is summarised — so the agent runs it the
+# moment `health`/`review` flags the log as oversized, without asking.
+# --------------------------------------------------------------------------
+
+LOG_MAX_LINES = 400       # log.md past this wants rotating (mirrored in CLAUDE.md)
+LOG_KEEP_ENTRIES = 150    # newest entries kept hot in log.md by rotate-log
+
+
+def _log_entry_groups(lines: list) -> tuple:
+    """Split log lines into (head, groups, tail). `head` is everything before
+    the first dated entry; each group is one `- YYYY-MM-DD …` entry plus its
+    continuation lines (blank or indented — they move with the entry so
+    nothing is orphaned); `tail` starts at the first non-indented line that is
+    not a dated entry (trailing free text someone appended), and stays in
+    log.md rather than being mis-filed into an archive as a continuation."""
+    first = next((i for i, ln in enumerate(lines)
+                  if re.match(r"^- \d{4}-\d{2}-\d{2}", ln)), None)
+    if first is None:
+        return lines, [], []
+    head, groups, cur, tail = lines[:first], [], [], []
+    for idx in range(first, len(lines)):
+        ln = lines[idx]
+        if re.match(r"^- \d{4}-\d{2}-\d{2}", ln):
+            if cur:
+                groups.append(cur)
+            cur = [ln]
+        elif not ln.strip() or ln.startswith((" ", "\t")):
+            cur.append(ln)
+        else:
+            tail = lines[idx:]
+            break
+    if cur:
+        groups.append(cur)
+    return head, groups, tail
+
+
+def cmd_rotate_log(args) -> int:
+    log = brain_dir() / "log.md"
     if not log.exists():
-        log.write_text(f"# Log\n\nAppend-only activity log. Newest first.\n\n{entry}\n",
-                       encoding="utf-8")
-        print(entry)
+        print("no log.md")
         return 0
     lines = log.read_text(encoding="utf-8").splitlines()
-    idx = next((i for i, ln in enumerate(lines) if ln.startswith("- ")), None)
-    if idx is None:
-        while lines and not lines[-1].strip():
-            lines.pop()
-        lines += ["", entry]
-    else:
-        lines.insert(idx, entry)  # newest first, above existing entries
-    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(entry)
+    if len(lines) <= args.threshold and not args.force:
+        print(f"log.md is {len(lines)} lines (<= {args.threshold}) — nothing to rotate")
+        return 0
+    head, groups, tail = _log_entry_groups(lines)
+    hot, cold = groups[:args.keep], groups[args.keep:]  # newest-first: tail = oldest
+    # health flags on LINES while we keep by ENTRIES; when entries run long
+    # (continuation lines), shrink the hot window further until the log fits
+    # the threshold — never below a small floor — so the health-flag →
+    # rotate-log loop converges instead of nagging forever with a no-op remedy.
+    floor = min(20, len(groups))
+    while len(hot) > floor and \
+            len(head) + len(tail) + sum(len(g) for g in hot) > args.threshold:
+        cold.insert(0, hot.pop())
+    if not cold:
+        print(f"log.md has only {len(groups)} entries — nothing to rotate")
+        return 0
+    archive_dir = brain_dir() / "log-archive"
+    archive_dir.mkdir(exist_ok=True)
+
+    # The rotated tail goes to one file per year. Within a file newest stays
+    # first, and entries from a later rotation are newer than anything already
+    # archived for that year — so they are inserted above the existing entries.
+    by_year: dict = {}
+    for g in cold:
+        by_year.setdefault(g[0][2:6], []).append(g)
+    for year in sorted(by_year):
+        f = archive_dir / f"{year}.md"
+        moved = [ln for g in by_year[year] for ln in g]
+        if f.exists():
+            ohead, ogroups, otail = _log_entry_groups(f.read_text(encoding="utf-8").splitlines())
+            body = ohead + moved + [ln for g in ogroups for ln in g] + otail
+        else:
+            body = [f"# Log archive {year}", "",
+                    "Rotated out of log.md by `brain rotate-log`. Newest first.", ""] + moved
+        f.write_text("\n".join(body).rstrip("\n") + "\n", encoding="utf-8")
+
+    new_lines = head + [ln for g in hot for ln in g] + tail
+    log.write_text("\n".join(new_lines).rstrip("\n") + "\n", encoding="utf-8")
+    dest = ", ".join(f"log-archive/{y}.md" for y in sorted(by_year))
+    print(f"rotated {len(cold)} entries → {dest}; log.md now "
+          f"{len(new_lines)} lines ({len(hot)} entries)")
     return 0
+
+
+# --------------------------------------------------------------------------
+# health — one line of store vitals, built to be surfaced ambiently
+#
+# Everything here is a pull-only signal somewhere else (review, check, the
+# version note); health exists because none of those are seen unless someone
+# runs them. It is read-only, deterministic, SILENT when the store is clean
+# (so ambient consumers have nothing to relay), and exits non-zero on any
+# breach so a timer can turn it into a notification.
+# --------------------------------------------------------------------------
+
+HEALTH_LOG_QUIET_DAYS = 7   # days without a log entry before health mentions it
+HEALTH_INBOX_AGE_DAYS = 3   # a pending capture older than this is a breach
+
+
+def _inbox_oldest_days() -> int | None:
+    inbox = brain_dir() / "raw" / "inbox.md"
+    try:
+        text = inbox.read_text(encoding="utf-8")
+    except (FileNotFoundError, UnicodeDecodeError, OSError):
+        return None
+    ages = [d for ln in text.splitlines()
+            if (m := re.match(r"^- (\d{4}-\d{2}-\d{2})", ln))
+            and (d := days_since(m.group(1))) is not None]
+    return max(ages, default=None)
+
+
+def _remote_state(fetch: bool) -> dict | None:
+    """Ahead/behind counts vs origin. Fail-soft by design: any git or network
+    problem returns None — health must never error on an offline laptop."""
+    d = str(brain_dir())
+    # Respect an existing GIT_SSH_COMMAND (it may carry keys/config the push
+    # depends on); the subprocess timeout is the real hang protection anyway.
+    env = dict(os.environ)
+    env.setdefault("GIT_SSH_COMMAND", "ssh -oBatchMode=yes")
+    # Parsed defensively OUTSIDE the git try-block: a malformed value must not
+    # silently disable the whole remote check via the ValueError handler below.
+    try:
+        fetch_timeout = int(os.environ.get("BRAIN_FETCH_TIMEOUT", "4"))
+    except ValueError:
+        fetch_timeout = 4
+
+    def git(*a, timeout=5):
+        return subprocess.run(["git", "-C", d, *a], capture_output=True,
+                              text=True, timeout=timeout, env=env)
+
+    try:
+        if git("remote", "get-url", "origin").returncode != 0:
+            return None
+        branch_p = git("symbolic-ref", "--short", "HEAD")
+        if branch_p.returncode != 0:
+            return None
+        branch = branch_p.stdout.strip()
+        if fetch:
+            try:
+                git("fetch", "--quiet", "origin", branch, timeout=fetch_timeout)
+            except subprocess.TimeoutExpired:
+                pass  # offline/slow: fall back to the last-fetched state
+        if git("rev-parse", "--verify", "--quiet", f"origin/{branch}").returncode != 0:
+            return None
+        ahead = git("rev-list", "--count", f"origin/{branch}..HEAD")
+        behind = git("rev-list", "--count", f"HEAD..origin/{branch}")
+        if ahead.returncode or behind.returncode:
+            return None
+        return {"ahead": int(ahead.stdout.strip()), "behind": int(behind.stdout.strip())}
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        return None
+
+
+def cmd_health(args) -> int:
+    if not brain_dir().is_dir():
+        return 0  # no store on this machine — never nag, never fail
+
+    issues = []  # (key, one human-readable segment)
+
+    sv = store_version()
+    if sv != TEMPLATE_VERSION:
+        seen = "unstamped" if sv is None else f"v{sv}"
+        issues.append(("version_drift",
+                       f"store {seen} < cli v{TEMPLATE_VERSION} — run brain sync"))
+
+    d = _collect(args.stale)
+    if d["overdue"]:
+        issues.append(("overdue", f"{len(d['overdue'])} overdue"))
+    if d["quiet"]:
+        issues.append(("quiet", f"{len(d['quiet'])} gone quiet >{args.stale}d"))
+    if d["unverified"]:
+        issues.append(("unverified", f"{len(d['unverified'])} never verified"))
+
+    pending, oldest = _inbox_count(), _inbox_oldest_days()
+    # An undated pending line (hand-added, not via `capture`) can't age-gate —
+    # flag it rather than letting it hide behind the missing timestamp.
+    if pending and (oldest is None or oldest >= HEALTH_INBOX_AGE_DAYS):
+        age = f"oldest {oldest}d" if oldest is not None else "age unknown"
+        issues.append(("inbox", f"inbox {pending} pending ({age})"))
+
+    dates = _log_dates()
+    last_log = days_since(dates[0]) if dates else None
+    if last_log is not None and last_log > HEALTH_LOG_QUIET_DAYS:
+        issues.append(("log_quiet", f"last log entry {last_log}d ago"))
+
+    log = brain_dir() / "log.md"
+    try:
+        loglines = log.read_text(encoding="utf-8").splitlines()
+    except (FileNotFoundError, UnicodeDecodeError, OSError):
+        loglines = []
+    if len(loglines) > LOG_MAX_LINES:
+        _, groups, _ = _log_entry_groups(loglines)
+        # Only nag when rotate-log can actually act (it keeps a floor of ~20
+        # entries) — otherwise the flag would loop forever with a no-op remedy.
+        if len(groups) > 20:
+            issues.append(("log_size",
+                           f"log.md {len(loglines)} lines — run brain rotate-log"))
+
+    if d["unreadable"]:
+        issues.append(("unreadable",
+                       f"{len(d['unreadable'])} unreadable page(s): "
+                       + ", ".join(d["unreadable"][:3])))
+
+    if _now_warning():
+        issues.append(("now_rot", "now.md needs trimming (see brain review)"))
+
+    remote = _remote_state(fetch=not args.no_fetch)
+    if remote:
+        if remote["behind"]:
+            issues.append(("behind",
+                           f"{remote['behind']} commit(s) behind remote — "
+                           f"git -C ~/brain pull --rebase before writing"))
+        if remote["ahead"]:
+            issues.append(("ahead", f"{remote['ahead']} unpushed commit(s)"))
+
+    if args.json:
+        import json
+        print(json.dumps({
+            "date": today(), "ok": not issues,
+            "issues": [{"key": k, "detail": s} for k, s in issues],
+        }, indent=2))
+        return 1 if issues else 0
+    if issues:
+        print(" | ".join(s for _, s in issues))
+        return 1
+    return 0  # clean: print nothing, so ambient consumers stay silent
+
+
+# --------------------------------------------------------------------------
+# sync — THE migration behavior: mechanical refresh, then stamp when safe
+#
+# The original design kept every migration a model-executed procedure ("no
+# migration script, deliberately"); the measured cost was stores sitting a
+# version behind for weeks, because even the judgment-free phase needed a
+# supervised session. `sync` executes that phase directly — replace the
+# canonical manual, create missing scaffold (never overwriting), normalize,
+# reindex, untrack newly-ignored — in one tight commit, then stamps in a
+# second, UNLESS the version gap crosses an entry in JUDGMENT_MIGRATIONS.
+# Those still need a model + human (diff-and-ask backfill per SKILL.md), and
+# the CLI must never stamp across work it didn't do: stamp-last survives.
+# --------------------------------------------------------------------------
+
+_TEMPLATE_DIR = "@brainTemplateDir@"  # substituted with the Nix store path at build
+
+# Versions whose upgrade needs judgment — a model-executed, diff-and-ask
+# backfill per the skill's sync procedure. `sync` stops before stamping when
+# the store's gap crosses one of these. Purely additive bumps don't register.
+JUDGMENT_MIGRATIONS = {
+    8: "backfill `verified`/`attention`/`next`/`progress` from prose, split "
+       "over-long summaries, re-file adr pages whose decision lives in a repo "
+       "doc, tag person pages (see the skill's v8 notes)",
+}
+
+
+def template_dir() -> Path | None:
+    env = os.environ.get("BRAIN_TEMPLATE_DIR")
+    if env:
+        return Path(env)
+    if not _TEMPLATE_DIR.startswith("@"):  # substituted by the Nix build
+        return Path(_TEMPLATE_DIR)
+    # Running straight from the repo (uninstalled): fall back to the deployed
+    # skill copy, which tracks the last rebuild.
+    fallback = Path.home() / ".claude" / "skills" / "brain" / "templates"
+    return fallback if fallback.is_dir() else None
+
+
+def cmd_sync(args) -> int:
+    store = brain_dir()
+    if not (store / ".git").is_dir():
+        die(f"{store} is not a git repository")
+    tpl = template_dir()
+    if tpl is None or not (tpl / "CLAUDE.md").is_file():
+        die("canonical template not found — rebuild this machine, or set BRAIN_TEMPLATE_DIR")
+
+    def git(*a):
+        return subprocess.run(["git", "-C", str(store), *a],
+                              capture_output=True, text=True)
+
+    sv = store_version()
+    if sv is not None and sv > TEMPLATE_VERSION:
+        die(f"store is v{sv}, ahead of cli v{TEMPLATE_VERSION} — rebuild this machine first")
+    gap = f"v{'?' if sv is None else sv} → v{TEMPLATE_VERSION}"
+
+    # Plan: the manual is canonical (always replaced when it differs);
+    # everything else in the template is create-if-missing, never overwritten.
+    plan = []
+    for src in sorted(tpl.rglob("*")):
+        relp = src.relative_to(tpl)
+        dst = store / relp
+        if src.is_dir():
+            if not dst.is_dir():
+                plan.append(("mkdir", str(relp)))
+        elif str(relp) == "CLAUDE.md":
+            if not dst.exists() or dst.read_bytes() != src.read_bytes():
+                plan.append(("replace", "CLAUDE.md"))
+        elif not dst.exists():
+            plan.append(("create", str(relp)))
+
+    if args.dry_run:
+        print(f"brain sync (dry run, {gap}):")
+        for action, relp in plan or [("noop", "template files all present and current")]:
+            print(f"  {action:8} {relp}")
+        print("  then: normalize, reindex, untrack newly-ignored, commit; "
+              "stamp unless a judgment migration is pending")
+        return 0
+
+    # Tight, revertible commits need a clean start (untracked files are fine —
+    # they are never staged here and stay untouched).
+    dirty = [ln for ln in git("status", "--porcelain").stdout.splitlines()
+             if ln and not ln.startswith("??")]
+    if dirty:
+        die("store has uncommitted changes — commit them first so the sync "
+            "commits stay tight and revertible:\n  " + "\n  ".join(dirty))
+
+    changed = []
+    for action, relp in plan:
+        dst = store / relp
+        if action == "mkdir":
+            dst.mkdir(parents=True, exist_ok=True)
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            dst.write_bytes((tpl / relp).read_bytes())
+            changed.append(relp)
+    changed += _normalize_paths(all_pages())
+    cmd_reindex(argparse.Namespace(check=False))
+    # Untrack anything the (possibly just-created) .gitignore now covers.
+    ignored = [ln for ln in
+               git("ls-files", "-ci", "--exclude-standard").stdout.splitlines() if ln]
+    for f in ignored:
+        git("rm", "-r", "--cached", "-q", "--", f)
+
+    if plan or changed or ignored:
+        _append_log_entry(f"brain sync: mechanical refresh, {gap}")
+        for f in changed + ["log.md", "index.md"]:
+            git("add", "--", f)
+        r = git("commit", "-m", f"brain sync: mechanical refresh ({gap})")
+        if r.returncode != 0:
+            die("mechanical commit failed (pre-commit gate?):\n"
+                + (r.stderr or r.stdout).strip())
+        print(f"committed mechanical refresh: {len(plan)} template action(s), "
+              f"{len(changed)} file(s), {len(ignored)} untracked")
+    else:
+        print("mechanical phase: nothing to do")
+
+    # Stamp only when the CLI can vouch for the whole gap. An unstamped store
+    # has unknown provenance, and a gap crossing JUDGMENT_MIGRATIONS carries
+    # work the CLI didn't do — both stay visibly behind until /brain --sync.
+    pending = None if sv is None else {
+        v: JUDGMENT_MIGRATIONS[v]
+        for v in range(sv + 1, TEMPLATE_VERSION + 1) if v in JUDGMENT_MIGRATIONS}
+    if pending == {}:
+        if sv == TEMPLATE_VERSION:
+            print(f"store already stamped v{TEMPLATE_VERSION}")
+            return 0
+        (store / VERSION_FILE).write_text(f"{TEMPLATE_VERSION}\n", encoding="utf-8")
+        git("add", "--", VERSION_FILE)
+        r = git("commit", "-m", f"brain sync: stamp v{TEMPLATE_VERSION}")
+        if r.returncode != 0:
+            die("stamp commit failed:\n" + (r.stderr or r.stdout).strip())
+        print(f"stamped v{TEMPLATE_VERSION} — store is current")
+        return 0
+    why = ("the store has never been stamped — its schema state is unknown"
+           if pending is None
+           else "\n".join(f"  v{v}: {note}" for v, note in pending.items()))
+    print("NOT stamped — judgment migration(s) pending; finish via /brain --sync, "
+          f"then `brain version --stamp`:\n{why}", file=sys.stderr)
+    return 1
 
 
 # --------------------------------------------------------------------------
@@ -1354,7 +1785,7 @@ def main() -> int:
 
     n = sub.add_parser("new", help="create a schema-perfect page")
     n.add_argument("kind", choices=KINDS)
-    n.add_argument("slug")
+    n.add_argument("slug", help="page slug; may carry subdirectories (scripts/deploy)")
     n.add_argument("--title")
     n.add_argument("--status", choices=STATUSES)
     n.add_argument("--attention", choices=ATTENTIONS)
@@ -1397,6 +1828,31 @@ def main() -> int:
     lg.add_argument("--for", dest="for_page", metavar="PAGE",
                     help="read this page's log entries instead of writing one")
     lg.set_defaults(func=cmd_log)
+
+    rl = sub.add_parser("rotate-log",
+                        help="move log.md's older tail into log-archive/ (mechanical)")
+    rl.add_argument("--threshold", type=int, default=LOG_MAX_LINES, metavar="LINES",
+                    help=f"only rotate past this many lines (default {LOG_MAX_LINES})")
+    rl.add_argument("--keep", type=int, default=LOG_KEEP_ENTRIES, metavar="N",
+                    help=f"newest entries to keep hot (default {LOG_KEEP_ENTRIES})")
+    rl.add_argument("--force", action="store_true", help="rotate even under the threshold")
+    rl.set_defaults(func=cmd_rotate_log)
+
+    h = sub.add_parser("health",
+                       help="one-line store vitals; exit 1 when something needs attention")
+    h.add_argument("--stale", type=int, default=STALE_DAYS, metavar="DAYS",
+                   help=f"gone-quiet threshold (default {STALE_DAYS})")
+    h.add_argument("--no-fetch", action="store_true",
+                   help="skip the remote ahead/behind check's fetch")
+    h.add_argument("--json", action="store_true")
+    h.set_defaults(func=cmd_health)
+
+    sy = sub.add_parser("sync",
+                        help="mechanical template refresh; stamps unless a "
+                             "judgment migration is pending")
+    sy.add_argument("--dry-run", action="store_true",
+                    help="print the plan, change nothing")
+    sy.set_defaults(func=cmd_sync)
 
     vs = sub.add_parser("version", help="CLI/store template version")
     vs.add_argument("--stamp", action="store_true",

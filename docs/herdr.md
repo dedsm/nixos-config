@@ -596,9 +596,10 @@ before mixing them.
 Because state is *pushed* by that integration rather than sniffed from process names, Nix's
 `claude` → `.claude-wrapped` wrapper is not an obstacle to detection.
 
-The two do coexist as installed: the merge in the Claude Code module is `jq -s '.[0] * .[1]'`,
-which recurses into objects, so its managed `hooks` block leaves the integration's
-`SessionStart` entry alone. The one thing provided *for* the integration is the `python3`
+The two do coexist as installed: the Claude Code module's settings merge recurses into objects
+and — since its managed brain-health hook joined `hooks.SessionStart` — **array-merges that key
+specifically**, so the integration's `SessionStart` entry survives every switch with the managed
+entry appended beside it (see [`claude-code.md`](./claude-code.md)). The one thing provided *for* the integration is the `python3`
 its hook needs on `PATH`, in `davidShared`'s packages — see "Restart behaviour" above. The
 alternative
 considered and rejected was replacing the hook with a Nix-authored one calling

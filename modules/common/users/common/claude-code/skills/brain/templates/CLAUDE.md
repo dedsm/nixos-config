@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v9 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v10 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -50,8 +50,9 @@ frontmatter is deterministic instead of hand-typed — see **Tooling** below.
   can also run `brain reindex` explicitly to preview. Everything outside the markers (preamble, the
   `▶ Current focus` pointer, hand-listed reference files) is preserved.
 - `log.md` — append-only activity log, newest first. **Every entry is dated** — `- YYYY-MM-DD — <what changed> — [[page]]` — making it the canonical "what happened when" timeline. When it grows
-  large (say past ~400 lines), rotate the older tail into `log-archive/YYYY.md` (or `-QN`) and keep
-  the recent window hot; `git log` remains the ultimate backstop timeline.
+  past ~400 lines, run **`brain rotate-log`** — it moves the older tail verbatim into
+  `log-archive/YYYY.md` and keeps the recent window hot (`health` flags this; the rotation is
+  mechanical, so just run it and commit); `git log` remains the ultimate backstop timeline.
 
 ## Page schema (YAML frontmatter)
 
@@ -125,6 +126,25 @@ recorded here, or somewhere else?**
   last edit. `started`/`finished`/`due` apply mainly to `project`/`initiative` pages and drive
   time-range queries — set `started` when `status` → `active`, `finished` when `status` → `done`.
 
+### Where knowledge lives — page, or section?
+
+The split ladder (LINT) cures pages that grew too big; this rule prevents the opposite failure,
+minting a page per stray thought. A topic earns its **own page** when:
+
+1. **two or more existing pages need to `[[link]]` it**, or
+2. **it has an independent lifecycle** — its status can change while its would-be parent's doesn't.
+
+Otherwise it is a **section on the page that owns it**. Two corollaries:
+
+- **Never write a `[[link]]` to a page that doesn't exist** — create the target properly
+  (`brain new`, real frontmatter) or don't link it.
+- **Don't force-merge broader material into a narrower page.** If new material outgrows the
+  page's slug, create a sibling and cross-link rather than stretching a page past its title.
+
+Durable **reference knowledge** — a how-to, a learned fact, a worked-out explanation that no
+other system of record holds — lives as a `resources/` page (see the CAPTURE routing), not
+crammed into a project body where the LINT ladder will later delete it as superseded analysis.
+
 ## Tooling — the `brain` CLI (prefer it over hand-editing frontmatter)
 
 `brain` is a Nix-managed command on `PATH` and is the **deterministic gate** for this store: it
@@ -134,7 +154,8 @@ query; only drop to hand-editing page **bodies** (prose below the frontmatter).
 ```bash
 brain new <kind> <slug> [--title T --status S --attention A --summary "…" --next "…"
                          --due D --parent P --tags a,b --person]
-                              # create a schema-perfect page, with a body skeleton for its kind
+                              # create a schema-perfect page, with a body skeleton for its kind;
+                              # <slug> may carry subdirectories (new resource scripts/deploy)
 brain set <page> <field> <value>   # set one field, validated; stamps updated (+ started/finished)
                                    # date fields accept `today` so you never hand-type one
 brain unset <page> <field>         # remove one optional field (never a required one); stamps updated
@@ -149,6 +170,10 @@ brain normalize [paths…]           # repair-on-drift: lowercase status/kind, m
 brain capture "<text>" | - [--title SLUG]   # append to raw/inbox.md, or write a raw file from stdin
 brain log "<what changed> — [[page]]"  # prepend a dated log.md entry (date from the clock)
 brain log --for <page>             # read that page's log entries (don't re-narrate them in the body)
+brain rotate-log [--keep N]        # move log.md's older tail into log-archive/YYYY.md, verbatim
+brain health [--json] [--no-fetch] # one-line vitals; SILENT + exit 0 when clean (surfaced ambiently)
+brain sync [--dry-run]             # mechanical template refresh + stamp; stops before stamping
+                                   # when the version gap needs a judgment backfill (/brain --sync)
 brain version [--stamp]            # CLI vs store template version; --stamp writes .brain-version
 brain today                        # today's date from the system clock — never infer it
 ```
@@ -178,11 +203,22 @@ brain today                        # today's date from the system clock — neve
   committing for fast feedback. `check` reports enum / required-field / date-format problems as
   **errors** (blocking) and softer issues (done without `finished`, etc.) as **warnings** (non-blocking).
 - **Auto-push**: a `post-commit` hook pushes the store to its remote when one is configured, so a
-  commit is also a backup and multi-machine sync — no reliance on remembering `git push`. It **never
-  force-pushes**; if a push is rejected (the remote diverged — e.g. another machine pushed) or the
-  remote is unreachable, it prints a hint and the commit still stands — reconcile with
-  `git -C ~/brain pull --rebase`, then push again. **Both hooks are Nix-managed** — the nixos-config
-  activation installs them on every rebuild; the CLI has no install verb (so they can't drift).
+  commit is also a backup and multi-machine sync — no reliance on remembering `git push`. If the
+  push is rejected because the remote moved (another machine pushed first), the hook **reconciles
+  automatically**: `pull --rebase`, then push again. Only real conflicts stop it — the rebase is
+  aborted (the store stays exactly as committed) and it prints a hint to reconcile by hand with
+  `git -C ~/brain pull --rebase`. It **never force-pushes**, and an unreachable remote is non-fatal
+  (the commit stands; `health` will report unpushed commits). **Both hooks are Nix-managed** — the
+  nixos-config activation installs them on every rebuild; the CLI has no install verb (so they
+  can't drift).
+- **Ambient vitals — `brain health`**: every detector above is pull-only; `health` compresses them
+  (version drift, overdue, gone-quiet, never-verified, aged inbox, quiet or oversized log, `now.md`
+  rot, ahead/behind the remote) into **one line**, printing nothing and exiting 0 when all is well.
+  It is surfaced without anyone asking: a Claude Code SessionStart hook injects the line into new
+  sessions, and a weekly timer raises a desktop notification — covering the weeks when no session
+  happens at all. React
+  to it: oversized log → `brain rotate-log` and commit (mechanical, no approval needed); behind the
+  remote → `git -C ~/brain pull --rebase` **before** writing anything; the rest → the REVIEW pass.
 
 ### ⚠️ Governance — the CLI, schema, and hook are Nix-managed (do not edit here)
 
@@ -202,14 +238,22 @@ rebuild and run `/brain --sync`. Never:
 A failing gate means either the page is wrong (fix the page) or the schema should change (a
 nixos-config change David makes) — never a local workaround.
 
+There is deliberately **no test suite for `brain` — real usage is the test**. The flip side of
+that deal is a duty to notice: if the CLI itself ever misbehaves — mangled frontmatter after a
+write, a wrong date, a corrupted index or log, an exit code that contradicts what actually
+happened — **treat it as a bug, not as something to work around**. Stop, tell David exactly what
+you observed (command, input, expected vs actual), and propose the fix as a `brain.py` change in
+nixos-config. Never silently hand-repair what a writer got wrong without flagging it.
+
 ## Workflows
 
 ### 1. CAPTURE / INGEST — "track this", "remember", an info dump
 
 0. **Process the inbox first if it has entries.** `raw/inbox.md` holds one-line captures made
    outside a session with **`brain capture`**. For each: route it (update an existing page, create
-   one, file a dstask, reference an external issue, or drop it), then **delete that line** — the
-   pending count is the backlog, so nothing else needs tracking.
+   one, file a dstask, reference an external issue, save it as reference knowledge in `resources/`,
+   or drop it), then **delete that line** — the pending count is the backlog, so nothing else needs
+   tracking.
 1. If the input is substantial source material, save it verbatim to `raw/YYYY-MM-DD-slug.md`
    (**`brain capture - --title <slug>`** does this from stdin) — skip for trivial one-liners.
 2. Create or update the page: **`brain new <kind> <slug> --summary "…" [--status …]`** for a new
@@ -218,7 +262,11 @@ nixos-config change David makes) — never a local workaround.
 3. Wire cross-references: add `[[links]]` in the body, and add the page to every relevant MOC.
 4. If the input implies a personal next-action → create a dstask task and link it. If it is an
    issue that belongs in a team tracker → reference it there (per the active workspace's rules);
-   do not duplicate.
+   do not duplicate. If it is **durable reference knowledge** — a how-to, a learned fact, a
+   worked-out explanation with no other system of record — give it a `resources/` page
+   (`brain new resource <slug>`; tag it something queryable like `howto`), or an APPEND section on
+   the single page that owns it when it's small. The systems-of-record rule already admits
+   anything neither dstask nor a tracker captures; don't drop it just because it isn't status.
 5. Record it: **`brain log "<what changed> — [[page]]"`** (it dates the entry from the clock —
    don't hand-type the date). (`index.md` is refreshed by the commit hook; run `brain reindex`
    first only if you want to read the updated catalog now.)
@@ -238,6 +286,14 @@ current status. Never invent — if a field is stale, say so and offer to refres
 overdue") — start with `brain q --overdue` / `--stale`, then the dated `log.md` (+ `log-archive/`)
 and the `created`/`started`/`finished`/`due` frontmatter filtered to the window, with
 `git -C ~/brain log --since=…` and dstask's resolved-task dates as backstops.
+
+**File the answer back when it earned it.** If producing an answer required synthesizing across
+3+ pages or external systems (code, trackers, dstask) and the result is durable knowledge recorded
+on no single page, **offer** to file it — ask first, never as a side effect of a read:
+`brain new resource <slug> --summary "…"`, the body carrying the synthesis plus an "Informed by"
+list of `[[page]]` links and external references; then `brain set <slug> verified today` (earned —
+the claims were just checked to produce the answer), `brain log`, commit. An expensive cross-page
+synthesis that vanishes into chat history is compounding lost. Trivia doesn't qualify.
 
 ### 3. UPDATE STATUS
 
@@ -292,7 +348,8 @@ Run a health pass and fix:
   are deliberately absent from `index.md` and cataloged by the people MOC instead.
 - Broken `[[links]]`; pages whose `status` is `done`/`archived` → move to `archive/`.
 - Contradictions between pages → flag in the body and to the user.
-- Rotate `log.md` if it has grown past ~400 lines (older tail → `log-archive/YYYY.md`).
+- `log.md` past ~400 lines → run **`brain rotate-log`** (mechanical, verbatim, no approval needed;
+  `health` flags this too — react to the flag by running it, don't wait for a lint pass).
 - **`brain reindex`**; append a summary of changes to `log.md`; commit.
 
 Prefer mechanical, reversible edits. Ask before destructive merges. Git is the safety net.
@@ -385,8 +442,9 @@ people with no Slack handle, no work email, and no job title.
 - **Write frontmatter through the `brain` CLI**, not by hand — that's what keeps it schema-valid.
 - **Run `brain check` before committing**; never bypass the pre-commit gate (`--no-verify`) or
   loosen a rule locally. To change a rule, see Governance above (ask David → change nixos-config).
-- **The store auto-pushes** to its remote (post-commit hook) when one exists. If a push is rejected,
-  reconcile with `git -C ~/brain pull --rebase` and push again — never force-push, and never disable
+- **The store auto-pushes** to its remote (post-commit hook) when one exists, auto-reconciling a
+  moved remote (`pull --rebase` + retry, never force). If it reports real conflicts, reconcile by
+  hand with `git -C ~/brain pull --rebase`, resolve, push — never force-push, and never disable
   the hooks.
 - **Dates come from the system clock, never inferred from the corpus.** Let the writers and
   `brain log` stamp dates; use `brain today` for any date you must supply. A date seen in `log.md`
@@ -420,9 +478,10 @@ the hook, workflows, guardrails, or the skill's behavior:
 1. Edit the template/CLI/`SKILL.md` here; bump the `brain-template` version comment at the top of
    this file **and `TEMPLATE_VERSION` in `brain.py`** (they must match); commit nixos-config.
 2. Rebuild each machine — Nix propagates the updated template + CLI and reinstalls the hooks everywhere.
-3. On each machine, run **`/brain --sync`** — the skill migrates that machine's existing `~/brain`
-   to the canonical template (updates this manual, creates missing buckets and scaffold files,
-   migrates page frontmatter, regenerates the index), showing a diff and committing in stages.
+3. On each machine, run **`brain sync`** — the CLI refreshes the store mechanically (this manual,
+   missing buckets/scaffold, normalize, reindex, untrack) and stamps, **unless** the version gap
+   crosses a registered judgment migration, in which case it stops before stamping and
+   **`/brain --sync`** finishes the job (diff-and-ask frontmatter backfill, then stamp last).
    (The rebuild in step 2 — not sync — installs/refreshes the hooks.)
 
 `brain check` prints a note whenever the store's `.brain-version` is behind the CLI, so a machine
@@ -431,5 +490,5 @@ migration succeeds — an interrupted sync therefore leaves the store visibly be
 silently claiming to be current (which would make the next sync skip it).
 
 The bootstrap only *creates* a missing store (and installs the hooks); it never updates an existing
-store's content — `/brain --sync` is how existing stores catch up. Pure content edits
-(adding/updating pages) need none of this.
+store's content — `brain sync` (plus `/brain --sync` when a judgment backfill is pending) is how
+existing stores catch up. Pure content edits (adding/updating pages) need none of this.
