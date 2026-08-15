@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v10 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v11 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -53,6 +53,9 @@ frontmatter is deterministic instead of hand-typed — see **Tooling** below.
   past ~400 lines, run **`brain rotate-log`** — it moves the older tail verbatim into
   `log-archive/YYYY.md` and keeps the recent window hot (`health` flags this; the rotation is
   mechanical, so just run it and commit); `git log` remains the ultimate backstop timeline.
+  One sanctioned mechanical touch besides rotation: **`brain mv` retargets `[[links]]`** inside
+  entries when a page moves/renames — the entry's text never changes, only where its link points
+  (same spirit as rotate-log: verbatim content, kept resolvable).
 
 ## Page schema (YAML frontmatter)
 
@@ -106,8 +109,21 @@ links:                       # cross-references
   staleness should be judged on, so a page nobody edited but that you re-checked yesterday doesn't
   read as rotten. Mirror it in the body where you record what you checked
   ("verified against the code 2026-07-26").
-- Internal links use `[[wikilinks]]` (Obsidian-native). External links are plain URLs. A page in a
-  subdirectory is linked by path (`[[resources/scripts/README]]`), which is what `reindex` emits.
+- **The link model — internal vs external is the load-bearing distinction:**
+  - **Internal** links are `[[wikilinks]]` (Obsidian-native): a bare slug (`[[page]]`, resolved
+    store-wide by filename) or a store path for a page in a subdirectory
+    (`[[resources/scripts/README]]`, which is what `reindex` emits). This is the **only**
+    sanctioned internal form, and therefore checkable: `brain links` lints them, and a broken or
+    ambiguous one is an **error the commit gate rejects**. Move/rename pages with **`brain mv`**,
+    which rewrites references — never by hand, which breaks them. Filename stems are
+    **store-unique**: `new` and `mv` both refuse to mint a second page with an existing stem, so
+    a bare `[[slug]]` can never silently change meaning.
+  - **External** links carry a scheme (`https://…`, `dstask:6`, `mailto:`) — plain full URLs.
+    Never checked, never rewritten.
+  - A **relative markdown path** (`[text](../repo/doc.md)`) is neither and always **warns**: it
+    breaks silently when either side moves. Make it a `[[wikilink]]` (if it's a store page) or an
+    explicit external form — a full URL, or an inline-code path like `` `repo/docs/adr.md` ``
+    (code spans and code blocks are never treated as links).
 
 ### `adr` vs `project` — where does the decision live?
 
@@ -160,7 +176,13 @@ brain set <page> <field> <value>   # set one field, validated; stamps updated (+
                                    # date fields accept `today` so you never hand-type one
 brain unset <page> <field>         # remove one optional field (never a required one); stamps updated
 brain done <page>                  # status=done + finished=today + updated=today
-brain reindex                      # regenerate index.md's generated region from frontmatter
+brain reindex                      # regenerate index.md's generated region from frontmatter,
+                                   # + people.md's generated "Where they appear" column
+brain links [--strict] [--json]    # lint internal links — broken/ambiguous [[wikilinks]] are
+                                   # errors (the gate runs this); relative markdown paths warn
+brain links --to <page>            # backlinks: list the pages that link to <page>
+brain mv <page> <bucket>/<slug>    # move/rename a page, rewriting [[references]] store-wide
+                                   # (the archive lifecycle: brain mv <page> archive/<slug>)
 brain review [--since DAYS] [--stale DAYS] [--log N] [--json]
                                    # READ-ONLY briefing; --since gives the window ("what moved")
 brain q [--status S | --kind K | --tag T | --attention A | --overdue | --due-before D
@@ -194,14 +216,25 @@ brain today                        # today's date from the system clock — neve
 - **`capture` is the zero-friction path in.** One line from any terminal, no session, no schema —
   which matters because second brains die at capture, not at retrieval. Substantial material
   (`- --title <slug>`) lands as its own immutable `raw/` file instead of an inbox line.
-- **`reindex`** makes `index.md` a projection of the pages. You rarely call it by hand: the
-  pre-commit hook regenerates and stages it on every commit. Run it explicitly only to preview the
-  catalog, or use `brain reindex --check` (exits non-zero if stale) as a drift detector.
-- **The gate**: a `pre-commit` hook in `~/brain/.git/hooks` regenerates `index.md`, stages it, then
-  runs `brain check --staged` — so a commit with a malformed page is **rejected**, and the catalog is
-  always fresh, for LLM edits, hand edits, and Obsidian edits alike. Run `brain check` yourself before
-  committing for fast feedback. `check` reports enum / required-field / date-format problems as
-  **errors** (blocking) and softer issues (done without `finished`, etc.) as **warnings** (non-blocking).
+- **`reindex`** makes `index.md` — and the people directory's "Where they appear" column — a
+  projection of the pages. You rarely call it by hand: the pre-commit hook regenerates and stages
+  both on every commit. Run it explicitly only to preview the catalog, or use
+  `brain reindex --check` (exits non-zero if stale) as a drift detector.
+- **The gate**: a `pre-commit` hook in `~/brain/.git/hooks` regenerates `index.md` and
+  `people.md`'s generated column, stages them, then runs `brain check --staged` — so a commit with
+  a malformed page is **rejected**, and the catalog is always fresh, for LLM edits, hand edits, and
+  Obsidian edits alike. (`people.md` is staged only when it carried no unstaged hand edits before
+  the reindex — an in-progress edit is never swept into an unrelated commit; the column refresh
+  rides the next clean one.) Run `brain check` yourself before committing for fast feedback.
+  `check` reports enum / required-field / date-format problems **and broken/ambiguous internal
+  links** (a whole-store link pass — a staged deletion can break another file's inbound links;
+  under `--staged` links resolve against the *git index*, so an untracked draft can't satisfy
+  one) as **errors** (blocking), and softer issues (done without `finished`, relative markdown
+  paths, etc.) as **warnings** (non-blocking). Two consequences: **create a page before linking
+  it** (`brain new`, then link), and **stage a new page together with the pages that link it**.
+  One deliberate exception: while `.brain-version` is behind the CLI (the rebuild→sync window),
+  link errors demote to warnings — the window must never block; `/brain --sync` fixes them for
+  real, and then they gate hard.
 - **Auto-push**: a `post-commit` hook pushes the store to its remote when one is configured, so a
   commit is also a backup and multi-machine sync — no reliance on remembering `git push`. If the
   push is rejected because the remote moved (another machine pushed first), the hook **reconciles
@@ -212,8 +245,9 @@ brain today                        # today's date from the system clock — neve
   nixos-config activation installs them on every rebuild; the CLI has no install verb (so they
   can't drift).
 - **Ambient vitals — `brain health`**: every detector above is pull-only; `health` compresses them
-  (version drift, overdue, gone-quiet, never-verified, aged inbox, quiet or oversized log, `now.md`
-  rot, ahead/behind the remote) into **one line**, printing nothing and exiting 0 when all is well.
+  (version drift, overdue, gone-quiet, never-verified, aged inbox, quiet or oversized log, broken
+  links, `now.md` rot, ahead/behind the remote) into **one line**, printing nothing and exiting 0
+  when all is well.
   It is surfaced without anyone asking: a Claude Code SessionStart hook injects the line into new
   sessions, and a weekly timer raises a desktop notification — covering the weeks when no session
   happens at all. React
@@ -346,7 +380,9 @@ Run a health pass and fix:
      page holds several different **kinds** of content rather than too much of one.
 - Orphan pages (in no MOC and no index line) → file them. **Person pages are not orphans**: they
   are deliberately absent from `index.md` and cataloged by the people MOC instead.
-- Broken `[[links]]`; pages whose `status` is `done`/`archived` → move to `archive/`.
+- **`brain links`** for anything the gate predates (broken/ambiguous wikilinks, relative-path
+  warnings); pages whose `status` is `done`/`archived` → **`brain mv <page> archive/<slug>`**
+  (it rewrites every `[[reference]]`, including path-qualified ones, and reindexes).
 - Contradictions between pages → flag in the body and to the user.
 - `log.md` past ~400 lines → run **`brain rotate-log`** (mechanical, verbatim, no approval needed;
   `health` flags this too — react to the flag by running it, don't wait for a lint pass).
@@ -419,7 +455,11 @@ people with no Slack handle, no work email, and no job title.
 - **`mocs/people.md`** is the directory: a table by default. Columns are **suggested, never
   required** — a name, a contact handle *if one exists*, and where they appear in this brain.
   Add or drop columns per store; empty cells are fine. Grouping (by team, by context, or not at
-  all) is likewise store-local.
+  all) is likewise store-local. The one generated part: for every row whose first cell links a
+  `[[person-page]]`, **`reindex` rewrites the "Where they appear" cell** from the link graph (the
+  pages that `[[link]]` that person) — hand-maintained reverse indexes rot, so don't edit those
+  cells; a row for someone *without* a page keeps whatever is typed. Don't put piped
+  `[[links|labels]]` in this table — the pipe fights the table syntax.
 - **Promote to a page** when someone accumulates narrative that won't fit in a cell — decisions
   they own, positions they hold, history worth not re-deriving. Until then a table row is enough.
 - A person page is **`brain new resource <slug> --person`**: `kind: resource`, `tags: [person]`,
@@ -428,17 +468,20 @@ people with no Slack handle, no work email, and no job title.
   exactly one line — the people MOC — whether you know 2 people or 200. Index → MOC → person page.
   They remain fully in the system: `brain check` validates them and `brain q --tag person` finds
   them. Excluded from the catalog is not excluded from the gate.
-- **Maintenance rule:** whenever a person is mentioned in any page or log entry, make sure they're
-  in the directory, and append that page to where-they-appear. Do this on every brain update, not
-  only on meeting captures — this is the entry most prone to silent drift.
+- **Maintenance rule:** whenever a person appears in a page, make sure they're in the directory,
+  and — if they have a page — **`[[link]]` them from the page where they appear**: the generated
+  where-they-appear column reflects the link graph, so a bare name-mention is invisible to it.
+  Do this on every brain update, not only on meeting captures.
 - **PII:** keep to what you actually need in order to work with them. A personal directory is the
   place in this store where the "no PII you don't need" guardrail actually bites — addresses,
   phone numbers, birthdays, health details.
 
 ## Guardrails
 
-- Files are the source of truth; **`brain reindex`** keeps `index.md` consistent with the pages —
-  don't hand-maintain the generated region.
+- Files are the source of truth; **`brain reindex`** keeps `index.md` and people.md's generated
+  column consistent with the pages — don't hand-maintain either.
+- **Never write a `[[link]]` to a page that doesn't exist** (the gate rejects it), and **move or
+  rename pages only with `brain mv`** — a hand `mv` breaks every path-qualified reference.
 - **Write frontmatter through the `brain` CLI**, not by hand — that's what keeps it schema-valid.
 - **Run `brain check` before committing**; never bypass the pre-commit gate (`--no-verify`) or
   loosen a rule locally. To change a rule, see Governance above (ask David → change nixos-config).

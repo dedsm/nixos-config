@@ -70,12 +70,22 @@ let
   # exactly one definition of each hook and no way for it to drift. All real logic
   # lives in brainPkg, so the hook files themselves never need to change.
   #
-  # pre-commit gate: regenerate index.md from frontmatter and stage it (so the
-  # catalog can never drift in a commit — no reliance on anyone remembering to
-  # reindex), then validate the staged pages.
+  # pre-commit gate: regenerate index.md + people.md's generated column from
+  # frontmatter and stage them (so neither can drift in a commit — no reliance
+  # on anyone remembering to reindex), then validate the staged pages. Unlike
+  # index.md, people.md is mostly hand-maintained judgment content, so it is
+  # staged only when it had no unstaged edits BEFORE the reindex — an
+  # in-progress hand edit must not be swept into an unrelated commit (and
+  # auto-pushed); the column refresh rides the next clean commit instead.
+  # Separate `git add`s: a store without people.md must still stage index.md.
   brainPreCommitHook = pkgs.writeShellScript "brain-pre-commit" ''
+    people_clean=
+    ${pkgs.git}/bin/git diff --quiet -- mocs/people.md 2>/dev/null && people_clean=1
     ${brainPkg}/bin/brain reindex >/dev/null 2>&1 || true
     ${pkgs.git}/bin/git add -- index.md >/dev/null 2>&1 || true
+    if [ -n "$people_clean" ]; then
+      ${pkgs.git}/bin/git add -- mocs/people.md >/dev/null 2>&1 || true
+    fi
     exec ${brainPkg}/bin/brain check --staged
   '';
 

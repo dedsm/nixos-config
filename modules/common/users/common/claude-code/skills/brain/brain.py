@@ -285,11 +285,25 @@ def all_pages(require_only: bool = False) -> list:
     return out
 
 
-def page_ref(page: "Page") -> str:
-    """Wikilink target: bare slug for a top-level page, path for a nested one."""
+def page_ref(page: "Page", ambiguous: frozenset = frozenset()) -> str:
+    """Wikilink target: bare slug for a top-level page, path for a nested one.
+    `ambiguous` (duplicated stems, see _dup_stems) forces the path form — a
+    generated file must never emit a bare link the gate would then reject."""
     r = rel(page.path)
     parts = Path(r).parts
-    return page.slug if len(parts) <= 2 else r[: -len(".md")]
+    if len(parts) <= 2 and page.slug not in ambiguous:
+        return page.slug
+    return r[: -len(".md")]
+
+
+def _dup_stems() -> frozenset:
+    """Filename stems shared by more than one store file. `new` and `mv`
+    refuse to mint these, but a hand-created file or a two-machine merge still
+    can — and the generators must stay unambiguous regardless."""
+    seen: dict = {}
+    for p in _store_md_files():
+        seen[p.stem] = seen.get(p.stem, 0) + 1
+    return frozenset(s for s, n in seen.items() if n > 1)
 
 
 def is_person(page: "Page") -> bool:
@@ -303,16 +317,17 @@ def days_since(iso: str) -> int | None:
 
 
 def resolve_page(ref: str) -> Path:
-    """Resolve a page by slug, relative path, or absolute path."""
+    """Resolve a page by slug, relative path, or absolute path. Files only —
+    a directory is never a page (and half the verbs would corrupt one)."""
     p = Path(ref)
-    if p.is_absolute() and p.exists():
+    if p.is_absolute() and p.is_file():
         return p
     cand = brain_dir() / ref
-    if cand.exists():
+    if cand.is_file():
         return cand
     if not ref.endswith(".md"):
         cand = brain_dir() / (ref + ".md")
-        if cand.exists():
+        if cand.is_file():
             return cand
     matches = [pg for pg in all_pages() if pg.stem == slug_of(Path(ref))]
     if len(matches) == 1:
@@ -325,6 +340,226 @@ def resolve_page(ref: str) -> Path:
 def die(msg: str, code: int = 1):
     print(f"brain: {msg}", file=sys.stderr)
     sys.exit(code)
+
+
+# --------------------------------------------------------------------------
+# Links — the store's link model
+#
+# Internal vs external is the load-bearing distinction:
+#   internal — [[wikilinks]]: bare slug (resolved store-wide by filename) or
+#              store-relative path ([[resources/scripts/deploy]]). The one
+#              sanctioned internal form, therefore checkable and checked: a
+#              broken or ambiguous one is an ERROR (gate-blocking via check).
+#   external — anything with a scheme (https://…, mailto:, dstask:6, …).
+#              Never resolved, never rewritten, never an error.
+# A relative markdown path ([text](../repo/doc.md)) is neither: it silently
+# breaks when either side moves and the linter can't vouch for it. Always a
+# WARNING — make it a [[wikilink]] (internal) or a full URL (external).
+# --------------------------------------------------------------------------
+
+# Wikilink target; the anchor (#…) and label (|…) are consumed but not captured.
+WIKILINK_RE = re.compile(r"\[\[([^\]|\n#]+)(?:#[^\]|\n]*)?(?:\|[^\]\n]*)?\]\]")
+# Markdown link target; (?<!!) skips images.
+MD_LINK_RE = re.compile(r"(?<!!)\[[^\]\n]*\]\(<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\)")
+SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+
+# Sources the linter never reads: the manual and README carry intentional
+# example links ([[page]], [[hub]]); log*.md is append-only history whose links
+# may legitimately outlive their targets; raw/ is immutable by definition.
+_LINT_EXEMPT_FILES = {"CLAUDE.md", "README.md", "log.md"}
+_LINT_EXEMPT_DIRS = ("raw", "log-archive")
+
+
+def _verbatim_spans(text: str) -> list:
+    """(start, end) spans of code fences, HTML comments and inline code — the
+    regions that are never links. The linter and mv's rewriter share this, so
+    a quoted example neither lints nor gets rewritten. Fences follow
+    CommonMark: ``` or ~~~, closer same char and at least as long with nothing
+    after it, an unclosed fence runs to EOF."""
+    spans = []
+    pos, fence, fence_start = 0, None, 0
+    for line in text.split("\n"):
+        m = re.match(r" {0,3}(`{3,}|~{3,})", line)
+        if fence is None:
+            if m:
+                fence = (m.group(1)[0], len(m.group(1)))
+                fence_start = pos
+        elif m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1] \
+                and not line[m.end():].strip():
+            spans.append((fence_start, pos + len(line)))
+            fence = None
+        pos += len(line) + 1
+    if fence is not None:
+        spans.append((fence_start, len(text)))
+
+    def outside(i):
+        return not any(s <= i < e for s, e in spans)
+
+    for pat, flags in ((r"<!--.*?-->", re.S), (r"`[^`\n]*`", 0)):
+        for m in re.finditer(pat, text, flags=flags):
+            if outside(m.start()):
+                spans.append(m.span())
+    return sorted(spans)
+
+
+def _lintable(text: str) -> str:
+    """Body text with the verbatim regions blanked (newlines kept, so nothing
+    shifts): an example `[[link]]` in code or a comment never counts."""
+    out = list(text)
+    for s, e in _verbatim_spans(text):
+        for i in range(s, e):
+            if out[i] != "\n":
+                out[i] = " "
+    return "".join(out)
+
+
+def _sub_outside_verbatim(pat, repl: str, text: str) -> tuple:
+    """pat.subn over text, skipping the verbatim regions — returns
+    (new_text, count). What the linter promises isn't a link, mv won't touch."""
+    out, n, last = [], 0, 0
+    for s, e in _verbatim_spans(text):
+        s = max(s, last)
+        if e <= last:
+            continue
+        seg, k = pat.subn(repl, text[last:s])
+        out.append(seg)
+        n += k
+        out.append(text[s:e])
+        last = e
+    seg, k = pat.subn(repl, text[last:])
+    out.append(seg)
+    n += k
+    return "".join(out), n
+
+
+def _page_wiki_targets(page: Page) -> set:
+    """Every wikilink target a page carries: `parent`, `links` items, body."""
+    parent = str(page.fields.get("parent") or "").strip()
+    text = parent + "\n"
+    text += "\n".join(str(x) for x in (page.fields.get("links") or []))
+    text += "\n" + _lintable(page.body)
+    targets = {t for m in WIKILINK_RE.finditer(text) if (t := m.group(1).strip())}
+    # A hand-written bare `parent: hub` (no brackets) is still a reference —
+    # reindex honours it for nesting, so the gate must see it too. The writers
+    # and normalize wrap it in [[ ]]; this covers a page they haven't touched.
+    if parent and "[[" not in parent:
+        targets.add(parent)
+    return targets
+
+
+def _store_md_files() -> list:
+    """Every markdown file in the store — the wikilink resolution universe.
+    Hidden directories are out: .git, .obsidian, and Obsidian's .trash (a
+    deleted page must not keep satisfying the linter from the trash)."""
+    root = brain_dir()
+    return [p for p in root.rglob("*.md")
+            if p.is_file()
+            and not any(part.startswith(".")
+                        for part in p.relative_to(root).parts[:-1])]
+
+
+def _lint_sources() -> list:
+    """The files whose outgoing links are linted: all pages, plus index.md."""
+    sources = all_pages()
+    index = brain_dir() / "index.md"
+    return sources + [index] if index.exists() else sources
+
+
+def _staged_universe() -> list | None:
+    """Store-relative .md paths of the tree a pre-commit run is about to
+    record: the git index — staged additions in, untracked drafts out. A link
+    satisfied only by an uncommitted file must fail the gate, or the commit
+    ships a broken link to every other machine. None on git trouble (caller
+    falls back to the on-disk universe)."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(brain_dir()), "ls-files", "--cached", "--", "*.md"],
+            capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return None
+    return [ln for ln in out.splitlines() if ln]
+
+
+def _link_lint(universe: list | None = None) -> tuple:
+    """(errors, warnings) across the store. Deterministic and whole-store:
+    inbound links break when a *different* file is deleted or renamed, so
+    linting a subset can never vouch for anything. `universe` overrides what
+    counts as existing (store-relative paths) — the gate passes the git index."""
+    if universe is None:
+        universe = [rel(p) for p in _store_md_files()]
+    stems: dict = {}
+    path_refs = set()
+    for r in universe:
+        if not r.endswith(".md"):
+            continue
+        path_refs.add(r[: -len(".md")])
+        stems.setdefault(Path(r).stem, []).append(r)
+
+    errors, warnings = [], []
+    for path in _lint_sources():
+        r = rel(path)
+        if r in _LINT_EXEMPT_FILES or r.startswith(tuple(d + "/" for d in _LINT_EXEMPT_DIRS)):
+            continue
+        try:
+            page = parse_page(path)
+        except (OSError, UnicodeDecodeError):
+            continue  # health/check already surface unreadable pages
+        for target in sorted(_page_wiki_targets(page)):
+            if "/" in target:
+                if target not in path_refs:
+                    errors.append(f"{r}: broken link [[{target}]] — no such page")
+            else:
+                hits = stems.get(target, [])
+                if not hits:
+                    errors.append(f"{r}: broken link [[{target}]] — no such page")
+                elif len(hits) > 1:
+                    errors.append(f"{r}: ambiguous link [[{target}]] — matches "
+                                  f"{', '.join(sorted(hits))}; use the path form")
+        for m in MD_LINK_RE.finditer(_lintable(page.body)):
+            target = m.group(1)
+            if SCHEME_RE.match(target) or target.startswith("#"):
+                continue  # external / in-page anchor — not ours to check
+            warnings.append(
+                f"{r}: relative markdown link ({target}) — internal links are "
+                f"[[wikilinks]], external ones full URLs; a relative path "
+                f"breaks silently when either side moves")
+    return errors, warnings
+
+
+def cmd_links(args) -> int:
+    if args.to:
+        # Backlinks: who references this page. Powers the people directory's
+        # generated column too (reindex) — this is the on-demand form.
+        path = resolve_page(args.to)
+        stem, ref = path.stem, rel(path)[: -len(".md")]
+        hits = []
+        for p in all_pages():
+            if p.resolve() == path.resolve():
+                continue
+            try:
+                pg = parse_page(p)
+            except (OSError, UnicodeDecodeError):
+                continue  # health/check already surface unreadable pages
+            if {stem, ref} & _page_wiki_targets(pg):
+                hits.append(page_ref(pg))
+        print("\n".join(sorted(hits)) or f"(no pages link to {stem})")
+        return 0
+
+    errors, warnings = _link_lint()
+    if args.json:
+        import json  # noqa: PLC0415 — only the JSON paths pay the import
+        print(json.dumps({"errors": errors, "warnings": warnings}, indent=2))
+    else:
+        for w in warnings:
+            print(f"warning: {w}", file=sys.stderr)
+        for e in errors:
+            print(f"error: {e}", file=sys.stderr)
+        if errors:
+            print(f"brain links: {len(errors)} broken/ambiguous internal link(s)",
+                  file=sys.stderr)
+        elif not warnings:
+            print("links ok")
+    return 1 if errors or (args.strict and warnings) else 0
 
 
 # --------------------------------------------------------------------------
@@ -407,6 +642,27 @@ def cmd_check(args) -> int:
         all_errors += errs
         all_warnings += warns
 
+    # Link integrity rides the same gate. Always whole-store (even --staged):
+    # a staged deletion or rename breaks OTHER files' inbound links, so a
+    # staged-only pass could never vouch for anything. Skipped only when the
+    # caller asked about specific paths. Broken/ambiguous wikilinks are
+    # errors; relative markdown paths warn — see the link model in `links`.
+    # Under --staged, links must resolve against the git index, not the
+    # worktree: an untracked draft satisfying a link would commit a broken
+    # store and auto-push it to every other machine.
+    if not args.paths:
+        lerrs, lwarns = _link_lint(_staged_universe() if args.staged else None)
+        # The rebuild→sync window must never block (same stance as the
+        # version-drift note below): link errors that predate the gate demote
+        # to warnings until the store is stamped current — /brain --sync's
+        # v11 step fixes them for real, and then they gate hard.
+        if lerrs and store_version() != TEMPLATE_VERSION:
+            lwarns = lwarns + [e + "  [deferred until the store is synced]"
+                               for e in lerrs]
+            lerrs = []
+        all_errors += lerrs
+        all_warnings += lwarns
+
     for w in all_warnings:
         print(f"warning: {w}", file=sys.stderr)
     for e in all_errors:
@@ -475,11 +731,22 @@ SECTIONS = [
     ("Projects (end-stated)", ["projects"], ["idea", "planned", "active", "blocked"]),
     ("Maps of Content", ["mocs"], None),
     ("Resources", ["resources"], None),
-    ("Archive", ["projects", "areas", "mocs", "resources"], ["done", "archived"]),
+    # archive/ pages belong here whatever their status says (`mv` warns on the
+    # mismatch; a page that is invisible in every section would be worse).
+    ("Archive", ["projects", "areas", "mocs", "resources", "archive"],
+     ["done", "archived"]),
 ]
 
 
-def _index_line(page: Page, indent: int = 0) -> str:
+def _parent_slug(page: Page) -> str:
+    """The bare slug of a page's `parent` ref, whatever form it carries:
+    "[[hub]]", "[[bucket/dir/hub]]" (mv's rewrite), padded, or bare."""
+    v = str(page.fields.get("parent") or "").strip().strip("[]").strip()
+    return v.split("#")[0].split("|")[0].rsplit("/", 1)[-1].strip()
+
+
+def _index_line(page: Page, indent: int = 0,
+                ambiguous: frozenset = frozenset()) -> str:
     f = page.fields
     status = f.get("status", "")
     att = f.get("attention")
@@ -491,7 +758,7 @@ def _index_line(page: Page, indent: int = 0) -> str:
         if d is not None and d > STALE_DAYS:
             stale = f"  ⚠ {d}d"
     pad = "  " * indent
-    return f"{pad}- [[{page_ref(page)}]] — `{status}`{mark} — {summary}{stale}"
+    return f"{pad}- [[{page_ref(page, ambiguous)}]] — `{status}`{mark} — {summary}{stale}"
 
 
 def cmd_reindex(args) -> int:
@@ -500,7 +767,7 @@ def cmd_reindex(args) -> int:
                        REQUIRED_BUCKETS + OPTIONAL_BUCKETS}
     missing_summary = []
 
-    def in_section(page, statuses):
+    def in_section(page, statuses, bucket):
         if not page.has_fm:
             return False
         # Person pages are cataloged by the people MOC, so the index stays one
@@ -510,30 +777,33 @@ def cmd_reindex(args) -> int:
             return False
         st = page.fields.get("status", "")
         if statuses is not None:
-            return st in statuses
+            # The archive/ bucket only appears in the Archive section's bucket
+            # list, and a page filed there is archived by location.
+            return bucket == "archive" or st in statuses
         return st not in ("done", "archived")  # non-archive sections exclude done/archived
 
+    dup = _dup_stems()
     blocks = []
     for title, buckets, statuses in SECTIONS:
         lines = [f"## {title}", ""]
         # Candidate pages for this section, and the set of slugs present, so a
         # child whose parent is filtered out still appears (as a top-level line).
         candidates = [pg for b in buckets for pg in pages_by_bucket.get(b, [])
-                      if in_section(pg, statuses)]
+                      if in_section(pg, statuses, b)]
         present = {pg.slug for pg in candidates}
         for page in candidates:
             if not page.fields.get("summary"):
                 missing_summary.append(page.slug)
         emitted = 0
         for page in candidates:
-            parent = (page.fields.get("parent") or "").strip("[]")
+            parent = _parent_slug(page)
             if parent and parent in present:
                 continue  # emitted under its parent below
-            lines.append(_index_line(page))
+            lines.append(_index_line(page, ambiguous=dup))
             emitted += 1
             for child in candidates:
-                if (child.fields.get("parent") or "").strip("[]") == page.slug:
-                    lines.append(_index_line(child, indent=1))
+                if _parent_slug(child) == page.slug:
+                    lines.append(_index_line(child, indent=1, ambiguous=dup))
         if emitted == 0:
             lines.append("_(none)_")
         blocks.append("\n".join(lines))
@@ -552,20 +822,118 @@ def cmd_reindex(args) -> int:
     else:
         new = text.rstrip("\n") + "\n\n" + generated + "\n"
 
+    all_parsed = [pg for pages in pages_by_bucket.values() for pg in pages]
+    people = _people_render(all_parsed, dup)
+
     if args.check:
-        if index.exists() and index.read_text(encoding="utf-8") == new:
+        stale = []
+        if not (index.exists() and index.read_text(encoding="utf-8") == new):
+            stale.append("index.md")
+        if people and people[1] != people[2]:
+            stale.append("mocs/people.md")
+        if not stale:
             print("index.md is up to date")
             return 0
-        print("brain reindex --check: index.md is stale (run `brain reindex`)", file=sys.stderr)
+        print(f"brain reindex --check: {', '.join(stale)} stale (run `brain reindex`)",
+              file=sys.stderr)
         return 1
 
     index.write_text(new, encoding="utf-8")
     print(f"reindexed {rel(index)}")
+    if people and people[1] != people[2]:
+        people[0].write_text(people[1], encoding="utf-8")
+        print("refreshed 'Where they appear' in mocs/people.md")
     if missing_summary:
         print(f"note: {len(missing_summary)} page(s) have no 'summary' "
               f"(used title as fallback): {', '.join(sorted(set(missing_summary)))}",
               file=sys.stderr)
     return 0
+
+
+# --------------------------------------------------------------------------
+# people.md — the generated half of the directory
+#
+# The table itself is judgment (who's listed, their role, how to reach them);
+# the "Where they appear" column is a pure projection of the link graph, and
+# hand-maintained reverse indexes rot. `reindex` regenerates that one column
+# for every row whose first cell is a [[person-page]] link — a row for someone
+# without a page keeps whatever is typed (there is no page to compute from).
+# --------------------------------------------------------------------------
+
+PEOPLE_COL_RE = re.compile(r"where\s+they\s+appear", re.I)
+_TABLE_SEP_RE = re.compile(r"^[\s|:-]+$")
+
+
+def _table_cells(row: str) -> list:
+    """Split a table row on pipes, tolerating pipes inside [[wiki|links]] and
+    markdown's escaped pipe (\\|) — both must round-trip through the join."""
+    masked = row.replace("\\|", "\x01")
+    masked = re.sub(r"\[\[[^\]\n]*\]\]",
+                    lambda m: m.group(0).replace("|", "\x00"), masked)
+    return [c.replace("\x00", "|").replace("\x01", "\\|")
+            for c in masked.split("|")]
+
+
+def _people_render(pages: list, ambiguous: frozenset = frozenset()) -> tuple | None:
+    """(path, new_text, old_text) for mocs/people.md with the 'Where they
+    appear' column recomputed — in EVERY table that carries one, since the
+    manual sanctions grouping people into several tables. None when there is
+    nothing to do (no people.md, no such column, or an unreadable file)."""
+    ppath = brain_dir() / "mocs" / "people.md"
+    try:
+        old = ppath.read_text(encoding="utf-8")
+    except (FileNotFoundError, UnicodeDecodeError, OSError):
+        return None
+    lines = old.split("\n")
+
+    # Person pages keyed by path ref; a bare row link resolves only when its
+    # stem is unique among them (same rule the linter applies store-wide).
+    persons: dict = {}
+    by_stem: dict = {}
+    for p in pages:
+        if is_person(p):
+            ref = rel(p.path)[: -len(".md")]
+            persons[ref] = p
+            by_stem.setdefault(p.slug, []).append(ref)
+    sources = [q for q in pages if rel(q.path) != "mocs/people.md"]
+    targets = [(q, _page_wiki_targets(q)) for q in sources]
+    appearances = {
+        ref: sorted(page_ref(q, ambiguous) for q, ts in targets
+                    if q.path != p.path and {p.slug, ref} & ts)
+        for ref, p in persons.items()}
+
+    found = False
+    col_i = None  # the appearances column of the table we're inside, if any
+    for i, ln in enumerate(lines):
+        if not ln.lstrip().startswith("|"):
+            col_i = None  # the current table (if any) ended
+            continue
+        cells = _table_cells(ln)
+        if col_i is None:
+            for j, cell in enumerate(cells):
+                if PEOPLE_COL_RE.search(cell):
+                    col_i, found = j, True
+                    break
+            continue  # a header, or a row of a table without the column
+        if _TABLE_SEP_RE.match(ln) or col_i >= len(cells) or len(cells) < 2:
+            continue
+        m = WIKILINK_RE.search(cells[1])  # cells[0] is before the leading |
+        if not m:
+            continue  # a row without a person page stays hand-maintained
+        target = m.group(1).strip()
+        if "/" in target:
+            ref = target if target in persons else None
+        else:
+            candidates = by_stem.get(target, [])
+            ref = candidates[0] if len(candidates) == 1 else None
+        if ref is None:
+            continue
+        refs = appearances[ref]
+        cells[col_i] = " " + (", ".join(f"[[{r}]]" for r in refs) or "—") + " "
+        lines[i] = "|".join(cells)
+    if not found:
+        return None
+    return ppath, "\n".join(lines), old
 
 
 # --------------------------------------------------------------------------
@@ -756,7 +1124,9 @@ _MOC_BODY = """
 
 ## Pages
 
-- [[page]] — <its role in THIS map; index.md already carries the summary>
+<!-- One line per member: `- [[page]] — <its role in THIS map>` (index.md
+     already carries the summary; the role is what this map adds). A real
+     [[link]] only — the gate rejects links to pages that don't exist. -->
 
 ## Not here (and why)
 
@@ -841,6 +1211,15 @@ def cmd_new(args) -> int:
     path = brain_dir() / bucket / f"{slug}.md"
     if path.exists():
         die(f"page already exists: {path.relative_to(brain_dir())}")
+    # Filename stems are store-unique — same invariant mv enforces on rename.
+    # A duplicate would make bare [[slug]] links ambiguous, and reindex would
+    # then have to emit path-form links for both forever.
+    if brain_dir().is_dir():
+        clash = sorted(rel(p) for p in _store_md_files() if p.stem == parts[-1])
+        if clash:
+            die(f"a page named '{parts[-1]}' already exists "
+                f"({', '.join(clash)}) — bare [[{parts[-1]}]] links would be "
+                f"ambiguous; pick another slug, or `brain mv` the old page first")
     path.parent.mkdir(parents=True, exist_ok=True)
     title = args.title or parts[-1].replace("-", " ").title()
     fields = {
@@ -854,6 +1233,8 @@ def cmd_new(args) -> int:
     for opt in ("summary", "due", "parent"):
         v = getattr(args, opt, None)
         if v:
+            if opt == "parent" and "[[" not in v:
+                v = f"[[{v}]]"  # a parent is a reference — the gate must see it
             fields[opt] = v
     tags = [t.strip() for t in (args.tags or "").split(",") if t.strip()]
     if getattr(args, "person", False):
@@ -915,6 +1296,8 @@ def cmd_set(args) -> int:
             die(f"{field} must be an ISO YYYY-MM-DD date (or 'today')")
         page.fields[field] = value
     else:
+        if field == "parent" and value and "[[" not in value:
+            value = f"[[{value}]]"  # a parent is a reference — gate-visible
         page.fields[field] = value
 
     page.fields["updated"] = today()
@@ -990,6 +1373,11 @@ def _normalize_paths(paths: list) -> list:
             page.fields["tags"] = sorted(dict.fromkeys(page.fields["tags"]))
         if not page.fields.get("owner"):
             page.fields["owner"] = "me"
+        # A bare `parent: hub` predating the writers' wrapping: make it the
+        # wikilink the gate and mv both understand.
+        pv = str(page.fields.get("parent") or "").strip()
+        if pv and "[[" not in pv:
+            page.fields["parent"] = f"[[{pv}]]"
         # Freshly-seeded scaffold pages carry the sentinel date; stamp them for real.
         for df in ("created", "updated"):
             if page.fields.get(df) == SCAFFOLD_DATE:
@@ -1008,6 +1396,113 @@ def cmd_normalize(args) -> int:
         print(f"normalized {c}")
     if not changed:
         print("nothing to normalize")
+    return 0
+
+
+# --------------------------------------------------------------------------
+# mv — move/rename a page, rewriting [[references]] across the store
+#
+# The mechanical half of the archive lifecycle (and of any rename): without
+# it, moving a page silently breaks every path-qualified [[bucket/slug]] link
+# pointing at it, and renaming breaks the bare ones too. Judgment stays with
+# the caller: mv never changes status/kind — it warns on the mismatch instead.
+# --------------------------------------------------------------------------
+
+def cmd_mv(args) -> int:
+    buckets = REQUIRED_BUCKETS + OPTIONAL_BUCKETS
+    src = resolve_page(args.page)
+    srel = rel(src)
+    if len(Path(srel).parts) < 2 or Path(srel).parts[0] not in buckets:
+        die(f"'{srel}' is not a bucket page — only pages under "
+            f"{'/'.join(sorted(buckets))} can move (index/log/raw stay put)")
+
+    dest = args.dest.strip("/")
+    if dest.endswith(".md"):
+        dest = dest[: -len(".md")]
+    dparts = Path(dest).parts
+    # Same component whitelist as `new` — mv must not mint paths new couldn't.
+    if Path(args.dest).is_absolute() or len(dparts) < 2 or \
+            not all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", s) for s in dparts):
+        die(f"invalid destination '{args.dest}' — use <bucket>/<slug>, "
+            f"e.g. archive/{src.stem}")
+    if dparts[0] not in buckets:
+        die(f"destination bucket '{dparts[0]}' must be one of {sorted(buckets)}")
+    dst = brain_dir() / (dest + ".md")
+    if dst.exists():
+        die(f"destination already exists: {dest}.md")
+
+    old_slug, new_slug = src.stem, dst.stem
+    old_ref = srel[: -len(".md")]
+    if new_slug != old_slug:
+        clash = [rel(p) for p in _store_md_files()
+                 if p.stem == new_slug and p.resolve() != src.resolve()]
+        if clash:
+            die(f"renaming to '{new_slug}' would make bare [[{new_slug}]] links "
+                f"ambiguous with {', '.join(sorted(clash))} — pick another slug")
+        # And the old bare form must be unambiguous too, or the rewrite would
+        # steal links that mean the OTHER same-stem page — silently, since
+        # retargeting also removes the lint error that would have flagged it.
+        shared = [rel(p) for p in _store_md_files()
+                  if p.stem == old_slug and p.resolve() != src.resolve()]
+        if shared:
+            die(f"bare [[{old_slug}]] links are ambiguous with "
+                f"{', '.join(sorted(shared))} — fix them to the path form first "
+                f"(brain links shows them)")
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    src.rename(dst)
+    # Bare slug at bucket top level, path otherwise — path also when the stem
+    # is shared with another file, so the rewrite never mints an ambiguous ref.
+    new_ref = page_ref(parse_page(dst), _dup_stems())
+
+    # Reference rewrite: textual and store-wide, including log*.md — mechanically
+    # retargeting a link preserves what an entry says, the same way rotate-log
+    # moves entries verbatim. raw/ is immutable and the manual/README carry
+    # example links, so those never change; code fences, comments and inline
+    # code are skipped (what the linter says isn't a link, mv must not touch).
+    # Bare [[slug]] links resolve by filename wherever the page lives, so they
+    # are rewritten only on a rename. Padding ([[ slug ]]) is tolerated the
+    # same way the linter tolerates it, and normalized away by the rewrite.
+    pats = [(re.compile(r"\[\[[ \t]*" + re.escape(old_ref) + r"[ \t]*([\]|#])"),
+             f"[[{new_ref}\\1")]
+    if new_slug != old_slug:
+        pats.append((re.compile(r"\[\[[ \t]*" + re.escape(old_slug) + r"[ \t]*([\]|#])"),
+                     f"[[{new_ref}\\1"))
+    rewritten, total = [], 0
+    for f in _store_md_files():
+        fr = rel(f)
+        if fr in ("CLAUDE.md", "README.md") or fr.startswith("raw/"):
+            continue
+        try:
+            text = f.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        n = 0
+        for pat, repl in pats:
+            text, k = _sub_outside_verbatim(pat, repl, text)
+            n += k
+        if n:
+            f.write_text(text, encoding="utf-8")
+            rewritten.append(fr)
+            total += n
+
+    moved = parse_page(dst)
+    if moved.has_fm:
+        moved.fields["updated"] = today()
+        write_page(moved)
+        fld = moved.fields
+        if dparts[0] == "archive" and fld.get("status") not in ("done", "archived"):
+            print(f"note: status is '{fld.get('status')}' — archive/ holds finished "
+                  f"work; brain set {new_ref} status archived", file=sys.stderr)
+        elif dparts[0] != "archive" and fld.get("kind") \
+                and KIND_BUCKET.get(fld["kind"]) != dparts[0]:
+            print(f"note: kind '{fld['kind']}' pages normally live in "
+                  f"{KIND_BUCKET.get(fld['kind'])}/ — moved anyway", file=sys.stderr)
+
+    print(f"moved {srel} → {dest}.md"
+          + (f" ({total} link(s) rewritten in {len(rewritten)} file(s): "
+             f"{', '.join(rewritten)})" if rewritten else " (no links to rewrite)"))
+    cmd_reindex(argparse.Namespace(check=False))
     return 0
 
 
@@ -1577,6 +2072,12 @@ def cmd_health(args) -> int:
                        f"{len(d['unreadable'])} unreadable page(s): "
                        + ", ".join(d["unreadable"][:3])))
 
+    # The gate blocks NEW broken links at commit time; this catches the ones
+    # that predate the gate, or slipped in past a --no-verify it can't stop.
+    lerrs, _ = _link_lint()
+    if lerrs:
+        issues.append(("links", f"{len(lerrs)} broken link(s) — run brain links"))
+
     if _now_warning():
         issues.append(("now_rot", "now.md needs trimming (see brain review)"))
 
@@ -1625,6 +2126,11 @@ JUDGMENT_MIGRATIONS = {
     8: "backfill `verified`/`attention`/`next`/`progress` from prose, split "
        "over-long summaries, re-file adr pages whose decision lives in a repo "
        "doc, tag person pages (see the skill's v8 notes)",
+    11: "people.md's 'Where they appear' column is now generated from the link "
+        "graph — appearances recorded as bare name-mentions vanish from it. "
+        "Diff the column against the pre-sync cells (git history has them) and "
+        "add [[person-page]] links to pages where the appearance matters; fix "
+        "any pre-existing `brain links` errors (see the skill's v11 notes)",
 }
 
 
@@ -1707,7 +2213,9 @@ def cmd_sync(args) -> int:
 
     if plan or changed or ignored:
         _append_log_entry(f"brain sync: mechanical refresh, {gap}")
-        for f in changed + ["log.md", "index.md"]:
+        # people.md's generated column may have been refreshed by the reindex
+        # above; adding a path that doesn't exist is a harmless no-op here.
+        for f in changed + ["log.md", "index.md", "mocs/people.md"]:
             git("add", "--", f)
         r = git("commit", "-m", f"brain sync: mechanical refresh ({gap})")
         if r.returncode != 0:
@@ -1757,9 +2265,23 @@ def main() -> int:
     c.add_argument("--strict", action="store_true", help="treat warnings as errors")
     c.set_defaults(func=cmd_check)
 
-    r = sub.add_parser("reindex", help="regenerate index.md's generated region")
+    r = sub.add_parser("reindex", help="regenerate index.md's generated region "
+                                       "+ people.md's generated column")
     r.add_argument("--check", action="store_true", help="exit non-zero if stale, don't write")
     r.set_defaults(func=cmd_reindex)
+
+    lk = sub.add_parser("links", help="lint internal links; --to lists backlinks")
+    lk.add_argument("--to", metavar="PAGE",
+                    help="list the pages linking to PAGE instead of linting")
+    lk.add_argument("--strict", action="store_true",
+                    help="relative-markdown-path warnings are fatal too")
+    lk.add_argument("--json", action="store_true")
+    lk.set_defaults(func=cmd_links)
+
+    mv = sub.add_parser("mv", help="move/rename a page, rewriting [[links]] store-wide")
+    mv.add_argument("page")
+    mv.add_argument("dest", help="<bucket>/<slug> (e.g. archive/foo); .md optional")
+    mv.set_defaults(func=cmd_mv)
 
     q = sub.add_parser("q", help="structured query over frontmatter")
     q.add_argument("--status", choices=STATUSES)
