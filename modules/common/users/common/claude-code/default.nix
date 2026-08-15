@@ -130,7 +130,7 @@ let
     out=$(${brainPkg}/bin/brain health 2>/dev/null) || true
     if [ -n "$out" ]; then
       printf '~/brain store health (from `brain health`): %s\n' "$out"
-      printf 'If the user engages with it, address it via the brain skill; otherwise mention it briefly at most once.\n'
+      printf 'Open your first reply with this flag and OFFER its remedy (e.g. "run brain sync" -> offer /brain --sync; oversized log -> offer brain rotate-log), even if the user asked about something else. If they decline or ignore it, drop it for the rest of the session - never nag twice.\n'
     fi
     exit 0
   '';
