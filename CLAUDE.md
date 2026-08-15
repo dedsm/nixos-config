@@ -128,8 +128,9 @@ sudo nixos-rebuild test --flake .#manwe
 
 ### Development Workflow
 ```bash
-# Format Nix files
-nixfmt *.nix **/*.nix
+# Format Nix files — `formatter` is declared in flake.nix, so this is the
+# authoritative invocation; `nix fmt -- --check .` verifies without writing
+nix fmt
 
 # Validate flake structure
 nix flake show
@@ -144,7 +145,7 @@ nix build .#darwinConfigurations.morgoth.config.system.build.toplevel --dry-run
 ## Code Style & Conventions
 
 ### Nix Style Guidelines
-- Use `nixfmt-rfc-style` for consistent formatting
+- **Format with `nix fmt`** (nixfmt, the RFC 166 standard style — `pkgs.nixfmt`, *not* `nixfmt-classic`). It is the flake's `formatter` output and the `nix` formatter in the Neovim `conform` config, so the editor and the CLI cannot disagree. The repo was formatted with alejandra until the switch; don't reintroduce it
 - Prefer explicit imports over `with` statements in module headers
 - Use descriptive variable names, especially for `let` bindings
 - Comment complex module logic and conditional expressions

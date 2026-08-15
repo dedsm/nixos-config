@@ -441,5 +441,13 @@
       in
         lib.filterAttrs (_: p: lib.isDerivation p && evaluates p) pkgs.local
     );
+
+    # `nix fmt` formats the repo. nixfmt is the formatter RFC 166 selected as
+    # the Nix standard, which is why `pkgs.nixfmt` is now the RFC style and the
+    # older one is `nixfmt-classic`. Declaring it here makes the choice
+    # machine-checkable (`nix fmt -- --check .`) instead of a claim in a doc —
+    # the repo was formatted with alejandra for a long time while CLAUDE.md
+    # said nixfmt. The `core` and `nvim` modules put the same package on PATH.
+    formatter = lib.genAttrs supportedSystems (system: (mkPkgs system).nixfmt);
   };
 }

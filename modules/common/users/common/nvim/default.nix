@@ -49,8 +49,11 @@ with lib;
         # JSON and YAML extras
         yaml-language-server
 
-        # Nix formatter
-        alejandra
+        # Nix formatter. `pkgs.nixfmt` *is* nixfmt-rfc-style since the RFC 166
+        # rename — the pre-RFC style is `nixfmt-classic`. Same package the
+        # `core` module puts on PATH system-wide, so `<leader>f` in Neovim and
+        # `nixfmt` in a shell cannot disagree.
+        nixfmt
 
         # Tree-sitter CLI for nvim-treesitter
         tree-sitter
@@ -80,7 +83,6 @@ with lib;
         telescope-nvim
         telescope-fzf-native-nvim
         telescope-ui-select-nvim
-        pkgs.unstable.nixfmt
         nvim-web-devicons
 
         # Colorscheme
