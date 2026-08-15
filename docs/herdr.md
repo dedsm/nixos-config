@@ -167,9 +167,11 @@ programs.herdr = {
 ```
 
 Until then the one thing worth borrowing is its `onChange`, which this module now carries:
-`herdr server reload-config || true` after the file changes, so a rebuild applies keybindings
-to the running server instead of waiting for the next launch. The `|| true` covers activation
-with no server up.
+`herdr server reload-config` after the file changes, so a rebuild applies keybindings to the
+running server instead of waiting for the next launch. Upstream writes `|| true` there, to
+cover activation with no server up; this module routes it through the `herdr-try` wrapper
+instead, which keeps that case quiet but reports a server that *refused* the reload — see
+"Talking to herdr from an activation script" below.
 
 The link is on `herdr/config.toml` specifically, not on the `herdr/` directory. Herdr
 writes logs and session state into that directory at runtime, so it has to stay a real
@@ -514,7 +516,7 @@ Herdr's plugin registry is `~/.config/herdr/plugins.json`, a plain JSON array. `
 plugin link <path>` appends a record to it: the plugin's `herdr-plugin.toml` denormalized
 into JSON, plus `plugin_root`, `manifest_path`, `enabled`, and `source.kind = "local"`.
 Three properties of that command make it safe from an activation script, all verified
-against 0.7.5:
+against 0.7.5 and re-verified on 0.8.0:
 
 - it does **not** need a running server (it takes `.plugins.lock` and writes the file
   itself; when a server *is* up the CLI routes through the socket and the server persists);
@@ -527,19 +529,62 @@ registry entry whose `plugin_root` is under `/nix/store` but is no longer declar
 unlinked. Entries linked by hand from outside the store are left alone, so a local
 checkout you are hacking on survives a rebuild.
 
-One asymmetry, worth knowing because the error message is misleading: `unlink` *does*
-require a running server. `link` and `list` fall back to editing `plugins.json` directly
-under `.plugins.lock`; `unlink` has no such fallback — it connects to `herdr.sock`
-unconditionally, and with no server the bare `Error: Os { code: 2, kind: NotFound }` it
-prints is that missing socket, not a missing plugin (confirmed with `strace`: the failing
-call is `connect(AF_UNIX, "…/herdr.sock")`, and nothing under the config dir is ever
-opened).
+One asymmetry: `unlink` *does* require a running server. `link` and `list` fall back to
+editing `plugins.json` directly under `.plugins.lock`; `unlink` has no such fallback — it
+connects to `herdr.sock` unconditionally, and with no server up it fails with
+`server_not_running`. (Through 0.7.5 that surfaced as a bare
+`Error: Os { code: 2, kind: NotFound }`, which read like a missing plugin but was the
+missing socket — confirmed with `strace`: the failing call was
+`connect(AF_UNIX, "…/herdr.sock")`, and nothing under the config dir was ever opened.
+0.8.0 reports it as a named error instead, which is what the wrapper below matches on.)
 
 So the prune is best-effort: a plugin dropped from the list lingers in the registry until
 the next activation that runs while Herdr is up. In practice rebuilds happen from a
 terminal inside Herdr, so that is the common case — verified end to end by linking a
 throwaway store-rooted plugin, running the activation script, and watching it disappear
 while `vim-herdr-navigation` was re-linked in place.
+
+### Talking to herdr from an activation script
+
+Every herdr command the module runs — the three plugin calls above and the `config.toml`
+`onChange` reload — goes through `herdr-try`, a small `writeShellScript` wrapper. It runs
+one command, passes its stdout through untouched (fd 3, so `plugin list --json` still
+reaches `jq`), **always exits 0**, and turns a failure into a warning on stderr. Two
+reasons it exists, both of them things that bit:
+
+**A failing command used to abort the entire activation.** herdr's CLI talks to a running
+server over `herdr.sock` whenever there is one — including for `link` and `list`, which
+only fall back to the file when no server answers. So after a rebuild bumps the package,
+the session that rebuild was launched *from* is still running the old binary, and every
+socket call is refused:
+
+```
+{"id":"cli:plugin","error":{"code":"protocol_mismatch","message":"client protocol 19 is
+newer than server protocol 17; restart the Herdr server before using this command. …"}}
+```
+
+`plugin link` was guarded with `|| true`, but the `plugin list | jq | while` pipeline was
+not, and the home-manager activation script runs under `set -euo pipefail` — so a failing
+`list` took the whole thing down:
+
+```
+home-manager-david.service: Main process exited, code=exited, status=1/FAILURE
+Failed to start Home Manager environment for david.
+```
+
+which fails `nixos-rebuild switch` (exit 4) over a multiplexer that was merely out of date.
+
+**`|| true` hid the interesting half.** The same mismatch means the plugin registry and the
+config reload silently did nothing. The wrapper unwraps herdr's JSON `.error.message` (for
+`protocol_mismatch` it is several lines and names the fix — `herdr server stop`, which
+exits pane processes, then relaunch) and appends one line of its own saying this
+generation's config and plugins are not on the running server and will land when it
+restarts. Non-JSON failures, e.g. a mistyped subcommand, print raw.
+
+The one failure that stays **quiet** is `server_not_running`: `unlink` and `reload-config`
+only work through the socket, and there is usually no server up during activation. That is
+the normal case, not a problem, and warning about it every rebuild would train the warning
+away.
 
 ### Why not a declarative `plugins.json`
 

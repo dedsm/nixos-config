@@ -110,7 +110,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 - [`docs/claude-code.md`](./docs/claude-code.md) — package pinning, the managed-settings merge strategy, hooks, status line, editor integration
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — how the Playwright MCP server is pointed at a Nix-managed browser instead of downloading its own
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
-- [`docs/herdr.md`](./docs/herdr.md) — the agent-aware terminal multiplexer running alongside tmux: settings rationale, restart behaviour, and what is deliberately left unmanaged
+- [`docs/herdr.md`](./docs/herdr.md) — the agent-aware terminal multiplexer running alongside tmux: settings rationale, restart behaviour, why its activation-time commands are best-effort-with-a-warning, and what is deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill and how its store is bootstrapped/synced
 - [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching (darkman), why darkman must be the only thing declaring the `color-scheme`/`gtk-theme` dconf keys, and how the mode reaches Firefox/Slack, Hyprland, foot and tmux
 - [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin with hyprlock as the auth gate, fingerprint policy, keyring unlock, boot-speed rationale

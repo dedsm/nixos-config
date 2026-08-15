@@ -8,6 +8,65 @@
 
   herdrPkg = pkgs.unstable.herdr;
 
+  # Every herdr command this module runs is best-effort: a rebuild must not
+  # fail because the multiplexer is unreachable. But it must not be *silent*
+  # either, which is what a bare `|| true` bought. This wrapper runs one
+  # command, passes its stdout through, always exits 0, and turns a failure
+  # into a warning on stderr.
+  #
+  # The case worth surfacing is `protocol_mismatch`. herdr's CLI talks to a
+  # running server over `herdr.sock` whenever there is one, and refuses when
+  # its protocol is newer than the server's — exactly what a rebuild that
+  # bumps the package produces, because the session that rebuild was started
+  # from is still running the old binary. Every socket command then fails
+  # until that server is restarted, so the plugin registry and the config
+  # reload silently did nothing.
+  #
+  # It also blocked the whole activation: `plugin link` was guarded with
+  # `|| true`, but the `plugin list | jq | while` pipeline below was not, and
+  # under the activation script's `set -o pipefail` a failing `list` took
+  # home-manager-<user>.service down with it (exit 1, "Failed to start Home
+  # Manager environment").
+  #
+  # `server_not_running` stays quiet: `unlink` and `reload-config` only work
+  # through the socket and there is usually no server up during activation,
+  # which is the normal case rather than a problem. `link` and `list` fall
+  # back to editing plugins.json directly and succeed either way.
+  herdrTry = pkgs.writeShellScript "herdr-try" ''
+    # fd 3 is the real stdout, so the command's own output still reaches the
+    # caller — `plugin list --json` is piped into jq — while stderr, where
+    # herdr writes its JSON errors, is captured for the warning.
+    exec 3>&1
+
+    herdrStatus=0
+    herdrError=$(${lib.getExe herdrPkg} "$@" 2>&1 1>&3 3>&-) || herdrStatus=$?
+
+    if [ "$herdrStatus" -eq 0 ]; then
+      exit 0
+    fi
+
+    case $herdrError in
+      *server_not_running*) exit 0 ;;
+    esac
+
+    # herdr reports a failure as a single JSON line. Unwrap the human message
+    # — for `protocol_mismatch` it is several lines and names the fix — and
+    # fall back to the raw output for anything that is not that shape.
+    herdrMessage=$(printf '%s\n' "$herdrError" | ${lib.getExe pkgs.jq} -r '.error.message // empty' 2>/dev/null)
+    [ -n "$herdrMessage" ] || herdrMessage=''${herdrError:-(no output)}
+
+    echo "warning: herdr $* failed (exit $herdrStatus)" >&2
+    echo "$herdrMessage" >&2
+
+    case $herdrError in
+      *protocol_mismatch*)
+        echo "This generation's herdr config and plugins were not applied to the running server; they take effect when it restarts." >&2
+        ;;
+    esac
+
+    exit 0
+  '';
+
   navPkg = pkgs.local.vim-herdr-navigation;
   navRoot = "${navPkg}/share/vim-herdr-navigation";
 
@@ -180,11 +239,13 @@ in
       xdg.configFile."herdr/config.toml" = {
         source = tomlFormat.generate "herdr-config.toml" settings;
 
-        # Apply on rebuild instead of waiting for the next launch. `|| true`
-        # because there is usually no server running during activation. Copied
-        # from the `programs.herdr` module on home-manager master, which this
-        # module replaces until that lands in a release — see docs/herdr.md.
-        onChange = "${getExe herdrPkg} server reload-config || true";
+        # Apply on rebuild instead of waiting for the next launch. Copied from
+        # the `programs.herdr` module on home-manager master, which this module
+        # replaces until that lands in a release — see docs/herdr.md. That one
+        # writes `|| true` for the (expected) case of no server running during
+        # activation; `herdrTry` keeps that quiet while still reporting a
+        # server that refused the reload.
+        onChange = "${herdrTry} server reload-config";
       };
 
       # The editor half of the navigation plugin: `<C-h/j/k/l>` move between
@@ -210,7 +271,7 @@ in
           herdrPluginIds="${concatMapStringsSep " " (p: p.id) plugins}"
 
           ${concatMapStringsSep "\n" (p: ''
-              $DRY_RUN_CMD ${getExe herdrPkg} plugin link ${p.root} >/dev/null || true
+              $DRY_RUN_CMD ${herdrTry} plugin link ${p.root} >/dev/null
             '')
             plugins}
 
@@ -219,15 +280,19 @@ in
           #
           # `link` and `list` fall back to editing plugins.json directly, but
           # `unlink` always goes through herdr.sock — with no server up it fails
-          # with a bare ENOENT for the socket. So this half is best-effort: a
-          # plugin removed from the list above may linger in the registry until
-          # the next activation that happens while herdr is running.
-          ${getExe herdrPkg} plugin list --json 2>/dev/null \
+          # with `server_not_running`. So this half is best-effort: a plugin
+          # removed from the list above may linger in the registry until the
+          # next activation that happens while herdr is running.
+          #
+          # Everything here goes through `herdrTry`, which always exits 0 — a
+          # failing `list` would otherwise fail the pipeline (`set -o pipefail`)
+          # and abort the activation. jq handles its empty output as no plugins.
+          ${herdrTry} plugin list --json \
             | ${getExe pkgs.jq} -r '.result.plugins[]? | select(.plugin_root | startswith("/nix/store")) | .plugin_id' \
             | while read -r id; do
                 case " $herdrPluginIds " in
                   *" $id "*) ;;
-                  *) $DRY_RUN_CMD ${getExe herdrPkg} plugin unlink "$id" >/dev/null || true ;;
+                  *) $DRY_RUN_CMD ${herdrTry} plugin unlink "$id" >/dev/null ;;
                 esac
               done
         '';
