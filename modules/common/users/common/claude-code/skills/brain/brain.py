@@ -7,9 +7,13 @@ nixos-config alongside the brain skill; do NOT edit the deployed copy. See the
 governance note in ~/brain/CLAUDE.md before changing any rule here.
 
 Subcommands:
-  check     validate frontmatter against the schema (exits non-zero on errors)
-  reindex   regenerate the generated region of index.md from frontmatter
+  check     validate frontmatter + internal links (exits non-zero on errors)
+  reindex   regenerate index.md's generated region and the people directory's
+            generated "Where they appear" column from the pages
   q         structured query over frontmatter (status/overdue/stale/tag/kind)
+  links     lint internal links (broken/ambiguous wikilinks are errors, relative
+            markdown paths warn); --to PAGE lists the pages linking to PAGE
+  mv        move/rename a page and rewrite [[references]] across the store
   review    read-only briefing: focus, attention, blocked, overdue, unverified, dstask
   new       create a schema-perfect page in the right bucket
   set       set one frontmatter field (validated), stamping dates
@@ -51,7 +55,7 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 10     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 11     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 KINDS = ["adr", "initiative", "project", "area", "resource", "moc"]
