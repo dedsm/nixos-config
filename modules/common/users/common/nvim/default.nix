@@ -9,142 +9,142 @@ let
   isDarwin = pkgs.stdenv.isDarwin;
 in
 with lib;
-  mkIf (homeManagerConfig.nvim.enable or false) {
-    xdg.configFile.nvim = {
-      recursive = true;
-      source = ./config;
-    };
-    programs.neovim = {
-      viAlias = true;
-      vimAlias = true;
-      vimdiffAlias = true;
-      withNodeJs = true;
-      withPython3 = true;
-      withRuby = false;
-      enable = true;
-      defaultEditor = true;
-      package = pkgs.unstable.neovim-unwrapped;
-      extraPackages = with pkgs; [
-        pkgs.unstable.lua-language-server
-        # Nix Language server
-        # nil
+mkIf (homeManagerConfig.nvim.enable or false) {
+  xdg.configFile.nvim = {
+    recursive = true;
+    source = ./config;
+  };
+  programs.neovim = {
+    viAlias = true;
+    vimAlias = true;
+    vimdiffAlias = true;
+    withNodeJs = true;
+    withPython3 = true;
+    withRuby = false;
+    enable = true;
+    defaultEditor = true;
+    package = pkgs.unstable.neovim-unwrapped;
+    extraPackages = with pkgs; [
+      pkgs.unstable.lua-language-server
+      # Nix Language server
+      # nil
 
-        # HTML, CSS, JSON
-        pkgs.unstable.vscode-langservers-extracted
+      # HTML, CSS, JSON
+      pkgs.unstable.vscode-langservers-extracted
 
-        # LazyVim defaults
-        stylua
-        shfmt
+      # LazyVim defaults
+      stylua
+      shfmt
 
-        # Markdown extra
-        markdownlint-cli2
-        marksman
+      # Markdown extra
+      markdownlint-cli2
+      marksman
 
-        # Docker extra
-        typescript-language-server
-        pkgs.dockerfile-language-server
-        hadolint
-        docker-compose-language-service
+      # Docker extra
+      typescript-language-server
+      pkgs.dockerfile-language-server
+      hadolint
+      docker-compose-language-service
 
-        # JSON and YAML extras
-        yaml-language-server
+      # JSON and YAML extras
+      yaml-language-server
 
-        # Nix formatter. `pkgs.nixfmt` *is* nixfmt-rfc-style since the RFC 166
-        # rename — the pre-RFC style is `nixfmt-classic`. Same package the
-        # `core` module puts on PATH system-wide, so `<leader>f` in Neovim and
-        # `nixfmt` in a shell cannot disagree.
-        nixfmt
+      # Nix formatter. `pkgs.nixfmt` *is* nixfmt-rfc-style since the RFC 166
+      # rename — the pre-RFC style is `nixfmt-classic`. Same package the
+      # `core` module puts on PATH system-wide, so `<leader>f` in Neovim and
+      # `nixfmt` in a shell cannot disagree.
+      nixfmt
 
-        # Tree-sitter CLI for nvim-treesitter
-        tree-sitter
-      ];
-      #    extraLuaPackages = ps: [
-      #      ps.tiktoken_core
-      #    ];
-      plugins = with pkgs.unstable.vimPlugins; [
-        vim-sleuth
-        gitsigns-nvim
-        which-key-nvim
-        todo-comments-nvim
-        vim-tmux-navigator
-        nui-nvim
-        fidget-nvim
+      # Tree-sitter CLI for nvim-treesitter
+      tree-sitter
+    ];
+    #    extraLuaPackages = ps: [
+    #      ps.tiktoken_core
+    #    ];
+    plugins = with pkgs.unstable.vimPlugins; [
+      vim-sleuth
+      gitsigns-nvim
+      which-key-nvim
+      todo-comments-nvim
+      vim-tmux-navigator
+      nui-nvim
+      fidget-nvim
 
-        # async helpers for nvim plugins
-        plenary-nvim
+      # async helpers for nvim plugins
+      plenary-nvim
 
-        # File Tree
+      # File Tree
 
-        neo-tree-nvim
+      neo-tree-nvim
 
-        # Telescope
+      # Telescope
 
-        plenary-nvim
-        telescope-nvim
-        telescope-fzf-native-nvim
-        telescope-ui-select-nvim
-        nvim-web-devicons
+      plenary-nvim
+      telescope-nvim
+      telescope-fzf-native-nvim
+      telescope-ui-select-nvim
+      nvim-web-devicons
 
-        # Colorscheme
+      # Colorscheme
 
-        catppuccin-nvim
-        (pkgs.unstable.vimUtils.buildVimPlugin {
-          pname = "solarized-nvim";
-          version = "3.6.0";
-          src = pkgs.fetchFromGitHub {
-            owner = "maxmx03";
-            repo = "solarized.nvim";
-            rev = "v3.6.0";
-            sha256 = "sha256-fNytlDlYHqX1W1pqt8xLoud+AtMQDlmtUkbwZArj4bs=";
-          };
-          meta.homepage = "https://github.com/maxmx03/solarized.nvim/";
-        })
+      catppuccin-nvim
+      (pkgs.unstable.vimUtils.buildVimPlugin {
+        pname = "solarized-nvim";
+        version = "3.6.0";
+        src = pkgs.fetchFromGitHub {
+          owner = "maxmx03";
+          repo = "solarized.nvim";
+          rev = "v3.6.0";
+          sha256 = "sha256-fNytlDlYHqX1W1pqt8xLoud+AtMQDlmtUkbwZArj4bs=";
+        };
+        meta.homepage = "https://github.com/maxmx03/solarized.nvim/";
+      })
 
-        # Autocompletion
+      # Autocompletion
 
-        nvim-cmp
-        luasnip
-        cmp_luasnip
-        cmp-nvim-lsp
-        cmp-path
+      nvim-cmp
+      luasnip
+      cmp_luasnip
+      cmp-nvim-lsp
+      cmp-path
 
-        luvit-meta
-        lazydev-nvim
+      luvit-meta
+      lazydev-nvim
 
-        # small one-purpose plugins
+      # small one-purpose plugins
 
-        mini-nvim
+      mini-nvim
 
-        # Syntax coloring
-        pkgs.unstable.vimPlugins.nvim-treesitter.withAllGrammars
+      # Syntax coloring
+      pkgs.unstable.vimPlugins.nvim-treesitter.withAllGrammars
 
-        # LSP
-        nvim-lspconfig
+      # LSP
+      nvim-lspconfig
 
-        # Formatter
-        conform-nvim
+      # Formatter
+      conform-nvim
 
-        # Linting
-        nvim-lint
+      # Linting
+      nvim-lint
 
-        # open files at last edit position
-        vim-lastplace
+      # open files at last edit position
+      vim-lastplace
 
-        # Claude Code integration
-        pkgs.unstable.vimPlugins.claude-code-nvim
+      # Claude Code integration
+      pkgs.unstable.vimPlugins.claude-code-nvim
 
-        # dark-notify neovim plugin (uses dark-notify binary on macOS, darkman on Linux)
-        (pkgs.unstable.vimUtils.buildVimPlugin {
-          pname = "dark-notify";
-          version = "0.1.3";
-          src = pkgs.fetchFromGitHub {
-            owner = "cormacrelf";
-            repo = "dark-notify";
-            rev = "v0.1.3";
-            sha256 = "sha256-TZuuXeolzx3kby2qO9e/FTf+1g39gKk9NzXQxmjN/UA=";
-          };
-          meta.homepage = "https://github.com/cormacrelf/dark-notify";
-        })
-      ];
-    };
-  }
+      # dark-notify neovim plugin (uses dark-notify binary on macOS, darkman on Linux)
+      (pkgs.unstable.vimUtils.buildVimPlugin {
+        pname = "dark-notify";
+        version = "0.1.3";
+        src = pkgs.fetchFromGitHub {
+          owner = "cormacrelf";
+          repo = "dark-notify";
+          rev = "v0.1.3";
+          sha256 = "sha256-TZuuXeolzx3kby2qO9e/FTf+1g39gKk9NzXQxmjN/UA=";
+        };
+        meta.homepage = "https://github.com/cormacrelf/dark-notify";
+      })
+    ];
+  };
+}

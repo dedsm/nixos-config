@@ -3,7 +3,7 @@ with lib;
 mkIf (homeManagerConfig.swaync.enable or false) {
   services.swaync = {
     enable = true;
-    
+
     settings = {
       positionX = "right";
       positionY = "top";

@@ -1,5 +1,21 @@
-attrs@{ nixpkgs, unstable, home-manager, lib, mkPkgs, darwin, ... }: {
-  mkDarwinHost = { name, system, user, systemConfig, userConfigFn }:
+attrs@{
+  nixpkgs,
+  unstable,
+  home-manager,
+  lib,
+  mkPkgs,
+  darwin,
+  ...
+}:
+{
+  mkDarwinHost =
+    {
+      name,
+      system,
+      user,
+      systemConfig,
+      userConfigFn,
+    }:
     let
       pkgs = mkPkgs system;
       userConfig = userConfigFn pkgs;

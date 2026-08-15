@@ -6,12 +6,15 @@ let
     </svg>
   '';
 
-  png = pkgs.runCommand "claude-icon-png" {
-    nativeBuildInputs = [ pkgs.librsvg ];
-  } ''
-    mkdir -p $out
-    rsvg-convert -w 128 -h 128 ${svg} -o $out/claude-icon.png
-  '';
+  png =
+    pkgs.runCommand "claude-icon-png"
+      {
+        nativeBuildInputs = [ pkgs.librsvg ];
+      }
+      ''
+        mkdir -p $out
+        rsvg-convert -w 128 -h 128 ${svg} -o $out/claude-icon.png
+      '';
 in
 {
   svgPath = svg;

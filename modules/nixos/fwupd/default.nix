@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.fwupd;
-in {
+let
+  cfg = config.dedsm.fwupd;
+in
+{
   options.dedsm.fwupd = {
     enable = mkOption {
       description = "Firmware updates (fwupd)";

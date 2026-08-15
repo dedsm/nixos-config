@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.bluetooth;
-in {
+let
+  cfg = config.dedsm.bluetooth;
+in
+{
   options.dedsm.bluetooth = {
     enable = mkOption {
       description = "Bluetooth hardware + Blueman";

@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.gnupg;
-in {
+let
+  cfg = config.dedsm.gnupg;
+in
+{
   options.dedsm.gnupg = {
     enable = mkOption {
       description = "GnuPG agent (with SSH support) instead of ssh-agent";

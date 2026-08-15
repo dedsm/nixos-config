@@ -1,4 +1,9 @@
-{ lib, homeManagerConfig, pkgs, ... }:
+{
+  lib,
+  homeManagerConfig,
+  pkgs,
+  ...
+}:
 with lib;
 mkIf (homeManagerConfig.ghostty.enable or false) {
   programs.ghostty = {

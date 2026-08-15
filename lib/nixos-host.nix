@@ -1,5 +1,21 @@
-attrs@{ nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, ... }: {
-  mkHost = { name, system, systemConfig, userConfigFn, hardwareModules ? [] }:
+attrs@{
+  nixpkgs,
+  unstable,
+  home-manager,
+  lib,
+  mkPkgs,
+  hyprland,
+  ...
+}:
+{
+  mkHost =
+    {
+      name,
+      system,
+      systemConfig,
+      userConfigFn,
+      hardwareModules ? [ ],
+    }:
     let
       pkgs = mkPkgs system;
       userConfig = userConfigFn pkgs;
@@ -20,8 +36,11 @@ attrs@{ nixpkgs, unstable, home-manager, lib, mkPkgs, hyprland, ... }: {
           nixpkgs.pkgs = pkgs;
         })
         {
-          dedsm = builtins.removeAttrs systemConfig [ "stateVersion" "systemUsers" ];
-          users.users = systemConfig.systemUsers or {};
+          dedsm = builtins.removeAttrs systemConfig [
+            "stateVersion"
+            "systemUsers"
+          ];
+          users.users = systemConfig.systemUsers or { };
           networking.hostName = name;
           nix.settings = {
             substituters = [ "https://hyprland.cachix.org" ];

@@ -1,4 +1,9 @@
-attrs@{ config, pkgs, lib, ... }:
+attrs@{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 let
   tmux = import ./tmux attrs;
   herdr = import ./herdr attrs;
@@ -28,7 +33,8 @@ let
   cli-notify = import ./cli-notify attrs;
 
   defaults = import ./defaults attrs;
-in lib.mkMerge [
+in
+lib.mkMerge [
   tmux
   herdr
   nvim

@@ -7,7 +7,8 @@
   ...
 }:
 with lib;
-  mkIf (homeManagerConfig.hyprland.enable or false) (let
+mkIf (homeManagerConfig.hyprland.enable or false) (
+  let
     anyrunPkg = pkgs.unstable.anyrun;
     hyprshot-picker = pkgs.writeShellScript "hyprshot-picker" ''
       choice=$(printf "Copy Region\nCopy Window\nCopy Monitor\nSave Region\nSave Window\nSave Monitor" | ${anyrunPkg}/bin/anyrun --plugins ${anyrunPkg}/lib/libstdin.so --show-results-immediately true 2>/dev/null)
@@ -30,14 +31,27 @@ with lib;
     '';
     # Workspace binds: $mod + [shift +] {1..10} to [move to] workspace {1..10}.
     # Key "0" maps to workspace 10. Rendered as lua hl.bind calls.
-    workspaceBinds = lib.concatStringsSep "\n" (builtins.concatLists (builtins.genList (x: let
-      ws = let c = (x + 1) / 10; in builtins.toString (x + 1 - (c * 10));
-      n = toString (x + 1);
-    in [
-      ''hl.bind(mod .. " + ${ws}", hl.dsp.focus({ workspace = ${n}, on_current_monitor = true }))''
-      ''hl.bind(mod .. " + SHIFT + ${ws}", hl.dsp.window.move({ workspace = ${n}, follow = false }))''
-    ]) 10));
-  in {
+    workspaceBinds = lib.concatStringsSep "\n" (
+      builtins.concatLists (
+        builtins.genList (
+          x:
+          let
+            ws =
+              let
+                c = (x + 1) / 10;
+              in
+              builtins.toString (x + 1 - (c * 10));
+            n = toString (x + 1);
+          in
+          [
+            ''hl.bind(mod .. " + ${ws}", hl.dsp.focus({ workspace = ${n}, on_current_monitor = true }))''
+            ''hl.bind(mod .. " + SHIFT + ${ws}", hl.dsp.window.move({ workspace = ${n}, follow = false }))''
+          ]
+        ) 10
+      )
+    );
+  in
+  {
     # UWSM-specific environment file for Hyprland
     xdg.configFile."uwsm/env-hyprland".text = ''
       # Wayland toolkit backend variables
@@ -84,8 +98,12 @@ with lib;
           };
           decoration = {
             rounding = 0;
-            blur = {enabled = false;};
-            shadow = {enabled = false;};
+            blur = {
+              enabled = false;
+            };
+            shadow = {
+              enabled = false;
+            };
           };
           input = {
             kb_layout = "us";
@@ -142,8 +160,11 @@ with lib;
           hl.exec_cmd("uwsm app -- wl-paste -t text --watch clipman store --no-persist")
           hl.exec_cmd("uwsm app -- ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1")
           hl.exec_cmd("uwsm app -- sh -c 'sleep 5 && ${pkgs.unstable.synology-drive-client}/bin/synology-drive'")
-        ${lib.optionalString (homeManagerConfig.swaync.enable or false) ''  hl.exec_cmd("uwsm app -- ${screencast-inhibit}")
-        ''}end)
+        ${
+          lib.optionalString (homeManagerConfig.swaync.enable or false) ''
+            hl.exec_cmd("uwsm app -- ${screencast-inhibit}")
+          ''
+        }end)
 
         -- Animation curves
         hl.curve("wind", { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
@@ -243,4 +264,5 @@ with lib;
         hl.window_rule({ name = "noborder-floating", match = { float = true }, border_size = 0 })
       '';
     };
-  })
+  }
+)

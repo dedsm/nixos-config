@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.virtualisation;
-in {
+let
+  cfg = config.dedsm.virtualisation;
+in
+{
   options.dedsm.virtualisation = {
     enable = mkOption {
       description = "Docker";

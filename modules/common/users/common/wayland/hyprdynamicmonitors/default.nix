@@ -1,4 +1,11 @@
-attrs@{ lib, homeManagerConfig, pkgs, hyprdynamicmonitors, ... }: {
+attrs@{
+  lib,
+  homeManagerConfig,
+  pkgs,
+  hyprdynamicmonitors,
+  ...
+}:
+{
   home.hyprdynamicmonitors = {
     enable = true;
     package = hyprdynamicmonitors.packages.${pkgs.stdenv.hostPlatform.system}.default;
@@ -109,14 +116,16 @@ attrs@{ lib, homeManagerConfig, pkgs, hyprdynamicmonitors, ... }: {
         hl.monitor({ output = "desc:LG Electronics LG ULTRAFINE 110NTZN4L965", mode = "3840x2160@59.996", position = "0x0", scale = 1.5 })
         hl.monitor({ output = "desc:LG Electronics LG ULTRAFINE 110NTMX4M035", mode = "3840x2160@59.996", position = "2560x0", scale = 1.5 })
       '';
-      "hyprdynamicmonitors/hyprconfigs/docked_downstairs_lid_open.lua" = pkgs.writeText "docked_downstairs_lid_open.lua" ''
-        hl.monitor({ output = "desc:LG Electronics LG Ultra HD 0x0000E0D7", mode = "3840x2160@60", position = "0x0", scale = 1.5 })
-        hl.monitor({ output = "eDP-1", mode = "2256x1504@59.999", position = "2560x0", scale = 1.333333 })
-      '';
-      "hyprdynamicmonitors/hyprconfigs/docked_downstairs_lid_closed.lua" = pkgs.writeText "docked_downstairs_lid_closed.lua" ''
-        hl.monitor({ output = "eDP-1", disabled = true })
-        hl.monitor({ output = "desc:LG Electronics LG Ultra HD 0x0000E0D7", mode = "3840x2160@60", position = "0x0", scale = 1.5 })
-      '';
+      "hyprdynamicmonitors/hyprconfigs/docked_downstairs_lid_open.lua" =
+        pkgs.writeText "docked_downstairs_lid_open.lua" ''
+          hl.monitor({ output = "desc:LG Electronics LG Ultra HD 0x0000E0D7", mode = "3840x2160@60", position = "0x0", scale = 1.5 })
+          hl.monitor({ output = "eDP-1", mode = "2256x1504@59.999", position = "2560x0", scale = 1.333333 })
+        '';
+      "hyprdynamicmonitors/hyprconfigs/docked_downstairs_lid_closed.lua" =
+        pkgs.writeText "docked_downstairs_lid_closed.lua" ''
+          hl.monitor({ output = "eDP-1", disabled = true })
+          hl.monitor({ output = "desc:LG Electronics LG Ultra HD 0x0000E0D7", mode = "3840x2160@60", position = "0x0", scale = 1.5 })
+        '';
       "hyprdynamicmonitors/hyprconfigs/avr.lua" = pkgs.writeText "avr.lua" ''
         hl.monitor({ output = "desc:Sony LG TV SSCR2 0x00000101", mode = "1920x1080@60", position = "0x0", scale = 1 })
         hl.monitor({ output = "eDP-1", mode = "2256x1504@59.999", position = "1920x0", scale = 1.333333 })

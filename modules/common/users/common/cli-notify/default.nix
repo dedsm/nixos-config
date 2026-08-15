@@ -1,11 +1,16 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 let
   isDarwin = pkgs.stdenv.isDarwin;
 in
 lib.mkIf isDarwin {
   home.activation.installCLINotify = {
-    after = ["writeBoundary"];
-    before = [];
+    after = [ "writeBoundary" ];
+    before = [ ];
     data = ''
       APP_SRC="${pkgs.local.cli-notify}/Applications/CLINotify.app"
       APP_DEST="$HOME/Applications/CLINotify.app"

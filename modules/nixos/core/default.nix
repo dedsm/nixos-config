@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.core;
-in {
+let
+  cfg = config.dedsm.core;
+in
+{
   options.dedsm.core = {
     timeZone = mkOption {
       description = "Time zone";
@@ -20,7 +27,9 @@ in {
     boot.loader.systemd-boot.enable = true;
     boot.loader.systemd-boot.configurationLimit = 20;
     boot.loader.efi.canTouchEfiVariables = true;
-    i18n = { defaultLocale = cfg.defaultLocale; };
+    i18n = {
+      defaultLocale = cfg.defaultLocale;
+    };
 
     networking.networkmanager = {
       enable = true;
@@ -113,7 +122,10 @@ in {
     };
     users.defaultUserShell = pkgs.zsh;
 
-    nix.settings.experimental-features = [ "nix-command" "flakes" ];
+    nix.settings.experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
     nix.settings.auto-optimise-store = true;
 
     # Automatic garbage collection of old generations. This prunes the system

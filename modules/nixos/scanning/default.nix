@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.scanning;
-in {
+let
+  cfg = config.dedsm.scanning;
+in
+{
   options.dedsm.scanning = {
     enable = mkOption {
       description = "Document/photo scanning (SANE)";

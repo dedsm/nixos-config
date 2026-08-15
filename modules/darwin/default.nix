@@ -2,7 +2,8 @@
   pkgs,
   user,
   ...
-}: {
+}:
+{
   imports = [
     # Add darwin specific modules here
     ./aerospace
@@ -17,12 +18,19 @@
   # `interval` (StartCalendarInterval), not systemd's `dates`.
   nix.gc = {
     automatic = true;
-    interval = { Weekday = 0; Hour = 3; Minute = 0; };
+    interval = {
+      Weekday = 0;
+      Hour = 3;
+      Minute = 0;
+    };
     options = "--delete-older-than 30d";
   };
 
   nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
+    experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
     max-jobs = 4;
     cores = 4;
 

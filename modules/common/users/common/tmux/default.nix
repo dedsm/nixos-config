@@ -1,4 +1,10 @@
-{ lib, pkgs, homeManagerConfig, username, ... }:
+{
+  lib,
+  pkgs,
+  homeManagerConfig,
+  username,
+  ...
+}:
 let
   isDarwin = pkgs.stdenv.isDarwin;
   isLinux = pkgs.stdenv.isLinux;
@@ -18,17 +24,21 @@ let
   ];
 
   # Darwin-only plugins
-  darwinPlugins = [];
+  darwinPlugins = [ ];
 
   # Platform-specific terminal configuration
-  terminalConfig = if isDarwin then ''
-    # True color and OSC passthrough for ghostty
-    set-option -ga terminal-overrides ",ghostty:Tc"
-    set -g allow-passthrough all
-  '' else ''
-    # True color for xterm-compatible terminals
-    set-option -ga terminal-overrides ",xterm*:Tc"
-  '';
+  terminalConfig =
+    if isDarwin then
+      ''
+        # True color and OSC passthrough for ghostty
+        set-option -ga terminal-overrides ",ghostty:Tc"
+        set -g allow-passthrough all
+      ''
+    else
+      ''
+        # True color for xterm-compatible terminals
+        set-option -ga terminal-overrides ",xterm*:Tc"
+      '';
 
   # Theme configuration
   themeConfig = ''

@@ -1,13 +1,22 @@
-attrs@{ config, pkgs, lib, hc, hyprdynamicmonitors, ... }:
+attrs@{
+  config,
+  pkgs,
+  lib,
+  hc,
+  hyprdynamicmonitors,
+  ...
+}:
 let
-  mkHomeManager = k: v:
+  mkHomeManager =
+    k: v:
     let
       homeAttrs = attrs // {
         homeManagerConfig = v;
         username = k;
       };
       commonModule = import ./users/common homeAttrs;
-    in {
+    in
+    {
       home-manager.backupFileExtension = "home_manager_bak";
       home-manager.users.${k} = lib.mkMerge [
         commonModule
@@ -20,9 +29,14 @@ let
         })
       ];
     };
-in lib.mkMerge ([
-  { home-manager.sharedModules = [
-      hyprdynamicmonitors.homeManagerModules.default
-    ];
-  }
-] ++ lib.mapAttrsToList mkHomeManager hc)
+in
+lib.mkMerge (
+  [
+    {
+      home-manager.sharedModules = [
+        hyprdynamicmonitors.homeManagerModules.default
+      ];
+    }
+  ]
+  ++ lib.mapAttrsToList mkHomeManager hc
+)

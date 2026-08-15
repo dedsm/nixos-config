@@ -1,9 +1,16 @@
 # Since I only have one system this is a placeholder for all the configurations I'd use in a laptop
 # It should be split into more detailed modules if the situation ever changes (like having a dedicated desktop for instance)
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.laptop;
-in {
+let
+  cfg = config.dedsm.laptop;
+in
+{
   options.dedsm.laptop = {
     enable = mkOption {
       description = "Laptop settings";
@@ -36,7 +43,9 @@ in {
     ];
 
     # Power management
-    services.upower = { enable = true; };
+    services.upower = {
+      enable = true;
+    };
     services.power-profiles-daemon.enable = true;
     powerManagement.powertop.enable = true;
     # powertop --auto-tune takes ~6s; as a boot job it delays the login prompt
@@ -61,7 +70,7 @@ in {
 
     # `light` was removed from nixpkgs in 26.05; brightnessctl is avizo's
     # lightctl backend and ships udev rules for the video group (no setuid).
-    environment.systemPackages = [pkgs.brightnessctl];
-    services.udev.packages = [pkgs.brightnessctl];
+    environment.systemPackages = [ pkgs.brightnessctl ];
+    services.udev.packages = [ pkgs.brightnessctl ];
   };
 }

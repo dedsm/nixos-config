@@ -1,6 +1,11 @@
-{ lib, homeManagerConfig, pkgs, ... }:
+{
+  lib,
+  homeManagerConfig,
+  pkgs,
+  ...
+}:
 let
-  cfg = homeManagerConfig.playwright or {};
+  cfg = homeManagerConfig.playwright or { };
   enable = cfg.enable or false;
   isLinux = pkgs.stdenv.isLinux;
 
@@ -22,8 +27,8 @@ lib.mkIf (enable && isLinux) {
   };
 
   home.activation.ensurePlaywrightCacheDir = {
-    after = ["writeBoundary"];
-    before = [];
+    after = [ "writeBoundary" ];
+    before = [ ];
     data = ''
       $DRY_RUN_CMD ${mkdir} -p "${playwrightMcpCacheDir}"
     '';

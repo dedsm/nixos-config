@@ -1,4 +1,9 @@
-{ lib, pkgs, homeManagerConfig, ... }:
+{
+  lib,
+  pkgs,
+  homeManagerConfig,
+  ...
+}:
 with lib;
 mkIf (homeManagerConfig.starship.enable or false) {
   programs.starship = {
@@ -32,13 +37,17 @@ mkIf (homeManagerConfig.starship.enable or false) {
       command_timeout = 50;
       add_newline = false;
 
-      kubernetes = { disabled = false; };
+      kubernetes = {
+        disabled = false;
+      };
 
       battery = {
-        display = [{
-          threshold = 100;
-          style = "red bold";
-        }];
+        display = [
+          {
+            threshold = 100;
+            style = "red bold";
+          }
+        ];
       };
 
       character = {
@@ -82,8 +91,11 @@ mkIf (homeManagerConfig.starship.enable or false) {
         only_with_files = true;
         disabled = false;
         detect_extensions = [ ];
-        detect_files =
-          [ "docker-compose.yml" "docker-compose.yaml" "Dockerfile" ];
+        detect_files = [
+          "docker-compose.yml"
+          "docker-compose.yaml"
+          "Dockerfile"
+        ];
         detect_folders = [ ];
       };
 
@@ -160,7 +172,10 @@ mkIf (homeManagerConfig.starship.enable or false) {
         style = "bold white";
         disabled = false;
         detect_extensions = [ ];
-        detect_files = [ "helmfile.yaml" "Chart.yaml" ];
+        detect_files = [
+          "helmfile.yaml"
+          "Chart.yaml"
+        ];
         detect_folders = [ ];
       };
 
@@ -200,9 +215,12 @@ mkIf (homeManagerConfig.starship.enable or false) {
       python = {
         pyenv_version_name = false;
         pyenv_prefix = "pyenv ";
-        python_binary = [ "python" "python3" "python2" ];
-        format =
-          "[\${symbol}\${pyenv_prefix}(\${version} )(($virtualenv) )]($style)";
+        python_binary = [
+          "python"
+          "python3"
+          "python2"
+        ];
+        format = "[\${symbol}\${pyenv_prefix}(\${version} )(($virtualenv) )]($style)";
         version_format = "v\${raw}";
         style = "yellow bold";
         symbol = "🐍 ";

@@ -1,11 +1,12 @@
-attrs @ {
+attrs@{
   lib,
   config,
   homeManagerConfig,
   pkgs,
   username,
   ...
-}: {
+}:
+{
   programs = {
     firefox = {
       enable = true;
@@ -15,14 +16,10 @@ attrs @ {
       configPath = "${config.users.users.${username}.home}/.config/mozilla/firefox";
     };
 
-
-
-
     nix-index = {
       enable = true;
       enableZshIntegration = true;
     };
-
 
     foot = {
       enable = true;
@@ -37,9 +34,13 @@ attrs @ {
           initial-color-theme = "light";
         };
 
-        scrollback = {lines = 10000;};
+        scrollback = {
+          lines = 10000;
+        };
 
-        mouse = {hide-when-typing = "yes";};
+        mouse = {
+          hide-when-typing = "yes";
+        };
 
         tweak = {
           delayed-render-lower = 5000000;
@@ -154,17 +155,21 @@ attrs @ {
   xsession.preferStatusNotifierItems = true;
 
   xdg = {
-    mime = {enable = true;};
+    mime = {
+      enable = true;
+    };
     enable = true;
   };
 
   home = {
     # Provides both Adwaita and Adwaita-dark for the GTK3 side of darkman's switch.
-    packages = [pkgs.gnome-themes-extra];
+    packages = [ pkgs.gnome-themes-extra ];
 
     pointerCursor = {
       package = pkgs.vanilla-dmz;
-      gtk = {enable = true;};
+      gtk = {
+        enable = true;
+      };
       name = "Vanilla-DMZ";
       size = 24;
     };
@@ -172,11 +177,13 @@ attrs @ {
 
   systemd.user.services = {
     _1password = {
-      Install = {WantedBy = lib.mkForce ["graphical-session.target"];};
+      Install = {
+        WantedBy = lib.mkForce [ "graphical-session.target" ];
+      };
       Unit = {
-        After = lib.mkForce ["graphical-session.target"];
-        PartOf = lib.mkForce ["graphical-session.target"];
-        Requires = lib.mkForce ["graphical-session.target"];
+        After = lib.mkForce [ "graphical-session.target" ];
+        PartOf = lib.mkForce [ "graphical-session.target" ];
+        Requires = lib.mkForce [ "graphical-session.target" ];
       };
       Service = {
         Restart = "on-failure";

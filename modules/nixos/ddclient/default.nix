@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.ddclient;
-in {
+let
+  cfg = config.dedsm.ddclient;
+in
+{
   options.dedsm.ddclient = {
     enable = mkOption {
       description = "Dynamic DNS updates (ddclient)";

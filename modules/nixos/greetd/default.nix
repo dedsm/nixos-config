@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.greetd;
-in {
+let
+  cfg = config.dedsm.greetd;
+in
+{
   options.dedsm.greetd = {
     enable = mkOption {
       description = "greetd login manager, defaulting into the Hyprland session";

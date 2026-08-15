@@ -1,4 +1,9 @@
-{ lib, pkgs, homeManagerConfig, ... }:
+{
+  lib,
+  pkgs,
+  homeManagerConfig,
+  ...
+}:
 with lib;
 mkIf (homeManagerConfig.sketchybar.enable or false) {
   programs.sketchybar = {

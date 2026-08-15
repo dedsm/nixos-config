@@ -9,10 +9,17 @@
 # services and write the old sysctl values back.
 #
 # See docs/performance.md for what was deliberately NOT taken from CachyOS.
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.performance;
-in {
+let
+  cfg = config.dedsm.performance;
+in
+{
   options.dedsm.performance = {
     enable = mkOption {
       description = "Desktop responsiveness tuning (sched_ext, ananicy, writeback sysctls)";

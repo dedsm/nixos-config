@@ -27,7 +27,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     hash = "sha256-qn69GDH3kCSYm9x/it3EyJqZiwQoK3pnwdfATeSwJ38=";
   };
 
-  nativeBuildInputs = [makeWrapper];
+  nativeBuildInputs = [ makeWrapper ];
   dontBuild = true;
 
   installPhase = ''
@@ -43,7 +43,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     # $HERDR_BIN_PATH. Neither is on PATH when herdr spawns a plugin action.
     makeWrapper ${bash}/bin/bash $out/bin/vim-herdr-navigate \
       --add-flags $share/navigate.sh \
-      --prefix PATH : ${lib.makeBinPath [jq]} \
+      --prefix PATH : ${lib.makeBinPath [ jq ]} \
       --set-default HERDR_BIN_PATH ${lib.getExe herdr}
 
     # The manifest ships `command = ["bash", "navigate.sh", "<dir>"]`, which

@@ -1,4 +1,9 @@
-{ lib, homeManagerConfig, pkgs, ... }:
+{
+  lib,
+  homeManagerConfig,
+  pkgs,
+  ...
+}:
 with lib;
 mkIf (homeManagerConfig.ssh.enable or false) {
   programs.ssh = {
@@ -11,7 +16,9 @@ mkIf (homeManagerConfig.ssh.enable or false) {
       ControlPath = "~/.ssh/sockets/%r@%h-%p";
       ControlPersist = "60";
       HashKnownHosts = true;
-      SetEnv = { TERM = "xterm-256color"; };
+      SetEnv = {
+        TERM = "xterm-256color";
+      };
     };
   };
 

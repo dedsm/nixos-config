@@ -1,6 +1,11 @@
-{ lib, homeManagerConfig, pkgs, ... }:
+{
+  lib,
+  homeManagerConfig,
+  pkgs,
+  ...
+}:
 let
-  cfg = homeManagerConfig.antigravity or {};
+  cfg = homeManagerConfig.antigravity or { };
   enable = cfg.enable or false;
   ideEnable = cfg.ide.enable or true;
   cliEnable = cfg.cli.enable or true;
@@ -18,6 +23,5 @@ let
 in
 lib.mkIf enable {
   home.packages =
-    lib.optional ideEnable idePkg
-    ++ lib.optional cliEnable pkgs.unstable.antigravity-cli;
+    lib.optional ideEnable idePkg ++ lib.optional cliEnable pkgs.unstable.antigravity-cli;
 }

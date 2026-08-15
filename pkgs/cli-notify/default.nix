@@ -1,4 +1,9 @@
-{ lib, stdenv, swift, darwin }:
+{
+  lib,
+  stdenv,
+  swift,
+  darwin,
+}:
 
 stdenv.mkDerivation {
   pname = "cli-notify";
@@ -6,7 +11,10 @@ stdenv.mkDerivation {
 
   src = ./.;
 
-  nativeBuildInputs = [ swift darwin.sigtool ];
+  nativeBuildInputs = [
+    swift
+    darwin.sigtool
+  ];
 
   buildPhase = ''
     runHook preBuild

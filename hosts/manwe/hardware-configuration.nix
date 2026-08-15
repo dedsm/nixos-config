@@ -7,14 +7,24 @@
   pkgs,
   modulesPath,
   ...
-}: {
+}:
+{
   imports = [
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
   boot.initrd = {
-    availableKernelModules = ["xhci_pci" "thunderbolt" "nvme" "usb_storage" "sd_mod"];
-    kernelModules = ["dm-snapshot" "amdgpu"];
+    availableKernelModules = [
+      "xhci_pci"
+      "thunderbolt"
+      "nvme"
+      "usb_storage"
+      "sd_mod"
+    ];
+    kernelModules = [
+      "dm-snapshot"
+      "amdgpu"
+    ];
     luks = {
       devices.encrypted = {
         device = "/dev/nvme0n1p1";
@@ -48,19 +58,19 @@
   ];
 
   boot.kernelModules = [ ];
-  boot.extraModulePackages = [];
-  boot.blacklistedKernelModules = ["hid_sensor_hub"];
+  boot.extraModulePackages = [ ];
+  boot.blacklistedKernelModules = [ "hid_sensor_hub" ];
 
   fileSystems."/" = {
     device = "/dev/disk/by-uuid/3ab7175e-f003-48bc-bbdb-26d94e17695d";
     fsType = "btrfs";
-    options = ["subvol=root"];
+    options = [ "subvol=root" ];
   };
 
   fileSystems."/home" = {
     device = "/dev/disk/by-uuid/3ab7175e-f003-48bc-bbdb-26d94e17695d";
     fsType = "btrfs";
-    options = ["subvol=home"];
+    options = [ "subvol=home" ];
   };
 
   fileSystems."/boot" = {
@@ -68,7 +78,7 @@
     fsType = "vfat";
   };
 
-  swapDevices = [{device = "/dev/disk/by-uuid/4e4839b8-9c9f-4499-85de-5e0bf952b11a";}];
+  swapDevices = [ { device = "/dev/disk/by-uuid/4e4839b8-9c9f-4499-85de-5e0bf952b11a"; } ];
 
   # Same device as swapDevices above. This is NOT redundant: with a systemd
   # initrd (boot.initrd.systemd.enable), nixpkgs emits `resume=` on the kernel

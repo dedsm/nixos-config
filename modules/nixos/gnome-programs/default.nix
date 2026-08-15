@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.gnome-programs;
-in {
+let
+  cfg = config.dedsm.gnome-programs;
+in
+{
   options.dedsm.gnome-programs = {
     enable = mkOption {
       description = "Gnome Programs";

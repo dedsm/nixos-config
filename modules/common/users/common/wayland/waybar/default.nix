@@ -1,4 +1,10 @@
-attrs@{ lib, homeManagerConfig, pkgs, ... }: {
+attrs@{
+  lib,
+  homeManagerConfig,
+  pkgs,
+  ...
+}:
+{
   programs = {
     waybar = {
       package = pkgs.unstable.waybar;
@@ -110,7 +116,10 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
           layer = "bottom";
           position = "top";
           height = 10;
-          modules-left = [ "hyprland/workspaces" "custom/right-arrow-dark" ];
+          modules-left = [
+            "hyprland/workspaces"
+            "custom/right-arrow-dark"
+          ];
           modules-center = [
             "custom/left-arrow-dark"
             "clock#1"
@@ -213,25 +222,27 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             tooltip = false;
             interval = 1;
           };
-          "custom/home-clock" = let
-            homeTZ = "Europe/Amsterdam";
-            homeClockScript = pkgs.writeShellScript "home-clock" ''
-              current_tz=$(${pkgs.coreutils}/bin/readlink /etc/localtime | ${pkgs.gnused}/bin/sed 's|.*zoneinfo/||')
-              if [ "$current_tz" != "${homeTZ}" ]; then
-                # If NOT in Amsterdam, show Amsterdam time
-                time=$(TZ="${homeTZ}" ${pkgs.coreutils}/bin/date +"%H:%M")
-                echo "{\"text\": \"🏠 $time\", \"class\": \"traveling\"}"
-              else
-                # If IN Amsterdam, show nothing
-                echo "{\"text\": \"\", \"class\": \"home\"}"
-              fi
-            '';
-          in {
-            exec = "${homeClockScript}";
-            interval = 1;
-            return-type = "json";
-            tooltip = false;
-          };
+          "custom/home-clock" =
+            let
+              homeTZ = "Europe/Amsterdam";
+              homeClockScript = pkgs.writeShellScript "home-clock" ''
+                current_tz=$(${pkgs.coreutils}/bin/readlink /etc/localtime | ${pkgs.gnused}/bin/sed 's|.*zoneinfo/||')
+                if [ "$current_tz" != "${homeTZ}" ]; then
+                  # If NOT in Amsterdam, show Amsterdam time
+                  time=$(TZ="${homeTZ}" ${pkgs.coreutils}/bin/date +"%H:%M")
+                  echo "{\"text\": \"🏠 $time\", \"class\": \"traveling\"}"
+                else
+                  # If IN Amsterdam, show nothing
+                  echo "{\"text\": \"\", \"class\": \"home\"}"
+                fi
+              '';
+            in
+            {
+              exec = "${homeClockScript}";
+              interval = 1;
+              return-type = "json";
+              tooltip = false;
+            };
           "clock#3" = {
             format = "{:%m-%d}";
             tooltip = false;
@@ -243,7 +254,10 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             format-muted = "MUTE";
             format-icons = {
               headphones = "";
-              default = [ "" "" ];
+              default = [
+                ""
+                ""
+              ];
             };
             scroll-step = 5;
             on-click = "${pkgs.pamixer}/bin/pamixer -t";
@@ -265,14 +279,22 @@ attrs@{ lib, homeManagerConfig, pkgs, ... }: {
             };
             format = "{icon} {capacity}%";
             format-charging = "{icon} {capacity}% ";
-            format-icons = [ "" "" "" "" "" ];
+            format-icons = [
+              ""
+              ""
+              ""
+              ""
+              ""
+            ];
           };
           disk = {
             interval = 5;
             format = "Disk {percentage_used:2}%";
             path = "/";
           };
-          tray = { icon-size = 16; };
+          tray = {
+            icon-size = 16;
+          };
           "custom/theme" = {
             exec = pkgs.writeShellScript "waybar-darkman" ''
               if [[ "$(${pkgs.darkman}/bin/darkman get)" == "dark" ]]; then

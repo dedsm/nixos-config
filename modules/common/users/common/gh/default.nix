@@ -1,4 +1,9 @@
-{ lib, homeManagerConfig, pkgs, ... }:
+{
+  lib,
+  homeManagerConfig,
+  pkgs,
+  ...
+}:
 with lib;
 mkIf (homeManagerConfig.gh.enable or false) {
   programs.gh = {

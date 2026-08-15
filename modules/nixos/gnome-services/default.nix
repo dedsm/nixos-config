@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.gnome-services;
-in {
+let
+  cfg = config.dedsm.gnome-services;
+in
+{
   options.dedsm.gnome-services = {
     enable = mkOption {
       description = "Gnome Services";
@@ -29,13 +36,23 @@ in {
     services.automatic-timezoned.enable = true;
 
     services.gnome = {
-      gnome-keyring = { enable = true; };
-      sushi = { enable = true; };
-      gnome-settings-daemon = { enable = true; };
-      at-spi2-core = { enable = true; };
+      gnome-keyring = {
+        enable = true;
+      };
+      sushi = {
+        enable = true;
+      };
+      gnome-settings-daemon = {
+        enable = true;
+      };
+      at-spi2-core = {
+        enable = true;
+      };
     };
 
-    services.udisks2 = { enable = true; };
+    services.udisks2 = {
+      enable = true;
+    };
 
     services.udev = {
       packages = with pkgs; [

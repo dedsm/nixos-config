@@ -98,7 +98,8 @@ let
     done
   '';
 
-in {
+in
+{
   options.homeManagerConfig.theme = {
     enable = mkEnableOption "automatic dark/light mode toggling";
   };
@@ -120,7 +121,7 @@ in {
       settings = {
         usegeoclue = true;
       };
-      
+
       # Scripts to execute on transition
       darkModeScripts = {
         gtk-theme = gtkDarkSettings;
@@ -163,7 +164,7 @@ in {
 
     # Neovim: ensure dark-notify is configured to use darkman on Linux
     # (The plugin handles this automatically if darkman is running)
-    
+
     # We can also export these colors as environment variables or files if needed
     home.file = mkMerge [
       {
@@ -213,7 +214,12 @@ in {
     # Initialize the tmux symlink on activation
     home.activation.initTmuxTheme = ''
       $DRY_RUN_CMD mkdir -p $HOME/.local/state/tmux
-      if ${if isLinux then isDarkNow else ''[[ "$(/usr/bin/defaults read -g AppleInterfaceStyle 2>/dev/null)" == "Dark" ]]''}; then
+      if ${
+        if isLinux then
+          isDarkNow
+        else
+          ''[[ "$(/usr/bin/defaults read -g AppleInterfaceStyle 2>/dev/null)" == "Dark" ]]''
+      }; then
         $DRY_RUN_CMD ln -sf ${solarizedDarkTheme} $HOME/.local/state/tmux/current-theme.conf
       else
         $DRY_RUN_CMD ln -sf ${solarizedLightTheme} $HOME/.local/state/tmux/current-theme.conf
@@ -230,8 +236,8 @@ in {
     # modules/common/default.nix `import`s these files with the NixOS `lib`, so the
     # home-manager extensions (`lib.hm`) are not in scope here.
     home.activation.reassertColorScheme = mkIf isLinux {
-      after = ["dconfSettings"];
-      before = [];
+      after = [ "dconfSettings" ];
+      before = [ ];
       data = ''
         # `dconf write` needs a session bus. home-manager-<user>.service has none, so
         # prefer the live user bus when the session is up — writing on the real bus lets

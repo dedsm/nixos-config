@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.peripherals;
-in {
+let
+  cfg = config.dedsm.peripherals;
+in
+{
   options.dedsm.peripherals = {
     enable = mkOption {
       description = "David's laptop peripherals: drawing tablet, Ledger, Logitech receiver, fingerprint reader, Thunderbolt, YubiKey";

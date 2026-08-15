@@ -1,4 +1,9 @@
-attrs@{ lib, homeManagerConfig, pkgs, ... }:
+attrs@{
+  lib,
+  homeManagerConfig,
+  pkgs,
+  ...
+}:
 let
   # Hyprland 0.55+ hyprctl dispatch takes a Lua expression; dpms needs a
   # table arg — a bare string like dpms("on") silently means "toggle"
@@ -34,7 +39,8 @@ let
     done
     ${pkgs.coreutils}/bin/sleep 0.5
   '';
-in {
+in
+{
   services.hypridle = {
     enable = true;
     settings = {

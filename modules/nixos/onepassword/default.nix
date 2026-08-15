@@ -1,7 +1,14 @@
-{ pkgs, config, lib, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
 with lib;
-let cfg = config.dedsm.onepassword;
-in {
+let
+  cfg = config.dedsm.onepassword;
+in
+{
   options.dedsm.onepassword = {
     enable = mkOption {
       description = "1Password CLI + GUI";

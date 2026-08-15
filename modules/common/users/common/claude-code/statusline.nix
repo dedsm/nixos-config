@@ -6,7 +6,8 @@ let
   basename = "${pkgs.coreutils}/bin/basename";
   date = "${pkgs.coreutils}/bin/date";
   zsh = "${pkgs.zsh}/bin/zsh";
-in ''
+in
+''
   #!${zsh}
   input=$(${cat})
 

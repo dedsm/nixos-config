@@ -6,12 +6,13 @@ let
   head = "${pkgs.coreutils}/bin/head";
   cat = "${pkgs.coreutils}/bin/cat";
   bash = "${pkgs.bash}/bin/bash";
-in ''
+in
+''
   #!${bash}
   INPUT=$(${cat})
   QUERY=$(echo "$INPUT" | ${jq} -r '.query // ""')
   CWD=$(echo "$INPUT" | ${jq} -r '.cwd // "."')
-  
+
   PROJECT_DIR="''${CLAUDE_PROJECT_DIR:-$CWD}"
   if [[ -d "$PROJECT_DIR" ]]; then
     PROJECT_DIR=$(cd "$PROJECT_DIR" && pwd)
