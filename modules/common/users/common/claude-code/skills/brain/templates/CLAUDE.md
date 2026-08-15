@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v11 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v12 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -11,7 +11,7 @@ source of truth; this manual tells an agent how to maintain them.
 ## What this is
 
 A local, git-tracked markdown "second brain" that Claude Code maintains. It tracks the **status
-and narrative** of your projects, initiatives, decisions/ADRs, and other ongoing work — across
+and narrative** of your goals, projects, initiatives, and other ongoing work — across
 every session, from any repo or none. Plain markdown: durable, diffable, hand-editable, and
 openable directly in Obsidian with zero changes.
 
@@ -32,10 +32,12 @@ frontmatter is deterministic instead of hand-typed — see **Tooling** below.
 
 ## Structure (PARA + Maps of Content)
 
+- `goals/` — the quarter's 3–5 outcome goals: the pages that explain why everything below them
+  exists, catalogued first in `index.md`. See **Goals** below.
 - `projects/` — initiatives with an end state and a finish line.
 - `areas/` — ongoing responsibilities with no end (perpetual rollouts, standards to maintain).
 - `resources/` — reference material, not actionable.
-- `archive/` — completed or dormant items moved out of the three above.
+- `archive/` — completed or dormant items moved out of the buckets above.
 - `mocs/` — Maps of Content: index notes linking a topic's pages. Use for **cross-cutting**
   themes that span many pages (one page may belong to several MOCs — folders cannot express this).
 - `raw/` — immutable captured inputs (pasted text, links) before compilation. Never edit; compile
@@ -44,6 +46,9 @@ frontmatter is deterministic instead of hand-typed — see **Tooling** below.
 - `mocs/now.md` — the **judgment** behind the current ordering. The generated view (what's live,
   blocked, overdue, gone quiet, open tasks) is **`brain review`** — never hand-maintain that here.
   This page holds only why this order, and what you're deliberately not doing.
+- `mocs/goals.md` — the same split at quarter scale: why this quarter's ordering, the NOT-doing
+  list with reasons, what's deferred. The generated rollup (children, milestones, what's orphaned
+  or stalled) is `brain review`'s Goals section — never hand-maintain it here either.
 - `index.md` — master catalog. The section list is **generated** between the
   `<!-- BEGIN generated -->` / `<!-- END generated -->` markers — never hand-edit inside them.
   The pre-commit hook regenerates it from frontmatter on **every commit**, so it can't drift; you
@@ -66,7 +71,7 @@ page begins with:
 ```yaml
 ---
 title: Human title
-kind: adr | initiative | project | area | resource | moc
+kind: goal | initiative | project | area | resource | moc
 status: idea | planned | active | blocked | done | archived
 attention: focus | tracking  # optional — omit for ordinary active work
 progress: "optional, e.g. 12/40 services or 30%"
@@ -124,23 +129,19 @@ links:                       # cross-references
     breaks silently when either side moves. Make it a `[[wikilink]]` (if it's a store page) or an
     explicit external form — a full URL, or an inline-code path like `` `repo/docs/adr.md` ``
     (code spans and code blocks are never treated as links).
-
-### `adr` vs `project` — where does the decision live?
-
-Both shapes exist and they get confused, so the test is a single question: **is the decision
-recorded here, or somewhere else?**
-
-- **Recorded here** — no repo ADR/RFC or tracker document owns it; this page *is* the record →
-  `kind: adr`, and use the ADR body template (Context / Decision / Consequences / Alternatives
-  rejected). Record the ADR's own state (proposed/accepted/superseded) in the body; frontmatter
-  `status` stays the *tracking* state (e.g. accepted-but-rolling-out → `active`).
-- **Recorded elsewhere** — a repo ADR/RFC owns the decision and you are tracking its rollout,
-  its gaps, or its drift → `kind: project`. Link the document, don't restate it, and use the
-  project template's optional `## Drift` section for where the doc, the tracker and the code
-  disagree. Copying the decision content in would break "link, don't duplicate" above.
 - **Dates** are ISO `YYYY-MM-DD`. `created` is set once and never changes; `updated` tracks the
-  last edit. `started`/`finished`/`due` apply mainly to `project`/`initiative` pages and drive
-  time-range queries — set `started` when `status` → `active`, `finished` when `status` → `done`.
+  last edit. `started`/`finished`/`due` apply mainly to `goal`/`project`/`initiative` pages and
+  drive time-range queries — set `started` when `status` → `active`, `finished` when `status` → `done`.
+
+### Decisions — where does the record live?
+
+Not here. A decision's record belongs in its **external system of record** — the ADR/RFC doc in
+the repo it governs, or the tracker document — and what this store holds is `kind: project`:
+tracking the decision's rollout, its gaps, or its drift. Link the document, don't restate it,
+and use the project template's optional `## Drift` section for where the doc, the tracker and
+the code disagree — copying the decision content in would break "link, don't duplicate" above.
+A decision with no external home **gets one** (record it in the repo it governs); it does not
+become a brain page.
 
 ### Where knowledge lives — page, or section?
 
@@ -209,10 +210,11 @@ brain today                        # today's date from the system clock — neve
   out of `log.md`, git history, or a page and treat it as today** — those are recorded facts, not
   the current date. If you must write a date by hand (e.g. a relative `due` like "next Friday"),
   get today from `brain today` (or `date +%F`) and compute from it.
-- **`review` writes nothing.** It is the generated half of a "now" page — focus, work grouped by
-  `attention`, blocked, overdue, what's gone quiet, oversized pages, recent log, open dstask,
-  pending inbox. Start any session on this store with it. Because it produces that picture on
-  demand and always current, there is no reason left to hand-maintain a copy of it anywhere.
+- **`review` writes nothing.** It is the generated half of a "now" page — the goals rollup
+  (children, milestones, orphaned/stalled), focus, work grouped by `attention`, blocked, overdue,
+  what's gone quiet, oversized pages, recent log, open dstask, pending inbox. Start any session
+  on this store with it. Because it produces that picture on demand and always current, there is
+  no reason left to hand-maintain a copy of it anywhere.
 - **`capture` is the zero-friction path in.** One line from any terminal, no session, no schema —
   which matters because second brains die at capture, not at retrieval. Substantial material
   (`- --title <slug>`) lands as its own immutable `raw/` file instead of an inbox line.
@@ -245,9 +247,9 @@ brain today                        # today's date from the system clock — neve
   nixos-config activation installs them on every rebuild; the CLI has no install verb (so they
   can't drift).
 - **Ambient vitals — `brain health`**: every detector above is pull-only; `health` compresses them
-  (version drift, overdue, gone-quiet, never-verified, aged inbox, quiet or oversized log, broken
-  links, `now.md` rot, ahead/behind the remote) into **one line**, printing nothing and exiting 0
-  when all is well.
+  (version drift, overdue, stalled/orphaned goals, gone-quiet, never-verified, aged inbox, quiet
+  or oversized log, broken links, `now.md` rot, ahead/behind the remote) into **one line**,
+  printing nothing and exiting 0 when all is well.
   It is surfaced without anyone asking: a Claude Code SessionStart hook injects the line into new
   sessions, and a weekly timer raises a desktop notification — covering the weeks when no session
   happens at all. React
@@ -301,6 +303,8 @@ nixos-config. Never silently hand-repair what a writer got wrong without flaggin
    (`brain new resource <slug>`; tag it something queryable like `howto`), or an APPEND section on
    the single page that owns it when it's small. The systems-of-record rule already admits
    anything neither dstask nor a tracker captures; don't drop it just because it isn't status.
+   A **goal idea** ("this should be a quarterly goal") → `brain new goal <slug> --status idea` —
+   it queues for the quarterly pass, findable via `brain q --kind goal --status idea`.
 5. Record it: **`brain log "<what changed> — [[page]]"`** (it dates the entry from the clock —
    don't hand-type the date). (`index.md` is refreshed by the commit hook; run `brain reindex`
    first only if you want to read the updated catalog now.)
@@ -344,14 +348,17 @@ Read-only detection, then judgment. Nothing here is automatic: `brain review` fi
      update the body, and **`brain set <page> verified today`**. If it's genuinely dormant, say so
      — change `status`, or `attention: tracking`, rather than leaving it looking live.
    - **Blocked** → is it still blocked, and on what? A blocker with no named owner is a task.
+   - **Orphaned / stalled goals** → the weekly touch in **Goals** below: wire `parent` on the
+     work that serves an orphaned goal (or admit nothing does), and triage a stalled one as
+     Reschedule / Delegate / Delete.
    - **Contradictions** → where two pages disagree, or a page disagrees with its own `## Drift`
      section, flag it in the body and to the user. Resolve by rewriting the stale one, not by
      appending a newer paragraph beside it.
    - **Oversized pages** → propose a split (see the LINT pass).
-2. **Trim `mocs/now.md`.** Anything `review` now generates — per-page status, tier listings, a
-   copied dstask snapshot, dates — is dead weight there and rots within days. Sort its content
-   into *generated* (delete), *judgment* (keep: why this ordering, what you're deliberately not
-   doing), and *obsolete* (delete). Show the proposed deletions and ask before applying.
+2. **Trim `mocs/now.md` (and `mocs/goals.md` — same rule).** Anything `review` now generates —
+   per-page status, tier listings, a copied dstask snapshot, dates — is dead weight there and
+   rots within days. Sort its content into *generated* (delete), *judgment* (keep: why this
+   ordering, what you're deliberately not doing), and *obsolete* (delete). Show the proposed deletions and ask before applying.
 3. Roll `index.md`'s `▶ Current focus:` pointer if it has moved; re-set `attention` where the
    real answer changed.
 4. **`brain log`** a one-line summary of what the review changed, `brain check`, commit.
@@ -444,8 +451,58 @@ The recurring shape, across kinds:
   stay, struck through, pointing at what replaced them.
 - **Open** — questions, risks, blockers. This section should **shrink**; delete lines as they close.
 - **Drift** (projects tracking an external doc) — where the doc, the tracker and the code disagree.
+- **Milestones** (goals) — *appended and checked off*: `- [ ]` lines that `review` counts at read
+  time and never writes back.
 
 Delete the sections a page doesn't need. An unfilled section is worse than an absent one.
+
+## Goals
+
+The quarterly layer — the top of the work hierarchy, built from fields that already exist. A
+goal is a **quarterly outcome**: 3–5 live at a time, `due` set to quarter end, falsifiable
+success criteria and milestone checkboxes in the body. **`brain new goal <slug>`** files it in
+`goals/` — catalogued first in `index.md` — with the goal skeleton (Why this goal / Success
+criteria / Milestones / Decisions / Open).
+
+- **Linkage is `parent`, both ways:** a project's or initiative's `parent` names the goal it
+  serves; a goal's optional `parent` names its area. Tasks stay in dstask, referenced via
+  `links: dstask:<id>` — never duplicated onto the goal page.
+- **Weekly focus is `attention`** — the same three states. No priority ladder here either.
+- **Success criteria are falsifiable** — checkable at quarter end, not aspirations. Milestones
+  are `- [ ]` lines under `## Milestones`, checked off in supervised body edits; `review` counts
+  them at read time and **never writes them back** — no stored progress percentage exists.
+- **The rollup is generated.** `brain review` opens with a Goals section computed per live goal:
+  its live children (the pages whose `parent` resolves to it), the milestone count, and two
+  flags — **orphaned** (zero live children) and **stalled** (goal and every live child untouched,
+  `verified` else `updated`, for more than 14 days). `health` carries one token for these. Never
+  hand-maintain any of it; `mocs/goals.md` holds only the judgment.
+- A live goal without a `due` can never trip the overdue detector, so `check` warns on one.
+
+**The quarterly pass** — the REVIEW pass at a longer cadence, not a new ceremony:
+
+1. **`brain review --since 90`** for the quarter cut — what started, finished, went quiet, per goal.
+2. Work the captured backlog — **`brain q --kind goal --status idea`** — promoting or archiving
+   each candidate, with a reason.
+3. Judge **every** current goal — the forced trichotomy: **rewrite** (still right — restate the
+   success criteria), **archive as legacy** (`brain set <goal> status archived` plus a dated
+   closing decision in the body), or **surgical edit**. Skipping a goal is not an option; that
+   is the anti-rot mechanism.
+4. Set the quarter: 3–5 goals worked backwards from impact — falsifiable criteria and milestones
+   in the body, `due` = quarter end, `parent` = area. Wire `parent` on the live projects that
+   serve them (`review` shows what's left orphaned). The NOT-doing list, with reasons, goes to
+   `mocs/goals.md`.
+5. **`brain log`** the plan, `brain check`, commit — the plan is queryable state, not a document.
+
+**The weekly touch:** read `review`'s Goals section; flip `attention` so at most 1–2 goals carry
+`focus`; triage anything flagged stalled — each gets **Reschedule** (new `next:` + `due`),
+**Delegate** (link the owner, `attention: tracking`), or **Delete** (archive, with a reason);
+update `next:` lines. No weekly file is written — the plan is the store's state, and the diff is
+the artifact.
+
+**Mid-quarter refinement:** when reality disagrees with a goal, apply the same moves the day you
+know it, not at the boundary — restate `## Success criteria` in place, append a dated entry to
+`## Decisions` recording the cut and why, adjust `next:`/`due` via `brain set`. A goal that no
+longer deserves the quarter is archived with a closing decision now, not at the next pass.
 
 ## People
 

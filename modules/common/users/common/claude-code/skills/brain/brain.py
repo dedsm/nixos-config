@@ -14,7 +14,7 @@ Subcommands:
   links     lint internal links (broken/ambiguous wikilinks are errors, relative
             markdown paths warn); --to PAGE lists the pages linking to PAGE
   mv        move/rename a page and rewrite [[references]] across the store
-  review    read-only briefing: focus, attention, blocked, overdue, unverified, dstask
+  review    read-only briefing: goals, focus, attention, blocked, overdue, unverified, dstask
   new       create a schema-perfect page in the right bucket
   set       set one frontmatter field (validated), stamping dates
   unset     remove one optional frontmatter field (never a required one)
@@ -55,10 +55,14 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 11     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 12     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
-KINDS = ["adr", "initiative", "project", "area", "resource", "moc"]
+# `goal` is the quarterly outcomes layer: 3-5 live at a time, due = quarter
+# end, children linked via the existing `parent` field. Deliberately no new
+# fields or verbs — goals ride the schema as-is, and review/health derive the
+# rollup (milestones, orphaned/stalled) at read time.
+KINDS = ["goal", "initiative", "project", "area", "resource", "moc"]
 STATUSES = ["idea", "planned", "active", "blocked", "done", "archived"]
 # Deliberately three states, not a priority ladder: `focus` = hands-on now,
 # `tracking` = watching someone else's work, absent = ordinary active work.
@@ -76,9 +80,9 @@ FIELD_ORDER = [
 
 # Kinds with a timeline: only these warn about missing started/finished. An
 # `area`/`moc`/`resource` is active without ever having "started".
-TIMELINE_KINDS = {"adr", "initiative", "project"}
+TIMELINE_KINDS = {"goal", "initiative", "project"}
 # Kinds that carry work, and so can be stale, blocked, overdue or unverified.
-WORK_KINDS = {"adr", "initiative", "project", "area"}
+WORK_KINDS = {"goal", "initiative", "project", "area"}
 # Statuses that imply motion — the only ones staleness/verification apply to.
 LIVE_STATUSES = {"active", "blocked"}
 # Pages tagged this are cataloged by the people MOC, not by index.md — see the
@@ -93,7 +97,7 @@ SCAFFOLD_DATE = "1970-01-01"
 
 # kind -> bucket directory used by `new` and for scope.
 KIND_BUCKET = {
-    "adr": "projects",
+    "goal": "goals",
     "initiative": "projects",
     "project": "projects",
     "area": "areas",
@@ -102,7 +106,7 @@ KIND_BUCKET = {
 }
 
 # Buckets whose top-level .md pages MUST carry valid frontmatter.
-REQUIRED_BUCKETS = ["projects", "areas", "mocs", "archive"]
+REQUIRED_BUCKETS = ["goals", "projects", "areas", "mocs", "archive"]
 # Buckets where frontmatter is validated only if present (mixed reference material).
 OPTIONAL_BUCKETS = ["resources"]
 
@@ -113,7 +117,9 @@ STATUS_SYNONYMS = {
     "complete": "done", "completed": "done", "finished": "done",
     "cancelled": "archived", "canceled": "archived", "dormant": "archived",
 }
-KIND_SYNONYMS = {"decision": "adr", "note": "resource", "reference": "resource"}
+# A tracked decision is a project page: the decision text itself belongs in
+# its external system of record; the brain page follows the rollout.
+KIND_SYNONYMS = {"decision": "project", "note": "resource", "reference": "resource"}
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GEN_BEGIN = "<!-- BEGIN generated: run `brain reindex` — hand edits here are overwritten -->"
@@ -601,6 +607,9 @@ def validate_page(page: Page, required_fm: bool) -> tuple:
         warnings.append(f"{r}: status done but no 'finished' date")
     if timeline and f.get("status") == "active" and not f.get("started"):
         warnings.append(f"{r}: status active but no 'started' date")
+    if f.get("kind") == "goal" and f.get("status") in LIVE_STATUSES and not f.get("due"):
+        warnings.append(f"{r}: live goal with no 'due' — a goal is a quarterly "
+                        f"outcome; due is the quarter end")
     summary = str(f.get("summary") or "")
     if len(summary) > SUMMARY_MAX:
         warnings.append(f"{r}: summary is {len(summary)} chars (>{SUMMARY_MAX}) — "
@@ -621,6 +630,7 @@ def cmd_check(args) -> int:
         paths = all_pages()
 
     required_buckets = set(REQUIRED_BUCKETS)
+    synced = store_version() == TEMPLATE_VERSION
     all_errors, all_warnings = [], []
     for path in paths:
         if not path.exists():
@@ -639,6 +649,16 @@ def cmd_check(args) -> int:
         page = parse_page(path)
         errs, warns = validate_page(
             page, required_fm=(bucket in required_buckets and not nested))
+        # A kind the schema no longer knows is exactly what a pending
+        # migration re-files. Until the store is stamped current it demotes
+        # to a warning (the link deferral below takes the same stance) —
+        # otherwise sync's own mechanical commit could never pass the gate.
+        if not synced:
+            stale_kind = [e for e in errs if ": kind '" in e]
+            if stale_kind:
+                errs = [e for e in errs if e not in stale_kind]
+                warns = warns + [e + "  [deferred until the store is synced]"
+                                 for e in stale_kind]
         all_errors += errs
         all_warnings += warns
 
@@ -656,7 +676,7 @@ def cmd_check(args) -> int:
         # version-drift note below): link errors that predate the gate demote
         # to warnings until the store is stamped current — /brain --sync's
         # v11 step fixes them for real, and then they gate hard.
-        if lerrs and store_version() != TEMPLATE_VERSION:
+        if lerrs and not synced:
             lwarns = lwarns + [e + "  [deferred until the store is synced]"
                                for e in lerrs]
             lerrs = []
@@ -725,15 +745,19 @@ def _staged_pages() -> list:
 # --------------------------------------------------------------------------
 
 STALE_DAYS = 21           # default "gone quiet" threshold for live work
+# Two weeks of no movement across a goal AND every live child stalls it — the
+# week-plan threshold: one touched page anywhere in the tree clears the flag.
+GOAL_STALL_DAYS = 14
 
 SECTIONS = [
+    ("Goals (this quarter)", ["goals"], ["idea", "planned", "active", "blocked"]),
     ("Areas (ongoing)", ["areas"], None),
     ("Projects (end-stated)", ["projects"], ["idea", "planned", "active", "blocked"]),
     ("Maps of Content", ["mocs"], None),
     ("Resources", ["resources"], None),
     # archive/ pages belong here whatever their status says (`mv` warns on the
     # mismatch; a page that is invisible in every section would be worse).
-    ("Archive", ["projects", "areas", "mocs", "resources", "archive"],
+    ("Archive", ["goals", "projects", "areas", "mocs", "resources", "archive"],
      ["done", "archived"]),
 ]
 
@@ -1067,28 +1091,34 @@ _PROJECT_BODY = """
 ## Links & sources
 """
 
-_ADR_BODY = """
-<!-- The decision in one breath. -->
+_GOAL_BODY = """
+<!-- 2-4 lines: the quarterly outcome, and why it earns one of the 3-5 slots. REWRITE. -->
 <!-- TODO: fill -->
 
-**Decision state:** proposed | accepted | superseded (<date>)
-<!-- The ADR's own state. Frontmatter `status` is the *tracking* state — keep them distinct. -->
+**Next:** <!-- one concrete action; mirror it into the `next` field -->
 
-## Context
+## Why this goal
 
-<!-- How it works today and what forces a decision. Written so it isn't re-litigated. -->
+<!-- The rationale, written once so it isn't re-litigated. Touch only if the premise changes. -->
 
-## Decision
+## Success criteria
 
-## Consequences
+<!-- REWRITE IN PLACE. Falsifiable — each line checkable true/false at quarter
+     end: "shipped X", "p95 under Y", not "made progress on X". -->
 
-<!-- What this makes easy, what it makes hard, what has to change downstream. -->
+## Milestones
 
-## Alternatives rejected
+<!-- APPEND, then check off. `- [ ]` checkbox lines: review counts checked vs
+     total from here at read time — never store a percentage anywhere. -->
 
-<!-- Each with the reason it lost. This is the section that stops re-litigation. -->
+## Decisions
 
-## Links & sources
+<!-- APPEND. `### <decision> — <date>`, each with why + consequences.
+     Superseded ones stay, struck through, pointing at what replaced them. -->
+
+## Open
+
+<!-- Questions, risks, blockers. Delete lines as they close — this section should SHRINK. -->
 """
 
 _AREA_BODY = """
@@ -1174,9 +1204,9 @@ Part of [[people]].
 """
 
 BODY_TEMPLATES = {
+    "goal": _GOAL_BODY,
     "project": _PROJECT_BODY,
     "initiative": _PROJECT_BODY,
-    "adr": _ADR_BODY,
     "area": _AREA_BODY,
     "moc": _MOC_BODY,
     "resource": _RESOURCE_BODY,
@@ -1509,10 +1539,10 @@ def cmd_mv(args) -> int:
 # --------------------------------------------------------------------------
 # review — the read-only briefing
 #
-# Writes NOTHING. It is the generated half of a "now" page: what's in focus,
-# what's gone quiet, what's blocked or overdue, what the clock says. The
-# judgment half (why this ordering, what you're deliberately not doing) stays
-# in mocs/now.md, which no command may rewrite.
+# Writes NOTHING. It is the generated half of a "now" page: the goals rollup,
+# what's in focus, what's gone quiet, what's blocked or overdue, what the
+# clock says. The judgment half (why this ordering, what you're deliberately
+# not doing) stays in mocs/now.md, which no command may rewrite.
 # --------------------------------------------------------------------------
 
 OVERSIZE_LINES = 300      # a page past this wants splitting
@@ -1575,6 +1605,82 @@ def _page_lines(page: Page) -> int:
         return 0
 
 
+def _quiet_days(p: Page) -> int | None:
+    # `verified` is the real signal — when the page's claims were last
+    # checked against reality. `updated` moves on a typo fix, so it is only
+    # the fallback for pages that have never been verified.
+    return days_since(p.fields.get("verified") or p.fields.get("updated") or "")
+
+
+_CHECKBOX_RE = re.compile(r"^\s*[-*]\s+\[([ xX])\]", re.M)
+
+
+def _milestones(page: Page) -> tuple | None:
+    """(done, total) over the checkbox lines under the body's '## Milestones'
+    heading, or None when the section or its checkboxes don't exist — so
+    callers omit the figure rather than print 0/0. Counted at read time and
+    never written back: a stored percentage is a second copy that rots.
+    Verbatim regions are blanked first, so an example checkbox in a comment
+    or code fence is not a milestone."""
+    body = _lintable(page.body)
+    m = re.search(r"^##\s+Milestones\s*$", body, re.M)
+    if m is None:
+        return None
+    section = body[m.end():]
+    nxt = re.search(r"^#{1,2}\s", section, re.M)  # ### subsections stay inside
+    if nxt:
+        section = section[: nxt.start()]
+    boxes = _CHECKBOX_RE.findall(section)
+    if not boxes:
+        return None
+    return sum(1 for b in boxes if b.strip()), len(boxes)
+
+
+def _goal_parent_match(child, goal) -> bool:
+    """A bare `parent` ref matches this goal by stem, but a path-form ref
+    (mv's rewrite) must match the goal's real path: stems collide across
+    buckets, and a goals/x page must not claim work pointed at areas/x."""
+    v = str(child.fields.get("parent") or "").strip().strip("[]").strip()
+    v = v.split("#")[0].split("|")[0].strip()
+    if "/" in v:
+        return v.removesuffix(".md") == rel(goal.path).removesuffix(".md")
+    return v == goal.slug
+
+
+def _goal_rollup(pages: list) -> list:
+    """The goals layer, derived entirely at read time. Per live goal: its live
+    children (WORK_KINDS pages whose `parent` names it), milestone counts and
+    the two week-plan flags — ORPHANED (no live child to move it) and STALLED
+    (the goal and every live child quiet beyond GOAL_STALL_DAYS; one touched
+    page anywhere in the tree clears it)."""
+    live = [p for p in pages if p.fields.get("status") in LIVE_STATUSES]
+    out = []
+    for g in (p for p in live if p.fields.get("kind") == "goal"):
+        children = [c for c in live
+                    if c is not g and c.fields.get("kind") in WORK_KINDS
+                    and _goal_parent_match(c, g)]
+        # A page without a usable date can't vouch for movement, so it counts
+        # as untouched rather than shielding the goal from the flag.
+        stalled = all((q := _quiet_days(p)) is None or q > GOAL_STALL_DAYS
+                      for p in [g, *children])
+        out.append({
+            "page": g, "children": children, "quiet": _quiet_days(g),
+            "milestones": _milestones(g),
+            "orphaned": not children, "stalled": stalled,
+        })
+    return out
+
+
+def _goal_json(g: dict) -> dict:
+    ms = g["milestones"]
+    return dict(
+        page_json(g["page"]), quiet_days=g["quiet"],
+        milestones=None if ms is None else {"done": ms[0], "total": ms[1]},
+        orphaned=g["orphaned"], stalled=g["stalled"],
+        children=[dict(page_json(c), quiet_days=_quiet_days(c))
+                  for c in g["children"]])
+
+
 def _collect(stale_days: int) -> dict:
     # One unreadable file (a non-UTF-8 export dropped into resources/, say)
     # must not take review/health down with a traceback: health runs
@@ -1592,14 +1698,9 @@ def _collect(stale_days: int) -> dict:
     live = [p for p in pages if is_live_work(p)]
     now = today()
 
-    def quiet(p):
-        # `verified` is the real signal — when the page's claims were last
-        # checked against reality. `updated` moves on a typo fix, so it is only
-        # the fallback for pages that have never been verified.
-        return days_since(p.fields.get("verified") or p.fields.get("updated") or "")
-
     return {
         "focus_pointer": _read_focus(),
+        "goals": _goal_rollup(pages),
         "focus": [p for p in live if p.fields.get("attention") == "focus"],
         "working": [p for p in live if not p.fields.get("attention")],
         "tracking": [p for p in live if p.fields.get("attention") == "tracking"],
@@ -1607,7 +1708,7 @@ def _collect(stale_days: int) -> dict:
         "overdue": [p for p in pages
                     if (d := p.fields.get("due")) and is_valid_date(str(d))
                     and d < now and p.fields.get("status") not in ("done", "archived")],
-        "quiet": sorted(((p, q) for p in live if (q := quiet(p)) is not None
+        "quiet": sorted(((p, q) for p in live if (q := _quiet_days(p)) is not None
                          and q > stale_days), key=lambda t: -t[1]),
         "unverified": [p for p in live if not p.fields.get("verified")],
         "oversized": sorted(((p, n) for p in pages
@@ -1644,7 +1745,7 @@ def _now_warning() -> str | None:
 def _fmt(p: Page, width: int) -> str:
     f = p.fields
     bits = f"{page_ref(p):{width}} {f.get('status',''):8}"
-    q = days_since(f.get("verified") or f.get("updated") or "")
+    q = _quiet_days(p)
     seen = "verified" if f.get("verified") else "updated"
     bits += f" {seen} {q}d" if q is not None else ""
     if f.get("due"):
@@ -1657,6 +1758,38 @@ def _fmt(p: Page, width: int) -> str:
     return line
 
 
+def _fmt_goal(g: dict, width: int) -> str:
+    """One goal's rollup block: the goal line (flags ride it), its next move,
+    then each live child one level deeper."""
+    p = g["page"]
+    f = p.fields
+    bits = f"{page_ref(p):{width}} {f.get('status',''):8}"
+    if f.get("attention"):
+        bits += f" · `{f['attention']}`"
+    if f.get("due"):
+        bits += f" · due {f['due']}"
+    q = g["quiet"]
+    if q is not None:
+        bits += f" · {'verified' if f.get('verified') else 'updated'} {q}d"
+    if g["milestones"]:
+        done, total = g["milestones"]
+        bits += f" · milestones {done}/{total}"
+    if g["orphaned"]:
+        bits += "  ⚠ ORPHANED"
+    if g["stalled"]:
+        bits += "  ⚠ STALLED"
+    lines = [bits.rstrip()]
+    if f.get("next"):
+        lines.append(f"{' ' * 4}→ {f['next']}")
+    for c in g["children"]:
+        cf = c.fields
+        cq = _quiet_days(c)
+        cage = f" {'verified' if cf.get('verified') else 'updated'} {cq}d" \
+            if cq is not None else ""
+        lines.append(f"    {page_ref(c):{width}} {cf.get('status',''):8}{cage}".rstrip())
+    return "\n".join(lines)
+
+
 def cmd_review(args) -> int:
     if args.since is not None:
         return _review_window(args)
@@ -1666,6 +1799,7 @@ def cmd_review(args) -> int:
         print(json.dumps({
             "date": today(),
             "focus_pointer": d["focus_pointer"],
+            "goals": [_goal_json(g) for g in d["goals"]],
             **{k: [page_json(p) for p in d[k]]
                for k in ("focus", "working", "tracking", "blocked", "overdue",
                          "unverified")},
@@ -1682,6 +1816,10 @@ def cmd_review(args) -> int:
     out = [f"brain — {today()}"]
     if d["focus_pointer"]:
         out += ["", f"▶ Focus  {d['focus_pointer']}"]
+
+    if d["goals"]:
+        out += ["", f"Goals ({len(d['goals'])})"]
+        out += [f"  {_fmt_goal(g, w)}" for g in d["goals"]]
 
     for title, key in (("Focus", "focus"), ("Working", "working"),
                        ("Tracking", "tracking")):
@@ -2042,6 +2180,15 @@ def cmd_health(args) -> int:
     if d["unverified"]:
         issues.append(("unverified", f"{len(d['unverified'])} never verified"))
 
+    stalled = sum(1 for g in d["goals"] if g["stalled"])
+    orphaned = sum(1 for g in d["goals"] if g["orphaned"])
+    if stalled or orphaned:
+        parts = [f"{stalled} goal(s) stalled"] if stalled else []
+        if orphaned:
+            parts.append(f"{orphaned} orphaned" if stalled
+                         else f"{orphaned} goal(s) orphaned")
+        issues.append(("goals", ", ".join(parts)))
+
     pending, oldest = _inbox_count(), _inbox_oldest_days()
     # An undated pending line (hand-added, not via `capture`) can't age-gate —
     # flag it rather than letting it hide behind the missing timestamp.
@@ -2131,6 +2278,13 @@ JUDGMENT_MIGRATIONS = {
         "Diff the column against the pre-sync cells (git history has them) and "
         "add [[person-page]] links to pages where the appearance matters; fix "
         "any pre-existing `brain links` errors (see the skill's v11 notes)",
+    12: "the adr kind is gone — the store keeps personal notes about a "
+        "decision, never the decision record itself. Re-file each kind: adr "
+        "page: move the decision text to its external system of record and "
+        "keep a kind: project page tracking the rollout. Then wire the goals "
+        "layer if adopting it: create goal pages in goals/ and set `parent` "
+        "on the live projects/initiatives each one covers (see the skill's "
+        "v12 notes)",
 }
 
 

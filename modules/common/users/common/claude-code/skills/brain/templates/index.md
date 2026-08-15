@@ -9,6 +9,10 @@ hand-listed reference files) is preserved.
 
 <!-- BEGIN generated: run `brain reindex` — hand edits here are overwritten -->
 
+## Goals (this quarter)
+
+_(none)_
+
 ## Areas (ongoing)
 
 _(none)_
