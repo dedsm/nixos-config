@@ -1308,11 +1308,18 @@ def cmd_set(args) -> int:
     if field == "status":
         if value not in STATUSES:
             die(f"status must be one of {STATUSES}")
+        previous = page.fields.get("status")
         page.fields["status"] = value
-        if value == "active" and not page.fields.get("started"):
-            page.fields["started"] = today()
-        if value == "done" and not page.fields.get("finished"):
-            page.fields["finished"] = today()
+        # Stamp only when the status actually *crosses* into active/done. Setting
+        # a status to the value the page already carries is a no-op, not a
+        # lifecycle event — without this guard, re-setting `status active` on a
+        # long-running page that has no `started` (an area or moc, which never
+        # gets one) invents a start date of today.
+        if value != previous:
+            if value == "active" and not page.fields.get("started"):
+                page.fields["started"] = today()
+            if value == "done" and not page.fields.get("finished"):
+                page.fields["finished"] = today()
     elif field == "attention":
         if value not in ATTENTIONS:
             die(f"attention must be one of {ATTENTIONS} (unset it for ordinary work)")
