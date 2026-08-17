@@ -55,7 +55,7 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 12     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 13     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 # `goal` is the quarterly outcomes layer: 3-5 live at a time, due = quarter
@@ -651,8 +651,10 @@ def cmd_check(args) -> int:
             page, required_fm=(bucket in required_buckets and not nested))
         # A kind the schema no longer knows is exactly what a pending
         # migration re-files. Until the store is stamped current it demotes
-        # to a warning (the link deferral below takes the same stance) —
-        # otherwise sync's own mechanical commit could never pass the gate.
+        # to a warning — otherwise sync's own mechanical commit could never
+        # pass the gate. This is now the *only* deferral: link errors used to
+        # take the same stance, but every store is link-clean, so they gate
+        # hard in the rebuild→sync window too.
         if not synced:
             stale_kind = [e for e in errs if ": kind '" in e]
             if stale_kind:
@@ -672,14 +674,6 @@ def cmd_check(args) -> int:
     # store and auto-push it to every other machine.
     if not args.paths:
         lerrs, lwarns = _link_lint(_staged_universe() if args.staged else None)
-        # The rebuild→sync window must never block (same stance as the
-        # version-drift note below): link errors that predate the gate demote
-        # to warnings until the store is stamped current — /brain --sync's
-        # v11 step fixes them for real, and then they gate hard.
-        if lerrs and not synced:
-            lwarns = lwarns + [e + "  [deferred until the store is synced]"
-                               for e in lerrs]
-            lerrs = []
         all_errors += lerrs
         all_warnings += lwarns
 
@@ -1553,7 +1547,9 @@ def cmd_mv(args) -> int:
 # --------------------------------------------------------------------------
 
 OVERSIZE_LINES = 300      # a page past this wants splitting
-NOW_MAX_LINES = 60        # a `now` page past this is holding generated content
+NOW_MAX_LINES = 60        # a `now` page with more *content* lines than this is
+                          # holding generated content (see _now_content_lines:
+                          # frontmatter, comments and blanks don't count)
 
 
 def _read_focus() -> str | None:
@@ -1726,15 +1722,36 @@ def _collect(stale_days: int) -> dict:
     }
 
 
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _now_content_lines(body: str) -> int:
+    """Count what a `now` page actually says, not how long its file is.
+
+    Measuring the whole file charged the template's own scaffold against the
+    budget: frontmatter, the `<!-- REWRITE … -->` instructions and markdown
+    spacing come to ~36 lines before a word of judgment is written, so a page
+    holding no generated content at all could still trip NOW_MAX_LINES. The
+    threshold is about content volume, so only content is counted — frontmatter
+    never reaches here (`Page.body` starts after the closing `---`), and HTML
+    comments and blank lines are dropped.
+    """
+    stripped = _HTML_COMMENT_RE.sub("", body)
+    unterminated = stripped.find("<!--")   # malformed comment: ignore the rest
+    if unterminated != -1:
+        stripped = stripped[:unterminated]
+    return sum(1 for line in stripped.splitlines() if line.strip())
+
+
 def _now_warning() -> str | None:
     now_page = brain_dir() / "mocs" / "now.md"
     if not now_page.exists():
         return None
     try:
-        lines = len(now_page.read_text(encoding="utf-8").splitlines())
         page = parse_page(now_page)
     except (UnicodeDecodeError, OSError):
         return None
+    lines = _now_content_lines(page.body)
     upd = page.fields.get("updated") if page.has_fm else None
     dates = _log_dates()
     behind = None
@@ -1744,7 +1761,7 @@ def _now_warning() -> str | None:
     if lines <= NOW_MAX_LINES and not (behind and behind > 14):
         return None
     tail = f", {behind}d behind the newest log entry" if behind and behind > 14 else ""
-    return (f"now.md — {lines} lines{tail}\n"
+    return (f"now.md — {lines} lines of content{tail}\n"
             f"   ⚠ likely holds content `brain review` now generates; keep only "
             f"why this ordering and what you're deliberately not doing")
 

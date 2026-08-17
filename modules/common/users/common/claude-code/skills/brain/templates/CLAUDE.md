@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v12 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v13 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -234,9 +234,10 @@ brain today                        # today's date from the system clock — neve
   one) as **errors** (blocking), and softer issues (done without `finished`, relative markdown
   paths, etc.) as **warnings** (non-blocking). Two consequences: **create a page before linking
   it** (`brain new`, then link), and **stage a new page together with the pages that link it**.
-  One deliberate exception: while `.brain-version` is behind the CLI (the rebuild→sync window),
-  link errors demote to warnings — the window must never block; `/brain --sync` fixes them for
-  real, and then they gate hard.
+  Link errors **always** block, including in the rebuild→sync window: every store is link-clean, so
+  the deferral that once softened them there is gone. The one remaining deferral is a `kind` the
+  schema no longer knows, which demotes to a warning until the store is stamped — otherwise
+  `brain sync`'s own mechanical commit could not pass its own gate.
 - **Auto-push**: a `post-commit` hook pushes the store to its remote when one is configured, so a
   commit is also a backup and multi-machine sync — no reliance on remembering `git push`. If the
   push is rejected because the remote moved (another machine pushed first), the hook **reconciles

@@ -156,10 +156,10 @@ latest conventions after a rebuild shipped a new template/CLI.
      Where the appearance matters, add a `[[person-page]]` link to the page in question (show the
      list and ask); where it doesn't, let it go. Then run **`brain links`** and fix pre-existing
      broken/ambiguous wikilinks and relative-path warnings (rewrite as `[[wikilink]]`, full URL,
-     or inline-code path — ask on anything ambiguous). While the store is behind the CLI these
-     link errors demote to gate *warnings* tagged "deferred until the store is synced" — commits
-     keep working during the window; once stamped, they gate hard, so fix them **before**
-     stamping. New verbs available: `brain links [--to]`, `brain mv <page> <bucket>/<slug>`.
+     or inline-code path — ask on anything ambiguous). As of v13 these link errors **block
+     immediately**, including while the store is behind the CLI — the old "deferred until the store
+     is synced" demotion is gone, so a broken link stops the commit whatever the version state.
+     New verbs available: `brain links [--to]`, `brain mv <page> <bucket>/<slug>`.
    - **v12 specifically:** `adr` is no longer a kind — the store keeps personal notes about a
      decision, never the decision record itself. Re-file each `kind: adr` page: move the
      decision text out (to the ADR/RFC doc of the repo it governs, or the tracker document)
