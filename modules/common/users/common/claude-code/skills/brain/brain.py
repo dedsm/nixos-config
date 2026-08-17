@@ -1743,7 +1743,16 @@ def _now_content_lines(body: str) -> int:
     return sum(1 for line in stripped.splitlines() if line.strip())
 
 
-def _now_warning() -> str | None:
+NOW_STALE_DAYS = 14       # `now` judgment this far behind the log has been overtaken
+
+
+def _now_signals() -> tuple[int, int | None] | None:
+    """`(content lines, days behind the newest log entry)` for `mocs/now.md`.
+
+    None when the page is missing or unreadable; `behind` is None when it can't
+    be derived. Both detector arms read this, so the thresholds live in one
+    place and `review` and `health` can never disagree about which one fired.
+    """
     now_page = brain_dir() / "mocs" / "now.md"
     if not now_page.exists():
         return None
@@ -1751,19 +1760,63 @@ def _now_warning() -> str | None:
         page = parse_page(now_page)
     except (UnicodeDecodeError, OSError):
         return None
-    lines = _now_content_lines(page.body)
     upd = page.fields.get("updated") if page.has_fm else None
     dates = _log_dates()
     behind = None
     if upd and dates and is_valid_date(str(upd)) and is_valid_date(dates[0]):
         behind = (datetime.date.fromisoformat(dates[0])
                   - datetime.date.fromisoformat(str(upd))).days
-    if lines <= NOW_MAX_LINES and not (behind and behind > 14):
+    return _now_content_lines(page.body), behind
+
+
+def _now_faults() -> tuple[int, int | None, bool, bool] | None:
+    """The signals plus which arm each trips. None when the page is fine.
+
+    The two faults are independent and unrelated: a page can be too long, too
+    stale, or both, and each wants different advice — trimming a page that is
+    merely stale is the wrong move.
+    """
+    signals = _now_signals()
+    if signals is None:
         return None
-    tail = f", {behind}d behind the newest log entry" if behind and behind > 14 else ""
-    return (f"now.md — {lines} lines of content{tail}\n"
-            f"   ⚠ likely holds content `brain review` now generates; keep only "
-            f"why this ordering and what you're deliberately not doing")
+    lines, behind = signals
+    oversized = lines > NOW_MAX_LINES
+    stale = behind is not None and behind > NOW_STALE_DAYS
+    if not (oversized or stale):
+        return None
+    return lines, behind, oversized, stale
+
+
+def _now_warning() -> str | None:
+    """`review`'s detail block: what is wrong, and what to do about it."""
+    faults = _now_faults()
+    if faults is None:
+        return None
+    lines, behind, oversized, stale = faults
+    head = f"now.md — {lines} lines of content"
+    if stale:
+        head += f", {behind}d behind the newest log entry"
+    notes = []
+    if oversized:
+        notes.append("⚠ likely holds content `brain review` now generates; keep only "
+                     "why this ordering and what you're deliberately not doing")
+    if stale:
+        notes.append("⚠ the work moved on without it — re-read it, rewrite the judgment "
+                     "that changed, and delete what has been settled")
+    return "\n".join([head] + [f"   {n}" for n in notes])
+
+
+def _now_health() -> str | None:
+    """`health`'s one-liner, naming the fault that actually fired."""
+    faults = _now_faults()
+    if faults is None:
+        return None
+    _, behind, oversized, stale = faults
+    if oversized and stale:
+        return f"now.md needs trimming and is {behind}d stale (see brain review)"
+    if oversized:
+        return "now.md needs trimming (see brain review)"
+    return f"now.md is {behind}d behind the log (see brain review)"
 
 
 def _fmt(p: Page, width: int) -> str:
@@ -2249,8 +2302,9 @@ def cmd_health(args) -> int:
     if lerrs:
         issues.append(("links", f"{len(lerrs)} broken link(s) — run brain links"))
 
-    if _now_warning():
-        issues.append(("now_rot", "now.md needs trimming (see brain review)"))
+    now_fault = _now_health()
+    if now_fault:
+        issues.append(("now_rot", now_fault))
 
     remote = _remote_state(fetch=not args.no_fetch)
     if remote:
