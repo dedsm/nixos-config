@@ -187,11 +187,8 @@
             stern
             p7zip
             sops
-            # Pinned to stable: unstable's 570.0.0 bundles python 3.14 and fails
-            # auto-patchelf (missing libtcl9/libpython3.14). Revert to unstable
-            # once nixpkgs fixes the bundled-python patchelf breakage.
-            (google-cloud-sdk.withExtraComponents (
-              with google-cloud-sdk.components;
+            (pkgs.unstable.google-cloud-sdk.withExtraComponents (
+              with pkgs.unstable.google-cloud-sdk.components;
               [
                 gke-gcloud-auth-plugin
               ]
