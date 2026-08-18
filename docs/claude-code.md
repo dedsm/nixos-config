@@ -25,7 +25,26 @@ Note that `nix flake update` does **not** move Claude Code: `version.json` overr
 
 ## Managed settings, not owned settings
 
-`~/.claude/settings.json` is user-editable (slash commands, project state, etc.), so this module never overwrites it wholesale. Instead `default.nix` defines a `managedSettings` attrset (hooks, status line, file-suggestion command, `alwaysThinkingEnabled`, attribution) and a `home.activation.mergeClaudeSettings` step that JSON-merges it into the existing file (`jq -s '.[0] * .[1]'`) on every `home-manager switch`. Anything Claude Code itself writes into `settings.json` survives; anything under `managedSettings` gets reasserted every rebuild. Extend it via the `extraSettings` option instead of editing the merge logic. One key is special-cased: `hooks.SessionStart` is **array-merged** rather than replaced, because herdr's integration installs its own entry there (see [`herdr.md`](./herdr.md)) — user entries survive every switch, and the managed brain-health entry is appended (deduped by command path).
+`~/.claude/settings.json` is user-editable (slash commands, project state, etc.), so this module never overwrites it wholesale. Instead `default.nix` defines a `managedSettings` attrset (hooks, status line, file-suggestion command, `alwaysThinkingEnabled`, attribution, and an `env` block — see [Task tools](#task-tools)) and a `home.activation.mergeClaudeSettings` step that JSON-merges it into the existing file (`jq -s '.[0] * .[1]'`) on every `home-manager switch`. Anything Claude Code itself writes into `settings.json` survives; anything under `managedSettings` gets reasserted every rebuild. Extend it via the `extraSettings` option instead of editing the merge logic. One key is special-cased: `hooks.SessionStart` is **array-merged** rather than replaced, because herdr's integration installs its own entry there (see [`herdr.md`](./herdr.md)) — user entries survive every switch, and the managed brain-health entry is appended (deduped by command path).
+
+## Task tools
+
+`managedSettings.env` sets `CLAUDE_CODE_ENABLE_TODO_TOOLS = "1"`, which exposes the
+`TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate` tools to the model. Without it those tools are
+withheld for the models on Claude Code's internal gate list, and `TodoWrite` is gated off by
+the same switch — so a session gets *no* task tracking at all, with nothing in `/doctor` or
+`/config` to say why. The gate: model not on the list → tools on; else this env var → tools
+on; else a server-side feature flag decides (off unless the account is in the rollout).
+
+Verify on any host with:
+
+```bash
+claude -p ok --output-format=stream-json --verbose --max-turns 1 \
+  | jq -c 'select(.subtype=="init") | {model, task: [.tools[] | select(startswith("Task"))]}'
+```
+
+`Task`, `TaskOutput` and `TaskStop` are unrelated (subagents and background processes) and are
+present either way; the four above are the ones that come and go.
 
 ## Hooks
 

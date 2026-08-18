@@ -203,6 +203,14 @@ let
       commit = "";
       pr = "";
     };
+    env = {
+      # Exposes the TaskCreate/TaskGet/TaskList/TaskUpdate tools to the model.
+      # For the models on Claude Code's gate list they are otherwise withheld
+      # unless a server-side feature flag turns them on, and TodoWrite is gated
+      # off by the same switch — so a session gets no task tracking at all.
+      # See docs/claude-code.md § Task tools.
+      CLAUDE_CODE_ENABLE_TODO_TOOLS = "1";
+    };
   }
   // (cfg.extraSettings or { });
 
