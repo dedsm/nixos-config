@@ -18,13 +18,13 @@
 # module only has to register it. See docs/herdr.md.
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "vim-herdr-navigation";
-  version = "0.1.0-unstable-2026-08-02";
+  version = "0.1.0-unstable-2026-08-23";
 
   src = fetchFromGitHub {
     owner = "paulbkim-dev";
     repo = "vim-herdr-navigation";
-    rev = "820d48f5d9c9a7dece6a4bebfa3982ec30bbfbb7";
-    hash = "sha256-qn69GDH3kCSYm9x/it3EyJqZiwQoK3pnwdfATeSwJ38=";
+    rev = "79679dacc791f70fc34de8b29a3cf9706c0f5b2f";
+    hash = "sha256-iF0DLRn56eLGqY2iKTb3lX5iyVgl9CtSX5O2E5/pHjM=";
   };
 
   nativeBuildInputs = [ makeWrapper ];
