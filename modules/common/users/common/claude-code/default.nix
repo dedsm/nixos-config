@@ -123,14 +123,27 @@ let
 
   # SessionStart hook: surface `brain health` — one deterministic line of store
   # vitals (version drift, overdue, gone-quiet, aged inbox, quiet log, oversized
-  # log, now.md rot, ahead/behind remote) — as context at the start of every
-  # Claude Code session. No model in the loop, silent when the store is clean or
-  # absent, and fail-open (always exits 0) so a broken store can't block a session.
+  # log, now.md rot, ahead/behind remote) — at the start of every Claude Code
+  # session. No model in the loop, silent when the store is clean or absent, and
+  # fail-open (always exits 0) so a broken store can't block a session.
+  #
+  # The output is JSON rather than plain text because the two audiences need
+  # different channels: a SessionStart hook's plain stdout is only added to
+  # Claude's *context*, so the user never sees the flag until Claude's first
+  # reply. `systemMessage` is rendered to the user directly, while
+  # `hookSpecificOutput.additionalContext` carries the context injection — so
+  # the flag lands in both places from one run. `brain health`'s line is
+  # arbitrary text, so jq builds the object rather than string interpolation.
   brainHealthHook = pkgs.writeShellScript "claude-brain-health" ''
     out=$(${brainPkg}/bin/brain health 2>/dev/null) || true
     if [ -n "$out" ]; then
-      printf '~/brain store health (from `brain health`): %s\n' "$out"
-      printf 'Open your first reply with this flag and OFFER its remedy (e.g. "run brain sync" -> offer /brain --sync; oversized log -> offer brain rotate-log), even if the user asked about something else. If they decline or ignore it, drop it for the rest of the session - never nag twice.\n'
+      ${jq} -n --arg m "$out" '{
+        systemMessage: ("brain health: " + $m),
+        hookSpecificOutput: {
+          hookEventName: "SessionStart",
+          additionalContext: ("~/brain store health (from `brain health`): " + $m + "\nOffer its remedy (e.g. \"run brain sync\" -> offer /brain --sync; oversized log -> offer brain rotate-log) in your first reply, even if the user asked about something else. If they decline or ignore it, drop it for the rest of the session - never nag twice.")
+        }
+      }'
     fi
     exit 0
   '';
