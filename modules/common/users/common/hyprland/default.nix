@@ -120,6 +120,9 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
             gaps_in = 2;
             gaps_out = 2;
             resize_on_border = true;
+            # Default is 15px, which reaches well into the waybar above a
+            # window and steals its clicks. 4px is still comfortably grabbable.
+            extend_border_grab_area = 4;
             layout = "master";
             col = {
               active_border = "rgb(FF0000)";
