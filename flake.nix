@@ -466,9 +466,15 @@
       # `nix fmt` formats the repo. nixfmt is the formatter RFC 166 selected as
       # the Nix standard, which is why `pkgs.nixfmt` is now the RFC style and the
       # older one is `nixfmt-classic`. Declaring it here makes the choice
-      # machine-checkable (`nix fmt -- --check .`) instead of a claim in a doc —
-      # the repo was formatted with alejandra for a long time while CLAUDE.md
-      # said nixfmt. The `core` and `nvim` modules put the same package on PATH.
-      formatter = lib.genAttrs supportedSystems (system: (mkPkgs system).nixfmt);
+      # machine-checkable (`nix fmt -- --ci`) instead of a claim in a doc — the
+      # repo was formatted with alejandra for a long time while CLAUDE.md said
+      # nixfmt. The `core` and `nvim` modules put the same package on PATH.
+      #
+      # `nixfmt-tree` is nixfmt behind treefmt: bare `nix fmt` walks the tree
+      # itself, where a plain `pkgs.nixfmt` formatter gets no argument from `nix
+      # fmt` and reads stdin instead, dying with "unexpected end of input". Nix
+      # deprecated passing a path (`nix fmt .`) to work around that, and names
+      # this wrapper as the replacement.
+      formatter = lib.genAttrs supportedSystems (system: (mkPkgs system).nixfmt-tree);
     };
 }
