@@ -10,15 +10,23 @@ with lib;
 mkIf (homeManagerConfig.hyprland.enable or false) (
   let
     anyrunPkg = pkgs.unstable.anyrun;
+    # Prefix patterns, not exact ones: anyrun 26.x emits a plugin's `Stdout` result
+    # twice when it runs without a daemon (once as the selection is handled, again
+    # from the post-run action on close), so the captured choice comes back doubled
+    # and unseparated — "Copy RegionCopy Region" (anyrun-org/anyrun#324, open and
+    # unfixed as of 26.6.1). The anyrun module now runs that daemon, which emits a
+    # single copy, so this is a safeguard rather than the live workaround: it keeps
+    # the picker correct if the daemon is down or the bug is fixed upstream. No
+    # entry is a prefix of another, so matching this way stays unambiguous.
     hyprshot-picker = pkgs.writeShellScript "hyprshot-picker" ''
       choice=$(printf "Copy Region\nCopy Window\nCopy Monitor\nSave Region\nSave Window\nSave Monitor" | ${anyrunPkg}/bin/anyrun --plugins ${anyrunPkg}/lib/libstdin.so --show-results-immediately true 2>/dev/null)
       case "$choice" in
-        "Copy Region")  ${pkgs.hyprshot}/bin/hyprshot -m region --clipboard-only ;;
-        "Copy Window")  ${pkgs.hyprshot}/bin/hyprshot -m window --clipboard-only ;;
-        "Copy Monitor") ${pkgs.hyprshot}/bin/hyprshot -m output --clipboard-only ;;
-        "Save Region")  ${pkgs.hyprshot}/bin/hyprshot -m region -o ~/Downloads ;;
-        "Save Window")  ${pkgs.hyprshot}/bin/hyprshot -m window -o ~/Downloads ;;
-        "Save Monitor") ${pkgs.hyprshot}/bin/hyprshot -m output -o ~/Downloads ;;
+        "Copy Region"*)  ${pkgs.hyprshot}/bin/hyprshot -m region --clipboard-only ;;
+        "Copy Window"*)  ${pkgs.hyprshot}/bin/hyprshot -m window --clipboard-only ;;
+        "Copy Monitor"*) ${pkgs.hyprshot}/bin/hyprshot -m output --clipboard-only ;;
+        "Save Region"*)  ${pkgs.hyprshot}/bin/hyprshot -m region -o ~/Downloads ;;
+        "Save Window"*)  ${pkgs.hyprshot}/bin/hyprshot -m window -o ~/Downloads ;;
+        "Save Monitor"*) ${pkgs.hyprshot}/bin/hyprshot -m output -o ~/Downloads ;;
       esac
     '';
     screencast-inhibit = pkgs.writeShellScript "screencast-inhibit" ''
