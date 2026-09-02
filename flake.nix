@@ -344,6 +344,18 @@
         onepassword.enable = true;
         gnupg.enable = true;
         peripherals.enable = true;
+        fingerprintPolicy = {
+          enable = true;
+          # Apple's Touch ID conditions, with one deliberate tightening: the
+          # password interval is 10h rather than their 156h. Everything else
+          # is theirs — 48h without any unlock, a 4h fingerprint grace once
+          # the password interval lapses, 5 failed matches, and a password
+          # after a restart or a logout. See docs/login-flow.md.
+          maxTimeSincePassword = 10 * 60 * 60;
+          # hyprlock authenticates as david, not root, so its password unlock
+          # can only refresh the clock if david may write the state.
+          users = [ "david" ];
+        };
         fwupd.enable = true;
         ddclient.enable = true;
 

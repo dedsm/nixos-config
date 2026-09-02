@@ -9,30 +9,20 @@ let
   # table arg — a bare string like dpms("on") silently means "toggle"
   dpms = action: "${pkgs.hyprland}/bin/hyprctl dispatch 'hl.dsp.dpms({ action = \"${action}\" })'";
 
-  # Password is required after suspend: replace any running locker with the
-  # strict (no-fingerprint) one. Sequenced — kill, wait for exit, then start —
-  # because Hyprland denies a second lock client while the first still holds
-  # the lock, and a denied replacement leaves the session locked with no
-  # locker. Needs misc:allow_session_lock_restore (hyprland module).
-  # hypridle holds a sleep inhibitor until this exits, so the waits also keep
-  # the machine awake until the strict locker is up.
+  # Make sure the session is locked before it sleeps. It used to have to
+  # *replace* a running locker with a password-only one — that is now the
+  # fprintd gate's job (dedsm.fingerprintPolicy), re-checked on the VerifyStart
+  # hyprlock issues on every resume, so a locker that was up before the window
+  # lapsed stops accepting fingerprints without being restarted. What is left
+  # is the easy half: start a locker if none is running. hypridle holds a sleep
+  # inhibitor until this exits, so the wait keeps the machine awake until the
+  # locker is up. See docs/login-flow.md.
   sleep-lock = pkgs.writeShellScript "hyprlock-sleep-lock" ''
-    waitgone() { # $1 = deciseconds to wait for every hyprlock to exit
-      for _ in $(${pkgs.coreutils}/bin/seq "$1"); do
-        ${pkgs.procps}/bin/pgrep -x hyprlock >/dev/null || return 0
-        ${pkgs.coreutils}/bin/sleep 0.1
-      done
-      return 1
-    }
+    ${pkgs.procps}/bin/pgrep -x hyprlock >/dev/null && exit 0
 
-    if ${pkgs.procps}/bin/pgrep -x hyprlock >/dev/null; then
-      ${pkgs.procps}/bin/pkill -x hyprlock || true
-      waitgone 20 || { ${pkgs.procps}/bin/pkill -KILL -x hyprlock || true; waitgone 10 || true; }
-    fi
+    ${pkgs.hyprlock}/bin/hyprlock --immediate-render &
 
-    ${pkgs.hyprlock}/bin/hyprlock --immediate-render -c "$HOME/.config/hypr/hyprlock-strict.conf" &
-
-    # Let the new locker bind and draw before releasing the inhibitor.
+    # Let the locker bind and draw before releasing the inhibitor.
     for _ in $(${pkgs.coreutils}/bin/seq 30); do
       ${pkgs.procps}/bin/pgrep -x hyprlock >/dev/null && break
       ${pkgs.coreutils}/bin/sleep 0.1

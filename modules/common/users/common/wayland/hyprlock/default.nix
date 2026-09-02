@@ -5,19 +5,6 @@ attrs@{
   ...
 }:
 {
-  # Password-only variant used for the boot and resume locks: the "password
-  # required after boot/suspend" policy and the PAM gnome-keyring unlock both
-  # need a typed password, so fingerprint auth is disabled. hyprlang applies
-  # values in order, so this override wins over the sourced base config.
-  xdg.configFile."hypr/hyprlock-strict.conf".text = ''
-    source = ~/.config/hypr/hyprlock.conf
-    auth {
-      fingerprint {
-        enabled = false
-      }
-    }
-  '';
-
   programs.hyprlock = {
     enable = true;
     settings = {
@@ -28,6 +15,11 @@ attrs@{
       auth = {
         "pam:enabled" = true;
         "pam:module" = "hyprlock";
+        # Always offered; whether it is *available* is decided outside
+        # hyprlock, by the dedsm.fingerprintPolicy gate on fprintd. A denied
+        # Claim/VerifyStart only warns in the log and leaves $FPRINTPROMPT
+        # empty, so the prompt below simply does not appear when the window is
+        # shut. See docs/login-flow.md.
         "fingerprint:enabled" = true;
         "fingerprint:ready_message" = "🔐 Touch fingerprint sensor or type password";
         "fingerprint:present_message" = "👆 Scanning fingerprint...";
@@ -94,6 +86,23 @@ attrs@{
           font_family = "Noto Sans";
 
           position = "0, -200";
+          halign = "center";
+          valign = "center";
+        }
+        {
+          # Why the reader is not offering itself, when it isn't: hyprlock
+          # cannot know — a gate denial only fails its fprintd calls (see
+          # dedsm.fingerprintPolicy) — so ask the policy directly. Prints
+          # nothing while fingerprint auth is available, which is exactly when
+          # $FPRINTPROMPT below has something to say. Absolute path: hyprlock
+          # runs this through /bin/sh, and the command is a NixOS-side package.
+          monitor = "";
+          text = "cmd[update:5000] test -x /run/current-system/sw/bin/fingerprint-status && /run/current-system/sw/bin/fingerprint-status || true";
+          color = "rgb(181, 137, 0)"; # Solarized yellow (advisory)
+          font_size = 16;
+          font_family = "Noto Sans";
+
+          position = "0, -40";
           halign = "center";
           valign = "center";
         }

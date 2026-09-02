@@ -160,12 +160,14 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
         -- Autostart
         hl.on("hyprland.start", function()
           -- Lock immediately: with greetd autologin this is the actual auth
-          -- gate (strict config: password only, which also unlocks the
-          -- gnome-keyring via PAM). If hyprlock dies within 5s it failed to
-          -- start — end the session so it falls back to tuigreet rather than
-          -- sit exposed. A later non-zero exit is fine: that's the hypridle
-          -- sleep hook replacing the locker, and the session stays locked.
-          hl.exec_cmd([[sh -c 't0=$(date +%s); ${pkgs.hyprlock}/bin/hyprlock --immediate-render -c "$HOME/.config/hypr/hyprlock-strict.conf"; s=$?; [ "$s" -ne 0 ] && [ $(( $(date +%s) - t0 )) -lt 5 ] && uwsm stop']])
+          -- gate. It is password-only without asking for it — the
+          -- fingerprint window lives in /run, so nothing has opened it yet
+          -- this boot (dedsm.fingerprintPolicy) — and that typed password is
+          -- also what unlocks gnome-keyring via PAM. If hyprlock dies within
+          -- 5s it failed to start: end the session so it falls back to
+          -- tuigreet rather than sit exposed. A later non-zero exit is fine,
+          -- the session stays locked either way.
+          hl.exec_cmd([[sh -c 't0=$(date +%s); ${pkgs.hyprlock}/bin/hyprlock --immediate-render; s=$?; [ "$s" -ne 0 ] && [ $(( $(date +%s) - t0 )) -lt 5 ] && uwsm stop']])
           hl.exec_cmd("uwsm app -- avizo-service")
           hl.exec_cmd("uwsm app -- solaar -w hide")
           hl.exec_cmd("uwsm app -- wl-paste -t text --watch clipman store --no-persist")
@@ -237,7 +239,7 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
         -- Respawns the locker on a locked session that has lost one. `locked`
         -- is required for the bind to run at all while locked; taking the lock
         -- needs misc:allow_session_lock_restore above.
-        hl.bind("CTRL + ALT + SHIFT + L", hl.dsp.exec_cmd([[${pkgs.hyprlock}/bin/hyprlock --immediate-render -c "$HOME/.config/hypr/hyprlock-strict.conf"]]), { locked = true })
+        hl.bind("CTRL + ALT + SHIFT + L", hl.dsp.exec_cmd([[${pkgs.hyprlock}/bin/hyprlock --immediate-render]]), { locked = true })
         hl.bind(mod .. " + P", hl.dsp.exec_cmd("uwsm app -- anyrun"))
         hl.bind(mod .. " + X", hl.dsp.exec_cmd("uwsm app -- playerctl play-pause"))
         hl.bind(mod .. " + Z", hl.dsp.exec_cmd("uwsm app -- playerctl previous"))

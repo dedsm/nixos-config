@@ -14,6 +14,7 @@
     ./onepassword
     ./gnupg
     ./peripherals
+    ./fingerprint-policy
     ./fwupd
     ./ddclient
   ];

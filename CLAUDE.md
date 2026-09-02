@@ -47,7 +47,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │   │   ├── core/               # Always-on baseline (no toggle): networking, fonts, xserver/xkb,
 │   │   │                         dbus, xdg portals, audio, home-manager wiring, base packages
 │   │   ├── laptop/ performance/ gnome-services/ gnome-programs/
-│   │   ├── hyprland/ greetd/ bluetooth/ printing/ scanning/
+│   │   ├── hyprland/ greetd/ bluetooth/ printing/ scanning/ fingerprint-policy/
 │   │   └── virtualisation/ onepassword/ gnupg/ peripherals/ fwupd/ ddclient/
 │   └── darwin/              # Darwin system-level modules
 │       ├── default.nix       # macOS system defaults
@@ -335,7 +335,8 @@ Two traps worth knowing: a package that *wraps* a nixpkgs package inherits **nix
 
 ## Security Considerations
 
-- **Login/lock flow**: greetd autologins into Hyprland (`dedsm.greetd.autologinUser`); hyprlock is the actual auth gate (password-only after boot/suspend, fingerprint otherwise) and unlocks gnome-keyring via PAM — see [`docs/login-flow.md`](./docs/login-flow.md)
+- **Login/lock flow**: greetd autologins into Hyprland (`dedsm.greetd.autologinUser`); hyprlock is the actual auth gate and unlocks gnome-keyring via PAM — see [`docs/login-flow.md`](./docs/login-flow.md)
+- **Fingerprint policy**: `dedsm.fingerprintPolicy` gates *all* fprintd use (hyprlock, sudo, login) from a single polkit rule, implementing Apple's documented Touch ID conditions (restart, logout, 48h idle, password interval + 4h biometric grace, 5 failed matches) — see [`docs/login-flow.md`](./docs/login-flow.md)
 - **SSH keys**: Managed through Home Manager SSH configuration
 - **GPG setup**: Configured for git signing with a specified key ID; agent enablement is opt-in via the `gnupg` NixOS module
 - **1Password integration**: CLI + GUI, opt-in via the `onepassword` NixOS module
@@ -437,7 +438,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/herdr.md`](./docs/herdr.md) — the `herdr` agent-aware multiplexer: why it coexists with tmux, settings rationale (prefix, vim-aware prefix-free `ctrl+h/j/k/l` pane movement and what it costs, sidebar layout), restart semantics, how plugins are packaged and registered from an activation script (and why every herdr command there is wrapped to warn instead of failing — an out-of-date running server used to abort the whole home-manager activation), and the agent-integration bits deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill
 - [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching: darkman as the **sole** owner of the `color-scheme`/`gtk-theme` dconf keys (and the list of home-manager options that must therefore stay unset), the darkman → dconf → xdg-desktop-portal-gtk → Firefox/Slack chain, the post-`dconfSettings` activation guard, and the Hyprland/foot/tmux transition mechanics
-- [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin, hyprlock as the auth gate, fingerprint policy, gnome-keyring PAM unlock, boot-speed rationale
+- [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin, hyprlock as the auth gate, the fprintd/polkit fingerprint policy (Apple's Touch ID conditions, mapped) and why it can't live in PAM, gnome-keyring PAM unlock, boot-speed rationale
 - [`docs/performance.md`](./docs/performance.md) — the `dedsm.performance` module: sched_ext/`scx_lavd`, ananicy-cpp with CachyOS rules, writeback sysctls sized for 128 GiB, and what was deliberately *not* ported from CachyOS
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB RAM, suspend-then-hibernate settings, why `boot.resumeDevice` must be set explicitly with a systemd initrd, `pm_async=0` resume workaround
 
