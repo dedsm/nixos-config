@@ -9,29 +9,23 @@ let
   enable = cfg.enable or false;
   isDarwin = pkgs.stdenv.isDarwin;
 
-  # Claude Code package with optional version pin via version.json
+  # Claude Code package, pinned to an exact release.
+  #
+  # `claude-code` moves fast enough that whatever `pkgs.unstable` happens to
+  # carry isn't reliable, so we pin. The pin is upstream's *own* release
+  # manifest, stored verbatim as manifest.zst.json and fed back through the
+  # package's `manifest` argument — nixpkgs derives the version, the download
+  # URL and the per-platform checksum from it, exactly as it does for its
+  # vendored copy. Overriding `src`/`version` by hand instead would re-state
+  # upstream's URL scheme and artifact layout here, which is precisely how this
+  # drifted before: upstream moved to zstd-compressed artifacts on a new host,
+  # and the hand-rolled src kept fetching a raw binary that no longer unpacked.
+  #
   # Bump with `scripts/update-packages.sh claude-code`, which runs
-  # scripts/updaters/update-claude-code.sh to fetch the latest version and hashes
-  baseClaudeCode = pkgs.unstable.claude-code;
-  versionFile = ./version.json;
-  hasVersionPin = builtins.pathExists versionFile;
-  claudeCodePkg =
-    if hasVersionPin then
-      let
-        pin = lib.importJSON versionFile;
-        platformKey = "${if isDarwin then "darwin" else "linux"}-${
-          if pkgs.stdenv.hostPlatform.isAarch64 then "arm64" else "x64"
-        }";
-      in
-      baseClaudeCode.overrideAttrs (old: rec {
-        version = pin.version;
-        src = pkgs.fetchurl {
-          url = "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/${version}/${platformKey}/claude";
-          sha256 = pin.platforms.${platformKey};
-        };
-      })
-    else
-      baseClaudeCode;
+  # scripts/updaters/update-claude-code.sh to refetch the manifest.
+  claudeCodePkg = pkgs.unstable.claude-code.override {
+    manifest = lib.importJSON ./manifest.zst.json;
+  };
 
   # Nix store paths for commands used only in this file
   jq = "${pkgs.jq}/bin/jq";

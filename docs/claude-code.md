@@ -4,24 +4,46 @@ Module: [`modules/common/users/common/claude-code/`](../modules/common/users/com
 
 ## Package pinning
 
-`claude-code` moves fast enough that `pkgs.unstable.claude-code` alone isn't reliable. `version.json` in the module directory pins an exact version + per-platform sha256, and `default.nix` overrides `pkgs.unstable.claude-code`'s `src`/`version` with it when present. Bump the pin with:
+`claude-code` moves fast enough that `pkgs.unstable.claude-code` alone isn't reliable, so the
+module pins an exact release. The pin is upstream's *own* release manifest — `manifest.zst.json`
+in the module directory, stored byte-for-byte as published — handed back to nixpkgs' package
+through its `manifest` argument:
+
+```nix
+claudeCodePkg = pkgs.unstable.claude-code.override {
+  manifest = lib.importJSON ./manifest.zst.json;
+};
+```
+
+nixpkgs then derives the version, download URL, artifact name and per-platform checksum from
+it, exactly as it does for its own vendored manifest. Bump the pin with:
 
 ```bash
 scripts/update-packages.sh claude-code              # defaults to latest
 scripts/updaters/update-claude-code.sh [version]   # or call it directly, e.g. to pin an older release
 ```
 
-This fetches the release manifest and rewrites `version.json`. Commit the result.
+The updater is a single `curl` of that manifest — no transformation, nothing local to fall
+out of date. Commit the result.
 
-The updater is a script rather than a `passthru.updateScript` because the pin is a JSON file
-holding *two* platform hashes, with the version coming from a release manifest rather than a
-Git tag — `nix-update` can rewrite one hash in a `.nix` file and nothing else. nixpkgs' own
-`claude-code` uses a bespoke `update.sh` for the same reason. Any executable
+**Why not `overrideAttrs` on `src`/`version`?** That's what this module did until
+`manifest.zst.json` replaced `version.json`, and it broke: re-stating upstream's URL scheme
+and artifact layout locally meant that when Anthropic moved releases to
+`downloads.claude.ai` and started shipping zstd-compressed `claude.zst` artifacts, nixpkgs'
+`installPhase` switched to `unzstd` while our hand-rolled `src` kept fetching a raw binary —
+`zstd: unsupported format`, on a pin that still *evaluated* cleanly. Overriding the `manifest`
+argument keeps the fetching contract entirely upstream's, so a change of that shape lands as
+a plain nixpkgs bump instead of a build failure here.
+
+The updater is a script rather than a `passthru.updateScript` because the pin is a whole JSON
+file rather than a hash in a `.nix` file — `nix-update` can rewrite one hash and nothing else.
+nixpkgs' own `claude-code` uses a bespoke `update.sh` for the same reason. Any executable
 `scripts/updaters/update-<name>.sh` is picked up by `scripts/update-packages.sh`
 automatically; see "Updating pinned packages" in [`CLAUDE.md`](../CLAUDE.md).
 
-Note that `nix flake update` does **not** move Claude Code: `version.json` overrides whatever
-`pkgs.unstable.claude-code` carries, so the version only changes when this updater runs.
+Note that `nix flake update` does **not** move Claude Code: `manifest.zst.json` overrides
+whatever `pkgs.unstable.claude-code` carries, so the version only changes when this updater
+runs.
 
 ## Managed settings, not owned settings
 

@@ -306,9 +306,11 @@ The runner collects two kinds of updater and needs no list of its own for the fi
   package is all that's needed for the runner to pick it up.
 - **`scripts/updaters/update-<name>.sh`** — for things that aren't packages in `pkgs/`.
   The directory *is* the registry: any executable script matching that name is discovered
-  and exposed as `<name>`. Currently just `claude-code`, whose `version.json` pin (two
-  platform hashes, version from a release manifest) is beyond what `nix-update` can rewrite
-  — nixpkgs' own `claude-code` uses a bespoke `update.sh` for the same reason.
+  and exposed as `<name>`. Currently just `claude-code`, which is pinned by storing
+  upstream's release manifest (`manifest.zst.json`) verbatim and feeding it back through
+  nixpkgs' `manifest` package argument — a whole JSON file, not a hash in a `.nix` file, so
+  `nix-update` can't touch it; nixpkgs' own `claude-code` uses a bespoke `update.sh` for the
+  same reason.
 
 `MANUAL_ONLY` records anything that deliberately has no updater, with the reason. It is
 currently empty — it exists so a package that can't be automated is documented rather than

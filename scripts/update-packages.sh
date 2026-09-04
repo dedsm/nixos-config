@@ -10,7 +10,7 @@
 #     is enough; there is no list here to keep in sync.
 #
 #   * scripts under scripts/updaters/, named update-<name>.sh, for things that
-#     are not packages in pkgs/ (claude-code pins a version.json inside a
+#     are not packages in pkgs/ (claude-code pins a manifest.zst.json inside a
 #     home-manager module, so there is no derivation to hang an updateScript
 #     off). Dropping an executable script in that directory registers it.
 #

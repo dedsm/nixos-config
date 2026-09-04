@@ -2,27 +2,17 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-VERSION_FILE="$REPO_DIR/modules/common/users/common/claude-code/version.json"
-BASE_URL="https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases"
+MANIFEST_FILE="$REPO_DIR/modules/common/users/common/claude-code/manifest.zst.json"
+BASE_URL="https://downloads.claude.ai/claude-code-releases"
 
-# Get version: use argument, or fetch latest
+# The pin is upstream's release manifest, stored verbatim and handed straight to
+# nixpkgs' `claude-code` via its `manifest` argument. So updating is just
+# refetching it — same thing nixpkgs' own update.sh does. Keeping zero
+# transformation here is deliberate: nothing local to fall out of date when the
+# manifest schema, URL layout or artifact format changes.
 VERSION="${1:-$(curl -fsSL "$BASE_URL/latest")}"
 echo "Fetching manifest for claude-code v${VERSION}..."
 
-MANIFEST=$(curl -fsSL "$BASE_URL/$VERSION/manifest.json")
+curl -fsSL "$BASE_URL/$VERSION/manifest.zst.json" --output "$MANIFEST_FILE"
 
-# Extract hex checksums for the platforms we use
-darwin_arm64=$(echo "$MANIFEST" | jq -r '.platforms["darwin-arm64"].checksum')
-linux_x64=$(echo "$MANIFEST" | jq -r '.platforms["linux-x64"].checksum')
-
-cat > "$VERSION_FILE" << EOF
-{
-  "version": "$VERSION",
-  "platforms": {
-    "darwin-arm64": "$darwin_arm64",
-    "linux-x64": "$linux_x64"
-  }
-}
-EOF
-
-echo "Updated $VERSION_FILE to v${VERSION}"
+echo "Updated $MANIFEST_FILE to v${VERSION}"
