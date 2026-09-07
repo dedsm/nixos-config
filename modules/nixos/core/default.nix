@@ -25,7 +25,18 @@ in
 
   config = {
     boot.loader.systemd-boot.enable = true;
-    boot.loader.systemd-boot.configurationLimit = 20;
+    # The ESP is 510 MiB and a generation costs a 14 MiB kernel plus a 62-69 MiB
+    # systemd initrd — call it 80 MiB whenever the initrd differs, which it does
+    # for a kernel bump, a firmware change, or anything baked into the initrd
+    # (enabling plymouth added 7 MiB to it). Twenty entries therefore cannot fit:
+    # six distinct initrds already fill the partition, and a run of rebuilds in
+    # one evening is exactly the case that overflows it. Five leaves headroom for
+    # the boot menu to be useful without ever wedging a rebuild.
+    #
+    # This only bounds the *menu*. Older generations stay on disk and remain
+    # reachable with `nixos-rebuild switch --rollback` from a running system;
+    # what the limit protects is the ability to boot at all.
+    boot.loader.systemd-boot.configurationLimit = 5;
     boot.loader.efi.canTouchEfiVariables = true;
 
     # A splash from the initrd through to the greeter, so the boot never shows
