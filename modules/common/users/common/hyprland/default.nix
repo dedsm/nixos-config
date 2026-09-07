@@ -228,11 +228,18 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
         hl.bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
         -- Repeating binds (old binde)
+        --
+        -- The trailing "" on the brightness calls is the device argument. The
+        -- IPC documents it as optional but the running shell requires it
+        -- (`function increment(step: string, device: string)`), and a call with
+        -- one argument fails with "Too few arguments provided" — silently, from
+        -- a keybind. Empty means the default backlight. `audio` takes only the
+        -- step, so those calls stay as they are.
         -- DMS owns the OSD for these, and its brightness manager drives DDC on
         -- external monitors as well as the internal backlight — which is what
         -- retired avizo (lightctl/volumectl) along with its service.
-        hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("dms ipc call brightness decrement 1"), { repeating = true })
-        hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("dms ipc call brightness increment 1"), { repeating = true })
+        hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd([[dms ipc call brightness decrement 1 ""]]), { repeating = true })
+        hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd([[dms ipc call brightness increment 1 ""]]), { repeating = true })
         hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("dms ipc call audio increment 1"), { repeating = true })
         hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("dms ipc call audio decrement 1"), { repeating = true })
 
