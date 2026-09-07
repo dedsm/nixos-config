@@ -167,7 +167,7 @@ let
 
       # Desktop notifications are herdr's job now: it sees every recognised
       # agent rather than just Claude Code, and `prefix+o` jumps to the pane
-      # that raised one, which a swaync popup cannot do. Leaving these hooks
+      # that raised one, which a shell notification popup cannot do. Leaving these hooks
       # enabled would notify twice for the same prompt. See "Notifications" in
       # docs/herdr.md.
       #

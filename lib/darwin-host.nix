@@ -50,6 +50,7 @@ attrs@{
         }
         ../modules/darwin
         ../modules/common
+        ../modules/common/fonts.nix
       ];
     };
 }

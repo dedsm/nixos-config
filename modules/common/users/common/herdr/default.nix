@@ -130,7 +130,7 @@ let
       # already owns under tmux, via the plugin actions defined above.
       #
       # `ctrl+alt+h/j/k/l` is herdr's own suggestion and is not used: `CTRL +
-      # ALT + L` is the hyprlock bind on manwe, and diverging per host is worse
+      # ALT + L` is the lock bind on manwe, and diverging per host is worse
       # than picking a chord that is free on both.
       command = navKeybinds;
 
@@ -178,7 +178,7 @@ let
       # "Notifications" in docs/herdr.md.
       #
       # "system" hands off to the OS notification service: `notify-send` (hence
-      # libnotify below) into swaync on Linux, `osascript`/`display
+      # libnotify below) into DMS's notification centre on Linux, `osascript`/`display
       # notification` into Notification Center on Darwin. The alternatives are
       # "herdr" (in-app toasts, invisible while detached) and "terminal" (OSC
       # 9/777, dependent on the outer terminal).
@@ -235,7 +235,7 @@ let
 
     theme = {
       # herdr detects the host terminal's light/dark appearance itself, so it
-      # needs none of the darkman/dark-notify bridge the `theme` module builds
+      # needs none of the theme-switching bridge the `theme` module builds
       # for tmux. Upstream defaults this to false.
       auto_switch = true;
       dark_name = "solarized";

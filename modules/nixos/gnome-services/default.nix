@@ -27,11 +27,6 @@ in
       enableDemoAgent = true;
       enableWifi = true;
       geoProviderUrl = "https://api.beacondb.net/v1/geolocate";
-      whitelistedAgents = [ "darkman" ];
-      appConfig.darkman = {
-        isAllowed = true;
-        isSystem = true;
-      };
     };
     services.automatic-timezoned.enable = true;
 

@@ -11,10 +11,8 @@ let
   zsh = import ./zsh attrs;
   kdeconnect = import ./kdeconnect attrs;
   lorri = import ./lorri attrs;
-  swaync = import ./swaync attrs;
-  bluetooth = import ./bluetooth attrs;
-  network-manager = import ./network-manager attrs;
   hyprland = import ./hyprland attrs;
+  dms = import ./dms attrs;
   wayland = import ./wayland attrs;
   starship = import ./starship attrs;
   git = import ./git attrs;
@@ -41,10 +39,8 @@ lib.mkMerge [
   zsh
   kdeconnect
   lorri
-  swaync
-  network-manager
-  bluetooth
   hyprland
+  dms
   wayland
   starship
   git

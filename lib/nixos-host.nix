@@ -58,6 +58,7 @@ attrs@{
       ++ hardwareModules
       ++ [
         ../modules/common
+        ../modules/common/fonts.nix
       ];
     };
 }

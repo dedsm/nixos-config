@@ -89,9 +89,9 @@ let
 
   # pam_exec target for a successful password authentication.
   #
-  # It does *not* run as root for every service: hyprlock is an ordinary user
-  # process running its own PAM conversation, so its stack — the one that
-  # matters most here — executes this as the user. Hence the group-writable,
+  # It does *not* run as root for every service: the DMS lock screen is an
+  # ordinary user process running its own PAM conversation, so its stack — the
+  # one that matters most here — executes this as the user. Hence the group-writable,
   # setgid state directory. Anything running as that user could therefore forge
   # a stamp, which is inherent rather than a shortcut: the unlock signal itself
   # originates inside a process that user controls. It buys nothing against the
@@ -101,7 +101,7 @@ let
     [ "''${PAM_TYPE:-}" = "auth" ] || exit 0
 
     # Group-writable so both root's stacks (sudo, login, greetd) and the
-    # user's (hyprlock) can refresh it; the group comes from the setgid
+    # user's (dankshell) can refresh it; the group comes from the setgid
     # directory. World-readable because polkitd runs the gate as itself.
     ${pkgs.coreutils}/bin/install -m 0664 /dev/null ${passwordStamp}
     ${optionalString (cfg.failureLimit > 0) ''
@@ -133,10 +133,13 @@ let
   '';
 
   # The same checks as the gate, phrased for a human. Silent when fingerprint
-  # auth is available, so it can be dropped straight into a hyprlock label:
-  # there is nothing to say while the reader works, and hyprlock's own
-  # $FPRINTPROMPT covers that case anyway. `-v` also reports the open case,
-  # with the tightest clock, for asking from a terminal.
+  # auth is available: there is nothing to say while the reader works.
+  #
+  # This used to be rendered on the lock screen itself, in a hyprlock `cmd[]`
+  # label. DMS's lock screen has no equivalent slot — every lock-screen setting
+  # it exposes is a show/hide toggle — so when the policy denies the sensor the
+  # lock silently offers only the password field, and the reason has to be
+  # asked for here. `-v` also reports the open case, with the tightest clock.
   status = pkgs.writeShellScriptBin "fingerprint-status" ''
     say() { echo "$1"; exit 0; }
 
@@ -213,7 +216,7 @@ let
   #
   # Orders are relative to pam_unix's own, per the warning on the `order`
   # option: the built-in values differ per service (sudo's stack is packed
-  # tighter than hyprlock's) and are explicitly not stable.
+  # tighter than dankshell's) and are explicitly not stable.
   stampService = service: {
     ${service}.rules.auth =
       let
@@ -309,7 +312,7 @@ in
       '';
       type = with types; listOf str;
       default = [
-        "hyprlock"
+        "dankshell"
         "sudo"
         "login"
         "greetd"
@@ -365,8 +368,8 @@ in
     # group and stays rewritable by root's stacks (and the other way round).
     systemd.tmpfiles.rules = [ "d ${stateDir} 2775 root ${group} -" ];
 
-    # Read by the hyprlock label (via /run/current-system/sw/bin) and handy
-    # from a shell: `fingerprint-status -v`.
+    # For asking why a password is being demanded: `fingerprint-status -v`.
+    # See the note on `status` above for why the lock screen cannot show it.
     environment.systemPackages = [ status ];
 
     security.pam.services = mkMerge (

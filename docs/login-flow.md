@@ -1,27 +1,40 @@
 # Login & lock flow (manwe)
 
-How boot gets to a usable session, and what guards it. The design goal: reach
-an authentication prompt as fast as possible after the LUKS passphrase, with
-LUKS as the at-rest security boundary and hyprlock as the session gate.
+How boot gets to a usable session, and what guards it. LUKS is the at-rest
+security boundary; the greeter authenticates before a session exists.
 
 ## Boot path
 
-1. **LUKS passphrase** in the systemd initrd — the real security boundary.
-2. **greetd autologin**: `dedsm.greetd.autologinUser` (set to `david` for
-   manwe in `flake.nix`) adds a greetd `initial_session` that starts
-   `uwsm start hyprland-uwsm.desktop` directly — no greeter, no password.
-   tuigreet remains the `default_session`, so after a logout (or if the boot
-   lock fails to start) you get the normal greeter.
-3. **hyprlock as the gate**: Hyprland's autostart launches hyprlock *first*,
-   before any other autostart. It is password-only without being told to: the
-   fingerprint window lives in `/run` and nothing has opened it yet this boot
-   (see below). If hyprlock exits non-zero within 5 seconds it failed to
-   start, and the session is torn down (`uwsm stop`) so greetd falls back to
-   tuigreet instead of leaving the session exposed.
+1. **LUKS passphrase** in the systemd initrd — the real security boundary,
+   prompted by plymouth (`boot.plymouth.enable` in `modules/nixos/core`, with
+   `quiet` and `consoleLogLevel = 0`). The splash then holds the display until
+   the greeter draws: greetd is aliased to `display-manager.service` and
+   ordered `After=plymouth-quit-wait.service` by its NixOS module, so nothing
+   console-shaped appears between the initrd and the login prompt.
+   `services.greetd.greeterManagesPlymouth` would remove even the black frame
+   between them, but it needs a greeter that quits plymouth itself and
+   dank-greeter has no plymouth support.
+2. **The DMS greeter**: greetd's `default_session` is `dms-greeter`, running as
+   its own system user in a short-lived Hyprland instance
+   (`services.displayManager.dms-greeter`). It reads david's DMS config, so the
+   login screen carries the same theme and wallpaper as the desktop behind it.
+3. **The session**: on a successful password the greeter hands over to
+   `uwsm start hyprland-uwsm.desktop`, and DankMaterialShell starts unlocked —
+   the authentication already happened.
 
-Because the session is only ever visible after hyprlock authentication, the
-autologin does not weaken interactive security; at-rest security is LUKS
-either way.
+### Why not autologin plus a boot lock
+
+The previous arrangement autologged in and had the lock screen guard the boot,
+which reached a prompt marginally sooner. It was abandoned because of what the
+eye actually sees: greetd handed the console to the session, so VT text
+appeared, then Hyprland, then the desktop painted, and only then — once the
+shell had loaded and could raise its own lock surface — the lock. DMS *is* the
+locker, so no configuration makes that lock appear before the shell exists;
+measured on this machine the desktop was visible for about 1.15s.
+
+Authenticating first removes the problem rather than shortening it: compositor
+to compositor, with nothing unlocked in between. It also puts the password back
+on the login stack, which is the ordinary place to unlock the login keyring.
 
 ## Fingerprint policy: one gate, in front of fprintd
 
@@ -52,14 +65,14 @@ with the machine untouched, at which point only a password will do. Set
 Enforcement is `modules/nixos/fingerprint-policy/`
 (`dedsm.fingerprintPolicy`), in **one** place for the whole machine: a polkit
 rule on fprintd's `net.reactivated.fprint.device.verify`. Everything that can
-use the reader goes through fprintd — hyprlock over D-Bus directly, `sudo` and
+use the reader goes through fprintd — the lock screen via `pam_fprintd`, `sudo` and
 `login` via `pam_fprintd` — so nothing needs to opt in, and nothing can opt
 out.
 
 State lives in `/run/fingerprint-policy/`:
 
 - `password-auth` — mtime of the last password authentication, written by
-  `pam_exec` from the auth stacks named in `passwordServices` (hyprlock, sudo,
+  `pam_exec` from the auth stacks named in `passwordServices` (dankshell, sudo,
   login, greetd). `/run` is a tmpfs, so "no file" and "nothing since boot" are
   the same thing: the restart condition needs no code and cannot be forgotten.
 - `fingerprint-unlock` — mtime of the last successful match, written by the
@@ -77,8 +90,9 @@ A per-user window would look for root's stamp on a sudo fingerprint while
 sudo's own PAM stack had written david's.
 
 `fingerprint-status` (`-v` to also report the open case, with the tightest
-clock) prints why a password is being asked for; the lock screen runs it in a
-`cmd[]` label, because hyprlock itself cannot tell (see below).
+clock) prints why a password is being asked for. It has to be run by hand now —
+the lock screen used to render it in a `cmd[]` label, which DMS has no
+equivalent for (see below).
 
 ### Logout, and greetd's two sessions
 
@@ -86,25 +100,27 @@ The logout condition is `pam_exec` on the session stack of whatever opens the
 desktop — `sessionServices`, which is just `greetd`. Two details make that
 less obvious than it sounds:
 
-- **Autologin never traverses the auth stack.** greetd's `initial_session`
-  goes through `start_unauthenticated_session(SessionClass::User, …)` with
-  `authenticate: false`, so no password flows and no stamp is written at boot.
-  That is what makes the boot lock password-only without anything having to
-  ask for it — and it also means the auth-stack rewrite above cannot affect
-  the autologin path at all.
+- **The login password now refreshes the clock.** greetd is in
+  `passwordServices`, and the greeter authenticates through it, so the stamp is
+  written at login. The policy's "password after a restart" condition is
+  therefore satisfied by the login itself, and fingerprint is available for the
+  first lock of the session — which is exactly Apple's behaviour, and one thing
+  the autologin design could not do (its `initial_session` went through
+  `start_unauthenticated_session(…, authenticate: false)`, so no password ever
+  reached PAM and the first *lock* had to be the password one).
 - **The greeter runs through the same PAM service as the session.** greetd
   takes a `greeter_service` and a `pam_service`, and here both are `greetd`
-  (there is no `/etc/pam.d/greeter`, and `other` denies sessions — tuigreet
-  could not start otherwise). So tuigreet's *own* session closing lands in
+  (there is no `/etc/pam.d/greeter`, and `other` denies sessions — the greeter
+  could not start otherwise). So the greeter's *own* session closing lands in
   this hook too, moments after the password typed into it refreshed the clock,
   and would wipe it. The hook therefore fires only for a user listed in
-  `users`; `greeter` is not one.
+  `users`; `dms-greeter` is not one.
 
 ### Who may write the state
 
 `pam_exec` runs with the privileges of whatever is running the PAM
-conversation, and that is not always root: **hyprlock is an ordinary user
-process running its own PAM stack** — the most important one here. So the
+conversation, and that is not always root: **the lock screen is an ordinary
+user process running its own PAM conversation** — the most important one here. So the
 state directory is setgid `fingerprint-policy`, mode 2775, and
 `dedsm.fingerprintPolicy.users` puts the locker's user in that group. Miss
 that and the unlock silently cannot refresh the clock, and the reader stays
@@ -118,17 +134,27 @@ already running as david can read the keystrokes of the password instead.
 
 ### Why the gate is at fprintd and not in PAM
 
-hyprlock does not use `pam_fprintd`. It drives fprintd over D-Bus itself and
-only ever calls `pam_authenticate` for the password path — no session phase,
-which also rules out `pam_timestamp`, the module that otherwise looks
-purpose-built for this (it creates its timestamp in `pam_sm_open_session`).
-Any policy written into `/etc/pam.d/hyprlock` is invisible to the fingerprint
-path.
+The lock screen runs fingerprint in a *second, parallel* PAM context off DMS's
+own bundled stack, so that the sensor and the password field are live at the
+same time (`settings.lockPamInlineFprint = false`). Whatever ends up in
+`/etc/pam.d/dankshell` therefore governs the password path only.
+
+Getting DMS to use that file needs `settings.lockPamExternallyManaged` left
+**off**, which reads backwards. That setting does not mean "the admin declares
+the stack"; it makes DMS authenticate against `/etc/pam.d/login`, which here is
+password-only by design, *and* it suppresses the parallel fingerprint context.
+Turned on, it disables fingerprint unlock twice over. Left off, DMS picks
+`/etc/pam.d/dankshell` simply because the file exists. And that path
+only ever calls `pam_authenticate` — no session phase, which also rules out
+`pam_timestamp`, the module that otherwise looks purpose-built for this (it
+creates its timestamp in `pam_sm_open_session`). hyprlock, which this replaced,
+did not use `pam_fprintd` at all: it drove fprintd over D-Bus directly. Either
+way the policy cannot live in PAM.
 
 fprintd, by contrast, checks polkit on *every* invocation of a method that
 needs a permission, and caches nothing for a `NO`. `VerifyStart` needs
-`verify`, and hyprlock re-issues `VerifyStart` on logind's
-`PrepareForSleep(false)` — i.e. on every resume — and after each failed match.
+`verify`, and the locker re-issues `VerifyStart` after each failed match and on
+every resume.
 So the window is re-evaluated at exactly the moments that matter, **without
 restarting the locker**: a locker that has been up since before the window
 lapsed simply stops accepting fingerprints.
@@ -153,16 +179,19 @@ Three things that are easy to get wrong here:
 
 ### What the lock screen shows
 
-hyprlock has no idea any of this exists. A denied `Claim`/`VerifyStart` only
-logs `WARN fprint: could not claim device` and returns — it does not fail the
-prompt, clear a password being typed, or say anything on screen. The one
-visible effect is that `$FPRINTPROMPT` never gets set, so the "touch the
-sensor" line is simply absent.
+Not much, and this is the one place the DMS lock is worse than what it
+replaced. When the gate says no, `pam_fprintd` fails; DMS treats that as a
+retryable error and quietly re-arms (up to 200 times) while the password field
+stays live and working. Verified on hardware: no hang, no spin visible, the
+password path is unaffected — but the fingerprint icon stays lit as though the
+sensor were usable, and nothing on screen says why it is not.
 
-That is correct but silent, so the hyprlock config carries a second label
-running `cmd[update:5000] fingerprint-status`, which fills the same slot with
-*why* — "no unlock since boot", "window lapsed", "too many failed attempts" —
-and prints nothing at all when the reader is available.
+hyprlock could not tell either, which is why its config carried a second label
+running `cmd[update:5000] fingerprint-status` to fill the slot with *why* — "no
+unlock since boot", "window lapsed", "too many failed attempts". DMS has no
+equivalent: every lock-screen setting is a show/hide toggle, a font or a
+wallpaper, with no custom label or command. `fingerprint-status` is still
+installed; it just has to be run from a terminal now.
 
 ### The match monitor, and why it is a listener
 
@@ -183,9 +212,10 @@ If the monitor dies, the counter stops moving and the time window still
 applies — it fails open, deliberately, because the alternative is a service
 crash locking you out of your own reader.
 
-This is what makes the limit stick. hyprlock caps itself at 3 failed matches,
-but only per locker instance, and `CTRL+ALT+SHIFT+L` (below) spawns a fresh
-one on a locked session. The counter is what a respawn does not reset.
+This is what makes the limit stick. The locker's own cap is per instance —
+DMS's `maxFprintTries` is set to 5 in `modules/common/users/common/dms/` to
+match, but `CTRL+ALT+SHIFT+L` (below) restarts the shell on a locked session and
+that resets it. The counter in `/run` is what a restart does not reset.
 
 ### `misc:allow_session_lock_restore`
 
@@ -200,36 +230,44 @@ out. Reboot only.
 
 `misc:allow_session_lock_restore = true` (hyprland module) lets a new locker
 take over the lock instead, which makes **`CTRL+ALT+SHIFT+L`** a real escape
-hatch: bound with Hyprland's `locked` flag so it runs while locked, it spawns
-a fresh locker, so a locker crash is recoverable in place rather than by
-power-cycling.
+hatch: bound with Hyprland's `locked` flag so it runs while locked, it restarts
+`dms.service`, and the fresh shell takes the orphaned lock. A locker crash is
+recoverable in place rather than by power-cycling.
 
 The trade-off is that a lock screen can be *replaced* rather than only
 *added*, so a hostile client could swap in a fake prompt. That requires access
 to the Wayland socket, i.e. already running code as this user, which is past
-the boundary hyprlock defends — whereas the failure it prevents is a crashed
+the boundary the lock defends — whereas the failure it prevents is a crashed
 locker bricking the session until it is power-cycled.
 
-This used to carry more weight than it does now: the sleep hook had to *kill*
-a running locker and start a password-only one in its place, and getting that
-sequence wrong (or overlapping it) landed exactly in the dead end above. The
-fprintd gate removed the need to replace anything, so
-`hypridle`'s `before_sleep_cmd` is now only "start a locker if none is
-running", and it holds the sleep inhibitor until that locker is up.
+This used to carry more weight than it does now. The sleep hook once had to
+*kill* a running locker and start a password-only one in its place, and getting
+that sequence wrong (or overlapping it) landed exactly in the dead end above.
+The fprintd gate removed the need to replace anything — a locker that was up
+before the window lapsed stops accepting fingerprints without being restarted,
+because the gate is re-checked on the `VerifyStart` that follows every resume.
+Locking before suspend is now just `settings.lockBeforeSuspend`, inside the
+shell that already owns the lock.
 
 ## Idle, DPMS, and the black-screen backstops
 
-`modules/common/users/common/wayland/hypridle/` drives two idle listeners off
-`ext_idle_notifier_v1`: **300s → `loginctl lock-session`**, **600s → DPMS off**.
-Nothing else in the repo writes DPMS.
+DMS's `IdleService` drives both timers off `ext_idle_notifier_v1`, configured in
+`modules/common/users/common/dms/`: **`acLockTimeout` / `batteryLockTimeout` =
+300s → lock**, **`acMonitorTimeout` / `batteryMonitorTimeout` = 600s → monitors
+off**. Suspend is left to logind (`acSuspendTimeout = 0`; see
+[`hibernation.md`](./hibernation.md)). Nothing else in the repo writes DPMS.
+These are the timings hypridle used, which DMS replaced.
 
-Both listeners turn the display back on when you resume, which looks redundant
-and is not. hypridle recreates *every* listener's idle notification whenever a
-dbus inhibit is taken or released — Firefox does this each time audio starts and
-stops. That resets the timers **and** clears each listener's internal "idled"
-flag. If the DPMS listener had already fired, the panels stay physically off
-while hypridle believes they are on, so on resume it fires no `on-resume` for
-that listener and nothing turns them back on.
+The incident below predates DMS and belongs to hypridle, but the backstop it
+produced is the reason the compositor-level guard exists — and that guard is
+what makes any single idle daemon, this one included, non-load-bearing.
+
+hypridle recreated *every* listener's idle notification whenever a dbus inhibit
+was taken or released — Firefox does this each time audio starts and stops. That
+reset the timers **and** cleared each listener's internal "idled" flag. If the
+DPMS listener had already fired, the panels stayed physically off while hypridle
+believed they were on, so on resume it fired no `on-resume` for that listener
+and nothing turned them back on.
 
 That is a real incident, not a hypothetical (2026-07-31): DPMS off at 18:36, a
 Firefox audio inhibit released at 18:55:58 re-armed both listeners, and the
@@ -238,35 +276,34 @@ fingerprint reader even reported `verify-match` — but the screens were dark an
 the machine looked hung. Only replugging the dock (forcing output
 re-enumeration) brought the picture back.
 
-Two independent guards, deliberately both:
-
-- **`on-resume = dpms "on"` on the 300s lock listener.** Idempotent, and covers
-  the case above because the *lock* listener's resume did still fire.
-- **`misc.mouse_move_enables_dpms` / `misc.key_press_enables_dpms`** in
-  `modules/common/users/common/hyprland/`. Both default to **false**, which is
-  what made the state unrecoverable from the keyboard. These make the compositor
-  wake the display on input regardless of what hypridle thinks.
-
-Keep the second one in mind before trusting any single idle daemon: it is the
-only guard that survives hypridle being wrong, wedged, or dead.
+The guard that survived the migration is the compositor-level one:
+**`misc.mouse_move_enables_dpms` / `misc.key_press_enables_dpms`** in
+`modules/common/users/common/hyprland/`. Both default to **false**, which is
+what made the state unrecoverable from the keyboard. These make Hyprland wake
+the display on input regardless of what any idle daemon thinks — and it is the
+only guard that survives that daemon being wrong, wedged, or dead. DMS's own
+`IdleService` turns monitors back on from any resume (`requestMonitorOn`), which
+covers the same ground as hypridle's per-listener `on-resume` did, but do not
+rely on it alone.
 
 If a black screen ever recurs, the machine is probably fine — check
-`journalctl -b -1 | grep hypridle` for an `Idled:` with no matching `Resumed:`
-for the same rule id before concluding the GPU hung, and confirm with a clean
-`grep -i amdgpu` (a real hang shows ring timeouts / GPU reset, not just
-`DMUB HPD IRQ` dock events).
+`journalctl --user -u dms` around the resume before concluding the GPU hung, and
+confirm with a clean `grep -i amdgpu` (a real hang shows ring timeouts / GPU
+reset, not just `DMUB HPD IRQ` dock events).
 
 ## Keyring unlock (gnome-keyring)
 
-With autologin no password flows through PAM at login, so the login keyring
-starts locked. The greetd module sets
-`security.pam.services.hyprlock.enableGnomeKeyring = true`:
-pam_gnome_keyring's *auth* handler forwards the password typed at hyprlock to
-the already-running daemon (hyprlock only runs PAM's auth phase — that's
-sufficient for gnome-keyring). A fingerprint unlock carries no secret to
-forward, which is why the keyring depends on the first unlock after boot being
-a password one; the fingerprint policy above guarantees that without any
-special-casing, since nothing has opened the window yet at that point.
+The greeter authenticates with a password on greetd's own PAM stack, which is
+the ordinary place to unlock the login keyring:
+`security.pam.services.greetd.enableGnomeKeyring = true` in
+`modules/nixos/greetd` runs both the auth handler (which forwards the typed
+password) and the session handler (`auto_start`).
+
+`modules/nixos/dms` sets the same option on the `dankshell` service, so the
+lock screen can also unlock the keyring — relevant after a session where the
+daemon was relocked, and the reason a fingerprint unlock cannot do it: it
+carries no secret to forward. Under the previous autologin design this was the
+*only* path, since no password reached PAM at login at all.
 
 Constraint: the login keyring's password must equal the user password (fix
 with seahorse if they ever diverge).

@@ -11,55 +11,81 @@ in
 {
   options.dedsm.greetd = {
     enable = mkOption {
-      description = "greetd login manager, defaulting into the Hyprland session";
+      description = ''
+        greetd running DankMaterialShell's greeter, which authenticates before
+        the Hyprland session exists. The alternative — autologin with the lock
+        screen as the gate — reached a prompt marginally sooner but handed the
+        console to the session first, so the eye saw VT text between the two.
+        See docs/login-flow.md.
+      '';
       type = with types; bool;
       default = false;
     };
 
-    autologinUser = mkOption {
+    greeterUser = mkOption {
       description = ''
-        User to boot straight into the Hyprland session, skipping the greeter.
-        hyprlock (launched first thing by Hyprland's autostart) is the actual
-        authentication gate; LUKS remains the at-rest security boundary.
-        tuigreet stays as the fallback greeter after logout. See
-        docs/login-flow.md.
+        Whose DMS configuration the greeter reads, so the login screen carries
+        the same theme and wallpaper as the desktop behind it.
       '';
-      type = with types; nullOr str;
-      default = null;
+      type = with types; str;
+      default = "david";
     };
   };
 
   config = mkIf cfg.enable {
-    services.greetd = {
+    # The greeter brings its own `default_session`; nothing else declares one.
+    services.greetd.enable = true;
+
+    services.displayManager.dms-greeter = {
       enable = true;
-      settings = {
-        default_session = {
-          command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --remember-user-session --asterisks --user-menu --cmd 'uwsm start hyprland-uwsm.desktop'";
-          user = "greeter";
-        };
-      }
-      // optionalAttrs (cfg.autologinUser != null) {
-        initial_session = {
-          command = "uwsm start hyprland-uwsm.desktop";
-          user = cfg.autologinUser;
-        };
-      };
+      # Hyprland hosts the greeter, in a short-lived instance owned by the
+      # `dms-greeter` user. Something lighter would start marginally sooner, but
+      # 26.05's module only offers niri, hyprland and sway — no minimal
+      # single-surface compositor like cage — and pulling in a whole second
+      # compositor to draw one login screen is not worth the packages or the
+      # untested code on the login path. Hyprland is already here.
+      compositor.name = "hyprland";
+      configHome = "/home/${cfg.greeterUser}";
+
+      # Without this the greeter writes its own Hyprland config carrying only
+      # `disable_hyprland_logo`, so the login screen is preceded by Hyprland's
+      # default background and its splash line — the same two artefacts the
+      # session's config turns off. Matched here, so the whole boot stays black
+      # until something deliberate is drawn on it.
+      #
+      # Supplying a config *replaces* the generated one rather than extending
+      # it, so two details have to be reproduced: `DMS_RUN_GREETER`, which is
+      # how the shell knows it is running as the greeter, and lua syntax — the
+      # launcher tells lua from hyprlang by looking for `hl.`
+      # (`hyprlandLuaPattern` in dank-greeter's compositor.go) and only appends
+      # its own start hook to a config it recognises as lua.
+      compositor.customConfig = ''
+        hl.env("DMS_RUN_GREETER", "1")
+
+        hl.config({
+          misc = {
+            disable_hyprland_logo = true,
+            disable_splash_rendering = true,
+            force_default_wallpaper = 0,
+            background_color = "rgb(000000)",
+          },
+        })
+      '';
     };
+
+    # A password flows through PAM at login here, which is the ordinary way to
+    # unlock the login keyring — so the lock screen does not have to.
+    security.pam.services.greetd.enableGnomeKeyring = true;
 
     # The stock unit is Type=idle: systemd delays exec until the boot job queue
     # drains, so any slow boot oneshot (powertop, fwupd refresh, ...) holds the
     # login prompt hostage for up to the 5s idle cap. Worst case with exec is a
-    # late boot message printing over tuigreet.
+    # late boot message printing over the greeter.
     systemd.services.greetd.serviceConfig.Type = mkForce "exec";
 
-    # With autologin no password flows through PAM at login, so gnome-keyring
-    # is unlocked at the hyprlock gate instead: pam_gnome_keyring's auth
-    # handler forwards the typed password to the already-running daemon.
-    # Requires the login keyring's password to equal the user password, and a
-    # password (not fingerprint) unlock — enforced after boot/resume by the
-    # strict hyprlock config (see docs/login-flow.md).
-    security.pam.services.hyprlock.enableGnomeKeyring = true;
-
+    # Fingerprint is not offered at login: dedsm.fingerprintPolicy denies it
+    # after a boot anyway — its state lives in /run, so nothing has
+    # authenticated yet — and a prompt that can only fail is worse than none.
     security.pam.services.greetd.fprintAuth = false;
   };
 }

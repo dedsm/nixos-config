@@ -18,7 +18,7 @@ Lua config lives under `config/` and is symlinked wholesale into `~/.config/nvim
 - **Completion**: `nvim-cmp` + `luasnip`/`cmp-nvim-lsp`/`cmp-path`, `lazydev-nvim` for Lua/Neovim API completion.
 - **Colorschemes**: `catppuccin-nvim` and a pinned `solarized.nvim`, switched via `config/lua/config/colorschemes.lua`; see `dark-notify` below for how light/dark switching is wired to the OS.
 - **Claude Code**: `claude-code-nvim`, configured in `config/lua/config/claude-code.lua` as a vertical split (`<leader>cc` toggles it, `<leader>cR` opens the resume picker). Details on the Claude Code side: [`claude-code.md`](./claude-code.md).
-- **Light/dark sync**: a pinned `dark-notify` plugin reacts to the OS appearance — `dark-notify` binary on Darwin, `darkman` on Linux (see the `theme` home-manager module) — and flips the colorscheme automatically.
+- **Light/dark sync**: nvim's TUI queries the terminal's background colour (OSC 11) at startup and sets `'background'` itself, so the colorscheme follows foot. On Darwin a pinned `dark-notify` plugin does it instead, driven by the `dark-notify` binary the `theme` module's launchd agent runs; that plugin has no Linux build and is guarded to macOS.
 - **Misc quality-of-life**: `gitsigns-nvim`, `which-key-nvim`, `todo-comments-nvim`, `vim-tmux-navigator` (pane navigation shared with tmux), `vim-lastplace`, `vim-sleuth`, `mini-nvim`, `fidget-nvim` (LSP progress UI).
 
 One file arrives from outside this module: the **herdr** module links

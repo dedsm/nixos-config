@@ -21,12 +21,13 @@ attrs@{
       # alone is unreliable here because the file is symlinked, not written in
       # place. (hyprctl keyword/source no longer work under the lua parser.)
       destination = "$HOME/.config/hypr/monitors.lua"
-      # Waybar has a long-standing upstream bug (Alexays/Waybar#3975, #4823)
-      # where a monitor hotplug desyncs its Hyprland IPC/tray connection: the
-      # bar goes unresponsive until the service is restarted. Since this only
-      # fires on an actual profile transition (not every udev event), restart
-      # waybar alongside the reload rather than chase the upstream bug here.
-      post_apply_exec = "hyprctl reload && systemctl --user restart waybar.service"
+      # The bar used to be restarted here too: waybar desynced its Hyprland
+      # IPC/tray connection on a monitor hotplug (Alexays/Waybar#3975, #4823)
+      # and went unresponsive until restarted. DMS tracks outputs itself
+      # through wlr-output-management, so the reload is all that is needed —
+      # put the restart back if the bar is ever found stale after a profile
+      # transition.
+      post_apply_exec = "hyprctl reload"
 
       [fallback_profile]
       config_file = "hyprconfigs/fallback.lua"

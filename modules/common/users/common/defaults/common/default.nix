@@ -29,9 +29,13 @@ attrs@{
           term = "foot";
           font = "InconsolataGo Nerd Font Mono:size=12";
           dpi-aware = "no";
-          # foot's new colors-light/colors-dark model defaults startup to dark;
-          # the old [colors] base was light, so pin light to match prior behaviour.
-          initial-color-theme = "light";
+          # Not `initial-color-theme` directly: that takes a literal `dark` or
+          # `light`, and a pinned value is wrong half the day — a foot started
+          # while the system is dark painted light and was corrected a moment
+          # later by the zsh hook below. The include is one line, rewritten by
+          # the `theme` module on every mode change and seeded at activation, so
+          # a new terminal opens in the mode that is already current.
+          include = "~/.config/foot/mode.ini";
         };
 
         scrollback = {
@@ -103,7 +107,7 @@ attrs@{
   };
 
   # NOTE: `color-scheme` and `gtk-theme` are deliberately NOT set here. They are
-  # owned exclusively by the `theme` module (darkman) at runtime — see
+  # owned exclusively by DankMaterialShell at runtime — see
   # docs/theme.md. Declaring them statically makes every home-manager activation
   # `dconf load` them back to their light values, which the xdg-desktop-portal-gtk
   # Settings backend then broadcasts to every portal-aware app (Firefox, Slack,
@@ -129,7 +133,7 @@ attrs@{
       }
     '';
     # 26.05: gtk4.theme no longer mirrors gtk.theme; GTK4 apps use libadwaita,
-    # which follows the `color-scheme` dconf key darkman drives. Pinning
+    # which follows the `color-scheme` dconf key DMS drives. Pinning
     # `gtk-application-prefer-dark-theme` in settings.ini here would hard-lock
     # GTK4/libadwaita apps to light regardless of the current mode.
     gtk4.theme = null;
@@ -146,9 +150,9 @@ attrs@{
 
     # `theme.name` is left unset on purpose: home-manager mirrors it into BOTH
     # gtk-3.0/settings.ini and the `gtk-theme` dconf key, which would re-pin the
-    # light Adwaita variant on every activation and fight darkman. The package is
-    # still installed below so the Adwaita/Adwaita-dark pair darkman switches
-    # between is actually on disk.
+    # light variant on every activation and fight DMS, which drives that key
+    # itself (adw-gtk3/adw-gtk3-dark, installed by modules/nixos/dms). The
+    # package below stays for the Adwaita icon/theme fallbacks.
     theme = null;
   };
 
@@ -162,7 +166,8 @@ attrs@{
   };
 
   home = {
-    # Provides both Adwaita and Adwaita-dark for the GTK3 side of darkman's switch.
+    # Adwaita/Adwaita-dark, kept as the fallback pair for apps that ask for a
+    # theme by name rather than following the `color-scheme` key DMS drives.
     packages = [ pkgs.gnome-themes-extra ];
 
     pointerCursor = {

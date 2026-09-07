@@ -121,11 +121,9 @@
         # Defaults for modules not enabled on all platforms
         kdeconnect.enable = false;
         lorri.enable = false;
-        swaync.enable = false;
-        network-manager.enable = false;
-        bluetooth.enable = false;
         wayland.enable = false;
         hyprland.enable = false;
+        dms.enable = false;
         theme.enable = true;
         defaults.enable = false;
         direnv.enable = true;
@@ -233,10 +231,8 @@
         // {
           kdeconnect.enable = true;
           lorri.enable = true;
-          swaync.enable = true;
-          network-manager.enable = true;
-          bluetooth.enable = true;
           wayland.enable = true;
+          dms.enable = true;
           defaults.enable = true;
 
           # zsh.initContent = ''
@@ -255,13 +251,11 @@
               nautilus
               eog
               evince
-              polkit_gnome
               (pkgs.writers.writePython3Bin "i3xmonadhelper" {
                 libraries = [ pkgs.python3Packages.i3ipc ];
               } (builtins.readFile ./custom/david/i3xmonadhelper.py))
               wl-clipboard
               moonlight-qt
-              clipman
               playerctl
               gimp
               scrot
@@ -279,7 +273,6 @@
               pamixer
               xsane
               imagemagick
-              networkmanagerapplet
               slurp
               grim
               marksman
@@ -313,9 +306,6 @@
         zsh.enable = true;
         kdeconnect.enable = false;
         lorri.enable = false;
-        swaync.enable = false;
-        network-manager.enable = false;
-        bluetooth.enable = false;
         hyprland.enable = false;
         wayland.enable = false;
         theme.enable = false;
@@ -333,10 +323,7 @@
         gnome-programs.enable = true;
         gnome-services.enable = true;
         hyprland.enable = true;
-        greetd = {
-          enable = true;
-          autologinUser = "david";
-        };
+        greetd.enable = true;
         bluetooth.enable = true;
         printing.enable = true;
         scanning.enable = true;
@@ -358,6 +345,7 @@
         };
         fwupd.enable = true;
         ddclient.enable = true;
+        dms.enable = true;
 
         systemUsers = {
           david = {
@@ -371,6 +359,7 @@
         david = (davidNixos pkgs) // {
           hyprland.enable = true;
           anyrun.enable = true;
+          dms.enable = true;
           packages =
             pkgs:
             (davidNixos pkgs).packages pkgs
@@ -383,7 +372,6 @@
               # Cursor.ai
               pkgs.unstable.synology-drive-client
               pkgs.unstable.ledger-live-desktop
-              pkgs.unstable.avizo
               pkgs.unstable.awscli2
             ]);
         };

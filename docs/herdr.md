@@ -228,8 +228,8 @@ name = "solarized"
 `auto_switch` follows the **host terminal's** light/dark appearance, not the OS and not a
 notification daemon. That is why Herdr needs none of the bridge that
 [`theme/default.nix`](../modules/common/users/common/theme/default.nix) builds for tmux —
-no darkman scripts on manwe, no `dark-notify` agent or `theme-apply` symlink dance on
-morgoth. It detects the transition itself, identically on both hosts.
+no matugen templates or transition hooks on manwe, no `dark-notify` agent or
+`theme-apply` symlink dance on morgoth. It detects the transition itself, identically on both hosts.
 
 `solarized` / `solarized-light` are exact built-in identifiers (verified against the
 binary's theme table, alongside `catppuccin-latte`, `gruvbox-light`, `one-light`,
@@ -413,7 +413,8 @@ panes.
 ## Notifications
 
 Herdr is the notification system for agents on both hosts. `ui.toast.delivery = "system"`
-hands each one to the OS notification service — `notify-send` into swaync on Linux (hence
+hands each one to the OS notification service — `notify-send` into DMS's notification
+server on Linux (hence
 `libnotify` in the module's `home.packages`; Herdr calls it by name, not by store path),
 `osascript`/`display notification` into Notification Center on Darwin. Both paths were
 verified in the respective 0.7.5 binaries.
@@ -432,7 +433,7 @@ Herdr was chosen to own it because:
 - it covers **every recognised agent**, not just Claude Code, so a codex or gemini pane
   raises notifications on the same terms;
 - `prefix+o` (`open_notification_target`) jumps to the pane that raised the notification,
-  which no swaync popup can do;
+  which a notification popup cannot do;
 - the hook path had no Herdr awareness at all — `notify.nix` titles from the **tmux**
   window name and otherwise falls back to the cwd basename, so inside Herdr every
   notification was titled `Claude Code <dirname>`.
@@ -458,12 +459,11 @@ Herdr invokes `notify-send -- <title> <body>` with no flags at all — no `-A/--
 around:
 
 - **Clicking a notification does not jump to the agent.** With no action attached there is
-  nothing for swaync to invoke, so a click only dismisses. `prefix+o`
+  nothing for the notification server to invoke, so a click only dismisses. `prefix+o`
   (`open_notification_target`) is the way to reach the pane that raised one.
-- **They expire after 10s.** No `-u` means normal urgency, which lands on swaync's
-  `timeout = 10` ([`swaync`](../modules/common/users/common/swaync/default.nix)); only
-  `timeout-critical` is `0`/never. Nothing is lost — swaync's control center keeps them,
-  and `notification-grouping` is on.
+- **They expire on the shell's normal-urgency timeout.** No `-u` means normal urgency;
+  only critical notifications persist. Nothing is lost — DMS's notification centre keeps
+  them, and groups them by source.
 
 Both are fixable only by the sender. A `notify-send` shim on `PATH` (Herdr calls it by
 name, not by store path) could add `-u critical` and an action handler, at the cost of

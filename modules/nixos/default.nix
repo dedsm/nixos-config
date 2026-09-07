@@ -17,5 +17,6 @@
     ./fingerprint-policy
     ./fwupd
     ./ddclient
+    ./dms
   ];
 }

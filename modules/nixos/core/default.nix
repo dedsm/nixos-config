@@ -27,6 +27,28 @@ in
     boot.loader.systemd-boot.enable = true;
     boot.loader.systemd-boot.configurationLimit = 20;
     boot.loader.efi.canTouchEfiVariables = true;
+
+    # A splash from the initrd through to the greeter, so the boot never shows
+    # the console. greetd is aliased to display-manager.service and ordered
+    # After=plymouth-quit-wait.service by its NixOS module, so the splash holds
+    # until the greeter is ready to draw: splash -> greeter -> session, with no
+    # VT text in between. (`services.greetd.greeterManagesPlymouth` would hand
+    # over without even a black frame, but that needs a greeter that quits
+    # plymouth itself, and dank-greeter has no plymouth support at all.)
+    #
+    # This also moves the LUKS passphrase prompt into plymouth. If it ever
+    # misbehaves, removing `quiet` at the boot menu brings the console back.
+    boot.plymouth.enable = true;
+    # `quiet` and loglevel silence the kernel; show_status silences systemd's own
+    # "Starting/Started ..." lines, which are what otherwise appear on the VT in
+    # the moment between the greeter exiting and the session's compositor taking
+    # the display.
+    boot.kernelParams = [
+      "quiet"
+      "systemd.show_status=false"
+    ];
+    boot.initrd.verbose = false;
+    boot.consoleLogLevel = 0;
     i18n = {
       defaultLocale = cfg.defaultLocale;
     };
@@ -37,18 +59,6 @@ in
       plugins = with pkgs; [ networkmanager-openvpn ];
     };
     systemd.services.NetworkManager-wait-online.enable = false;
-
-    fonts.packages = with pkgs; [
-      noto-fonts
-      noto-fonts-cjk-sans
-      noto-fonts-color-emoji
-      liberation_ttf
-      fira-code
-      fira-code-symbols
-      dina-font
-      proggyfonts
-      pkgs.unstable.nerd-fonts.inconsolata-go
-    ];
 
     services.xserver = {
       enable = true;

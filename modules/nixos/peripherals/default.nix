@@ -35,15 +35,15 @@ in
     # solaar needs users to be able to write to uinput
     hardware.uinput.enable = true;
 
-    # Fingerprint reader. hyprlock drives fprintd over D-Bus itself rather than
-    # through PAM, so its PAM fingerprint module stays off; tty login stays
-    # password-only. `sudo` keeps NixOS' default (fprintAuth follows
+    # Fingerprint reader. The lock screen runs fingerprint in its own PAM
+    # context (see security.pam.services.dankshell in the greetd module), so
+    # the password stack stays password-only; tty login stays password-only
+    # too. `sudo` keeps NixOS' default (fprintAuth follows
     # services.fprintd.enable) and so does accept a fingerprint. What *any* of
     # them may do is bounded by dedsm.fingerprintPolicy — see
     # docs/login-flow.md.
     services.fprintd.enable = true;
     security.pam.services.login.fprintAuth = false;
-    security.pam.services.hyprlock.fprintAuth = false;
 
     # Thunderbolt
     services.hardware.bolt.enable = true;

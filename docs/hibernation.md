@@ -99,9 +99,9 @@ nothing important open) after any change to this area, and before shortening
 
 ## Related
 
-- [`login-flow.md`](./login-flow.md) — what happens on the way back up: hyprlock
-  is the auth gate on resume, password-only after suspend.
-- `hypridle` (`modules/common/users/common/wayland/hypridle/default.nix`) only
-  locks and DPMS-offs; it has **no suspend listener**. Combined with
+- [`login-flow.md`](./login-flow.md) — what happens on the way back up: the DMS
+  lock screen is the auth gate on resume, password-only after suspend.
+- DMS's idle service (`modules/common/users/common/dms/default.nix`) only locks
+  and blanks; its suspend timeouts are **0**, i.e. off. Combined with
   `HandleLidSwitchDocked = "ignore"`, closing the lid while docked on battery
   leaves the machine fully awake.

@@ -112,8 +112,9 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
 - [`docs/herdr.md`](./docs/herdr.md) — the agent-aware terminal multiplexer running alongside tmux: settings rationale, restart behaviour, why its activation-time commands are best-effort-with-a-warning, and what is deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill and how its store is bootstrapped/synced
-- [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching (darkman), why darkman must be the only thing declaring the `color-scheme`/`gtk-theme` dconf keys, and how the mode reaches Firefox/Slack, Hyprland, foot and tmux
-- [`docs/login-flow.md`](./docs/login-flow.md) — greetd autologin with hyprlock as the auth gate, the macOS-modelled fingerprint policy, keyring unlock, boot-speed rationale
+- [`docs/dms.md`](./docs/dms.md) — DankMaterialShell: the bar, notifications, control centre, launcher and lock screen, how it is configured declaratively, and what not to let it manage
+- [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching, why one owner must have the `color-scheme`/`gtk-theme` dconf keys, and how the mode reaches Firefox/Slack, Hyprland, foot and tmux
+- [`docs/login-flow.md`](./docs/login-flow.md) — the DMS greeter as the auth gate, the macOS-modelled fingerprint policy, keyring unlock, boot-speed rationale
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB, suspend-then-hibernate settings, why `boot.resumeDevice` is set explicitly, resume reliability caveats
 - [`docs/performance.md`](./docs/performance.md) — desktop responsiveness tuning ported from CachyOS: sched_ext (`scx_lavd`), ananicy-cpp with the CachyOS rule set, writeback sysctls sized for 128 GiB, and what was deliberately left out
 

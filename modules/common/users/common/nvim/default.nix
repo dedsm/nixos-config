@@ -133,7 +133,11 @@ mkIf (homeManagerConfig.nvim.enable or false) {
       # Claude Code integration
       pkgs.unstable.vimPlugins.claude-code-nvim
 
-      # dark-notify neovim plugin (uses dark-notify binary on macOS, darkman on Linux)
+      # dark-notify neovim plugin. macOS only in practice: it spawns a
+      # `dark-notify` binary (installed by homebrew there, see the theme
+      # module's launchd agent) and there is no Linux build — on Linux nvim's
+      # own TUI queries the terminal background (OSC 11) and sets 'background'
+      # itself, so it follows foot with no plugin involved.
       (pkgs.unstable.vimUtils.buildVimPlugin {
         pname = "dark-notify";
         version = "0.1.3";

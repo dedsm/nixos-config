@@ -32,8 +32,8 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
     screencast-inhibit = pkgs.writeShellScript "screencast-inhibit" ''
       ${pkgs.socat}/bin/socat -U - "UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock" | while IFS= read -r line; do
         case "$line" in
-          "screencast>>1,"*) swaync-client --inhibitor-add screencast ;;
-          "screencast>>0,"*) swaync-client --inhibitor-remove screencast ;;
+          "screencast>>1,"*) dms ipc call notifications enableDoNotDisturbIndefinitely ;;
+          "screencast>>0,"*) dms ipc call notifications disableDoNotDisturb ;;
         esac
       done
     '';
@@ -85,6 +85,15 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
           misc = {
             force_default_wallpaper = 0;
             disable_hyprland_logo = true;
+            # Black, so the frames before DMS has painted anything match the
+            # lock screen that is about to cover them. The shell cannot lock
+            # before it starts — it *is* the locker — so a boot always shows
+            # the compositor's own background first; this keeps that from
+            # being a visibly different colour.
+            background_color = "rgb(000000)";
+            # The splash line Hyprland renders over its background — the text
+            # at the bottom of the screen before DMS has painted anything.
+            disable_splash_rendering = true;
             # vfr (variable frame rate) is default-true and moved to debug: in 0.55.
             vrr = 1;
             # Both default to false: without them the *only* thing that can undo
@@ -97,8 +106,8 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
             # Let a new locker take over an already-locked session. Off, the
             # locked flag outlives a dead locker and every later lock client is
             # denied, so a session whose locker is gone can only be rebooted
-            # out of. Required by the hypridle sleep hook and the recovery bind
-            # below. See docs/login-flow.md.
+            # out of. Required by DMS's lock-before-suspend and by the recovery
+            # bind below. See docs/login-flow.md.
             allow_session_lock_restore = true;
           };
           master = {
@@ -159,25 +168,20 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
 
         -- Autostart
         hl.on("hyprland.start", function()
-          -- Lock immediately: with greetd autologin this is the actual auth
-          -- gate. It is password-only without asking for it — the
-          -- fingerprint window lives in /run, so nothing has opened it yet
-          -- this boot (dedsm.fingerprintPolicy) — and that typed password is
-          -- also what unlocks gnome-keyring via PAM. If hyprlock dies within
-          -- 5s it failed to start: end the session so it falls back to
-          -- tuigreet rather than sit exposed. A later non-zero exit is fine,
-          -- the session stays locked either way.
-          hl.exec_cmd([[sh -c 't0=$(date +%s); ${pkgs.hyprlock}/bin/hyprlock --immediate-render; s=$?; [ "$s" -ne 0 ] && [ $(( $(date +%s) - t0 )) -lt 5 ] && uwsm stop']])
-          hl.exec_cmd("uwsm app -- avizo-service")
+          -- The boot lock, only under greetd autologin: there the session
+          -- starts unattended and this is the actual auth gate. It is
+          -- password-only without being told to — the fingerprint window
+          -- lives in /run, so nothing has opened it yet this boot
+          -- (dedsm.fingerprintPolicy) — and that typed password is also what
+          -- unlocks gnome-keyring via PAM.
           hl.exec_cmd("uwsm app -- solaar -w hide")
-          hl.exec_cmd("uwsm app -- wl-paste -t text --watch clipman store --no-persist")
-          hl.exec_cmd("uwsm app -- ${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1")
+          -- No polkit agent here: DMS registers one, and polkit allows a single
+          -- agent per subject — whichever starts first wins, so autostarting
+          -- polkit-gnome left DMS logging "an authentication agent already
+          -- exists" and every prompt coming from the GTK dialog instead.
           hl.exec_cmd("uwsm app -- sh -c 'sleep 5 && ${pkgs.unstable.synology-drive-client}/bin/synology-drive'")
-        ${
-          lib.optionalString (homeManagerConfig.swaync.enable or false) ''
-            hl.exec_cmd("uwsm app -- ${screencast-inhibit}")
-          ''
-        }end)
+          hl.exec_cmd("uwsm app -- ${screencast-inhibit}")
+        end)
 
         -- Animation curves
         hl.curve("wind", { type = "bezier", points = { {0.05, 0.9}, {0.1, 1.05} } })
@@ -224,10 +228,13 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
         hl.bind(mod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
         -- Repeating binds (old binde)
-        hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("lightctl down 1"), { repeating = true })
-        hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("lightctl up 1"), { repeating = true })
-        hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("volumectl + 1"), { repeating = true })
-        hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("volumectl - 1"), { repeating = true })
+        -- DMS owns the OSD for these, and its brightness manager drives DDC on
+        -- external monitors as well as the internal backlight — which is what
+        -- retired avizo (lightctl/volumectl) along with its service.
+        hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("dms ipc call brightness decrement 1"), { repeating = true })
+        hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("dms ipc call brightness increment 1"), { repeating = true })
+        hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("dms ipc call audio increment 1"), { repeating = true })
+        hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("dms ipc call audio decrement 1"), { repeating = true })
 
         -- Binds
         hl.bind("ALT + SHIFT + W", hl.dsp.exec_cmd("uwsm app -- " .. browser))
@@ -236,22 +243,28 @@ mkIf (homeManagerConfig.hyprland.enable or false) (
         hl.bind("ALT + SHIFT + P", hl.dsp.exec_cmd("uwsm app -- nautilus"))
         hl.bind("ALT + SHIFT + C", hl.dsp.exec_cmd("uwsm app -- gnome-calculator"))
         hl.bind("CTRL + ALT + L", hl.dsp.exec_cmd("uwsm app -- ${pkgs.systemd}/bin/loginctl lock-session"))
-        -- Respawns the locker on a locked session that has lost one. `locked`
-        -- is required for the bind to run at all while locked; taking the lock
+        -- Recovers a locked session whose locker is gone: restarting the shell
+        -- brings a new lock client that takes the orphaned lock. `locked` is
+        -- required for the bind to run at all while locked; taking the lock
         -- needs misc:allow_session_lock_restore above.
-        hl.bind("CTRL + ALT + SHIFT + L", hl.dsp.exec_cmd([[${pkgs.hyprlock}/bin/hyprlock --immediate-render]]), { locked = true })
-        hl.bind(mod .. " + P", hl.dsp.exec_cmd("uwsm app -- anyrun"))
-        hl.bind(mod .. " + X", hl.dsp.exec_cmd("uwsm app -- playerctl play-pause"))
-        hl.bind(mod .. " + Z", hl.dsp.exec_cmd("uwsm app -- playerctl previous"))
-        hl.bind(mod .. " + C", hl.dsp.exec_cmd("uwsm app -- playerctl next"))
+        hl.bind("CTRL + ALT + SHIFT + L", hl.dsp.exec_cmd("systemctl --user restart dms.service"), { locked = true })
+        hl.bind(mod .. " + P", hl.dsp.exec_cmd("dms ipc call spotlight toggle"))
+        -- The rest of the shell, on keys the layout had free. anyrun stays
+        -- installed: the screenshot picker above is built on its stdin plugin.
+        hl.bind(mod .. " + V", hl.dsp.exec_cmd("dms ipc call clipboard toggle"))
+        hl.bind(mod .. " + N", hl.dsp.exec_cmd("dms ipc call notifications toggle"))
+        hl.bind(mod .. " + O", hl.dsp.exec_cmd("dms ipc call control-center toggle"))
+        hl.bind(mod .. " + X", hl.dsp.exec_cmd("dms ipc call mpris playPause"))
+        hl.bind(mod .. " + Z", hl.dsp.exec_cmd("dms ipc call mpris previous"))
+        hl.bind(mod .. " + C", hl.dsp.exec_cmd("dms ipc call mpris next"))
         hl.bind(mod .. " + T", hl.dsp.window.float())
         hl.bind(mod .. " + F", hl.dsp.window.fullscreen())
-        hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("uwsm app -- playerctl play-pause"))
-        hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("uwsm app -- playerctl previous"))
-        hl.bind("XF86AudioNext", hl.dsp.exec_cmd("uwsm app -- playerctl next"))
+        hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("dms ipc call mpris playPause"))
+        hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("dms ipc call mpris previous"))
+        hl.bind("XF86AudioNext", hl.dsp.exec_cmd("dms ipc call mpris next"))
         hl.bind("Print", hl.dsp.exec_cmd("uwsm app -- ${pkgs.hyprshot}/bin/hyprshot -m region --clipboard-only"))
         hl.bind("CTRL + Print", hl.dsp.exec_cmd("${hyprshot-picker}"))
-        hl.bind("XF86AudioMute", hl.dsp.exec_cmd("uwsm app -- volumectl %"))
+        hl.bind("XF86AudioMute", hl.dsp.exec_cmd("dms ipc call audio mute"))
         hl.bind(mod .. " + SHIFT + RETURN", hl.dsp.exec_cmd("uwsm app -- " .. terminal))
         hl.bind(mod .. " + SHIFT + C", hl.dsp.window.close())
         -- uwsm sessions must stop via `uwsm stop`, not the exit dispatcher.

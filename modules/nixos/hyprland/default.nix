@@ -9,6 +9,20 @@ with lib;
 let
   cfg = config.dedsm.hyprland;
 
+  quietSession = pkgs.writeTextFile {
+    name = "hyprland-uwsm-quiet-session";
+    destination = "/share/wayland-sessions/hyprland-uwsm-quiet.desktop";
+    text = ''
+      [Desktop Entry]
+      Name=Hyprland (uwsm-managed, quiet)
+      Comment=uwsm's startup output goes to the journal rather than the console
+      Exec=${pkgs.systemd}/bin/systemd-cat --identifier=uwsm ${config.programs.uwsm.package}/bin/uwsm start -e -D Hyprland hyprland.desktop
+      Type=Application
+      DesktopNames=Hyprland
+    '';
+    derivationArgs.passthru.providedSessions = [ "hyprland-uwsm-quiet" ];
+  };
+
   # --- Local backport of nixpkgs#532275, with an expiry ---------------------
   #
   # switch-to-configuration restarts *user* units whose definition changed.
@@ -53,6 +67,22 @@ in
     };
 
     xdg.portal.extraPortals = [ pkgs.xdg-desktop-portal-hyprland ];
+
+    # A third session entry, identical to the uwsm one except that uwsm's
+    # startup chatter goes to the journal instead of the console.
+    #
+    # greetd gives the session the VT it ran the greeter on, so whatever the
+    # session's command writes to stdout lands on screen: "Selected compositor
+    # ID", "Created unit subdir …", "Reloading systemd user manager", and so on.
+    # That is the text visible between the login screen and Hyprland's first
+    # frame — not kernel or systemd output, which is why `quiet`,
+    # `systemd.show_status=false` and plymouth all leave it untouched. uwsm has
+    # no quiet flag (`uwsm start --help`), so the redirect has to happen here.
+    # In systemPackages as well as sessionPackages: the latter only reaches the
+    # *user session's* XDG_DATA_DIRS, while the greeter scans the dirs its own
+    # process has — which is where /run/current-system/sw/share is.
+    services.displayManager.sessionPackages = [ quietSession ];
+    environment.systemPackages = [ quietSession ];
 
     # See the comment above. Both units are defined with overrideStrategy at its
     # "asDropinIfExists" default, so this lands as a drop-in over uwsm's own
