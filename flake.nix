@@ -120,7 +120,6 @@
 
         # Defaults for modules not enabled on all platforms
         kdeconnect.enable = false;
-        wayland.enable = false;
         hyprland.enable = false;
         dms.enable = false;
         theme.enable = true;
@@ -229,7 +228,6 @@
         (davidShared pkgs)
         // {
           kdeconnect.enable = true;
-          wayland.enable = true;
           dms.enable = true;
           defaults.enable = true;
 
@@ -304,7 +302,6 @@
         zsh.enable = true;
         kdeconnect.enable = false;
         hyprland.enable = false;
-        wayland.enable = false;
         theme.enable = false;
         git.enable = false;
         starship.enable = true;
@@ -336,8 +333,8 @@
           # the password interval lapses, 5 failed matches, and a password
           # after a restart or a logout. See docs/login-flow.md.
           maxTimeSincePassword = 10 * 60 * 60;
-          # hyprlock authenticates as david, not root, so its password unlock
-          # can only refresh the clock if david may write the state.
+          # The lock screen authenticates as david, not root, so its password
+          # unlock can only refresh the clock if david may write the state.
           users = [ "david" ];
         };
         fwupd.enable = true;

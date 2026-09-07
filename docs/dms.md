@@ -34,8 +34,18 @@ module. Only the keys that differ from upstream defaults are declared — the fi
 and `isLightMode` itself). Freezing it would stop the shell persisting the mode at all.
 
 **The light/dark schedule lives there too** (`themeModeAutoEnabled`, `themeModeAutoMode`,
-`themeModeStart*`), so it is set once through Settings → Theme rather than in Nix. That is a real
-loss of declarativeness against darkman's `usegeoclue = true`, and the only one in this migration.
+`themeModeStart*`), and its default is *off* — so the migration silently dropped the automatic
+switching darkman did until this was noticed. The user module now seeds those two keys on
+activation with a jq merge (`.[0] + .[1]`, defaults on the left, existing state on the right), so a
+fresh machine gets sunrise/sunset switching while anything already set is never overwritten. It is
+still weaker than declaring them: turn the schedule off in the GUI and the config will not put it
+back.
+
+A change to the declared settings does not reach a running shell on its own. DMS watches
+`settings.json` (`watchChanges` on its FileView), but home-manager replaces the *symlink* rather
+than the file, so the inode being watched never changes and no inotify event fires. The file entry
+therefore carries an `onChange` hook that runs `systemctl --user try-restart dms.service` — safe
+only because nothing locks the screen on shell start (see below).
 
 ## Theme
 
@@ -51,16 +61,31 @@ wallpaper-derived colour. What it fans out to, and what this repo keeps for itse
 
 ## Authentication
 
-The lock screen's password stack is `/etc/pam.d/dankshell`
-(`settings.lockPamExternallyManaged = true`), declared like any other NixOS PAM service. It carries
-the gnome-keyring unlock and the `pam_exec` stamp that `dedsm.fingerprintPolicy` needs — without
-it, DMS would authenticate against its own user-level config, no stamp would ever be written, and
-the policy would drift into permanent denial.
+The lock screen's password stack is `/etc/pam.d/dankshell`, declared like any other NixOS PAM
+service. It carries the gnome-keyring unlock and the `pam_exec` stamp that
+`dedsm.fingerprintPolicy` needs — without it, DMS would authenticate against its own user-level
+config, no stamp would ever be written, and the policy would drift into permanent denial.
+
+Getting DMS to use that file is counter-intuitive, and cost an evening:
+
+- **`lockPamExternallyManaged` must be off.** It reads like "the admin declares the stack"; it
+  actually means "authenticate against `/etc/pam.d/login`", which is password-only here by design —
+  *and* it suppresses the parallel fingerprint context. On, it disables fingerprint unlock twice
+  over.
+- **`lockPamPath` names the stack outright.** Left on `Auto`, DMS resolves through a fallback chain
+  (custom path → `login` if externally managed → `dankshell` *if that file happens to exist* → a
+  generated user-level one). Pinning `/etc/pam.d/dankshell` removes the inference.
 
 Fingerprint runs in a second, parallel PAM context off DMS's bundled stack
 (`lockPamInlineFprint = false`), which keeps the sensor and the password field live at once. It
-still goes through fprintd, so the polkit gate governs it either way. See
-[`login-flow.md`](./login-flow.md).
+still goes through fprintd, so the polkit gate governs it either way.
+
+**`DMS_FORCE_FPRINT_AVAILABLE=1`** is set on the unit, and is load-bearing: DMS decides *once at
+startup* whether a reader exists by running `fprintd-list`, which needs the polkit action
+`net.reactivated.fprint.device.verify` — exactly what the policy denies after a boot. The probe
+therefore failed on every boot, and the sensor was never offered again for the whole session, hours
+after the policy would have allowed it. The flag skips the probe so the decision happens at verify
+time, where the gate is re-evaluated per attempt. See [`login-flow.md`](./login-flow.md).
 
 ## Keybinds
 
@@ -69,7 +94,7 @@ moved to `dms ipc call`:
 
 | Bind | Call |
 | --- | --- |
-| `XF86MonBrightness{Up,Down}` | `brightness increment/decrement 1` — DDC on external monitors, not just the backlight |
+| `XF86MonBrightness{Up,Down}` | `brightness increment/decrement 1 ""` — DDC on external monitors, not just the backlight |
 | `XF86Audio{Raise,Lower}Volume`, `XF86AudioMute` | `audio increment/decrement/mute` |
 | `XF86Audio{Play,Prev,Next}`, `$mod+X/Z/C` | `mpris playPause/previous/next` |
 | `$mod+P` | `spotlight toggle` |
@@ -79,6 +104,12 @@ moved to `dms ipc call`:
 
 `dms ipc` with no arguments lists every target; the live surface is wider than upstream's
 `docs/IPC.md`.
+
+Mind the arity. `brightness increment` documents its device as optional but the running signature is
+`increment(step: string, device: string)`, so the bind passes `""` (the default backlight) — with
+one argument it fails, and a bind's `exec_cmd` failure goes nowhere, so the key simply does nothing.
+`audio increment/decrement` really does take only the step; everything else above is a
+zero-argument toggle.
 
 ## Things not to do
 
@@ -91,6 +122,20 @@ moved to `dms ipc call`:
   dconf keys in [`theme.md`](./theme.md).
 - **`input` group membership** for the evdev warning in `dms doctor`: it buys a caps-lock indicator
   and costs read access to every input device for anything running as this user.
+
+## Startup
+
+The unit is reordered in `modules/nixos/dms`: the packaged one is
+`After=graphical-session.target` *and* `Requisite=` it, and uwsm only reaches that target once
+Hyprland signals readiness — 1.4s after its first frame here. Clearing the ordering alone changes
+nothing, because `Requisite=` fails the start outright; both have to go, and an `ExecStartPre`
+waits for the Wayland socket instead.
+
+Nothing raises the lock on shell start: `lockAtStartup` is off. It fires from `Lock.qml`'s
+`Component.onCompleted`, i.e. on *every* shell start — including the restart
+`systemd.restartIfChanged` performs during a `nixos-rebuild switch`, which locked the session out
+from under whoever ran it. With the greeter authenticating before the session exists, there is
+nothing for it to guard anyway.
 
 ## Screencast and notifications
 

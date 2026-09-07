@@ -12,7 +12,6 @@ let
   kdeconnect = import ./kdeconnect attrs;
   hyprland = import ./hyprland attrs;
   dms = import ./dms attrs;
-  wayland = import ./wayland attrs;
   starship = import ./starship attrs;
   git = import ./git attrs;
   gh = import ./gh attrs;
@@ -39,7 +38,6 @@ lib.mkMerge [
   kdeconnect
   hyprland
   dms
-  wayland
   starship
   git
   gh
