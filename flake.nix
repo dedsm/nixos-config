@@ -120,7 +120,6 @@
 
         # Defaults for modules not enabled on all platforms
         kdeconnect.enable = false;
-        lorri.enable = false;
         wayland.enable = false;
         hyprland.enable = false;
         dms.enable = false;
@@ -230,7 +229,6 @@
         (davidShared pkgs)
         // {
           kdeconnect.enable = true;
-          lorri.enable = true;
           wayland.enable = true;
           dms.enable = true;
           defaults.enable = true;
@@ -305,7 +303,6 @@
         nvim.enable = true;
         zsh.enable = true;
         kdeconnect.enable = false;
-        lorri.enable = false;
         hyprland.enable = false;
         wayland.enable = false;
         theme.enable = false;

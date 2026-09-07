@@ -10,7 +10,6 @@ let
   nvim = import ./nvim attrs;
   zsh = import ./zsh attrs;
   kdeconnect = import ./kdeconnect attrs;
-  lorri = import ./lorri attrs;
   hyprland = import ./hyprland attrs;
   dms = import ./dms attrs;
   wayland = import ./wayland attrs;
@@ -38,7 +37,6 @@ lib.mkMerge [
   nvim
   zsh
   kdeconnect
-  lorri
   hyprland
   dms
   wayland
