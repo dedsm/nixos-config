@@ -144,6 +144,17 @@ in
     # patches a copy of the theme into ~/.local/share/themes. Without the theme
     # installed that key names something that doesn't exist and GTK3 apps fall
     # back to raw defaults.
-    environment.systemPackages = [ pkgs.adw-gtk3 ];
+    environment.systemPackages = [
+      pkgs.adw-gtk3
+
+      # `pactl`, for the control centre's audio card handling: sink ports,
+      # profiles, and the Bluetooth codec selector, which all shell out to it
+      # (AudioService.qml). PipeWire provides the Pulse *server*
+      # (`services.pipewire.pulse.enable`) but not the client tools, and
+      # `services.pulseaudio.enable = false` keeps the package off PATH — so
+      # without this the codec dropdown reports "pactl was not found". Only the
+      # binaries are used; nothing here starts a second sound server.
+      pkgs.pulseaudio
+    ];
   };
 }
