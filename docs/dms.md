@@ -28,7 +28,20 @@ feature toggles. `enableCalendarEvents` is off — no khal here.
 `settings.json` is a store symlink, so DMS cannot write it. That is a supported mode: the shell
 detects the read-only file, keeps a GUI change live for the session, and the settings modal grows a
 **copy settings.json** button that puts the full JSON on the clipboard to be folded back into the
-module. Only the keys that differ from upstream defaults are declared — the file has ~530 of them.
+module. Mostly only the keys that differ from upstream defaults are declared — the file has ~540 of
+them — with a handful pinned at their default on purpose (`lockAtStartup`,
+`lockPamExternallyManaged`, `lockPamInlineFprint`, `runUserMatugenTemplates`, the two suspend
+timeouts), because each is load-bearing enough that a default flip upstream should not be silent.
+
+Because a GUI change is live-only, it is lost at the next shell restart — which every rebuild that
+touches `settings.json` performs, via the `onChange` hook below. To find what has drifted before
+that happens, diff the running shell against the file: `dms ipc settings dump` prints every key the
+shell holds, and upstream's defaults are the `def` fields in
+`share/quickshell/dms/Common/settings/SettingsSpec.js` in the package. Two caveats when reading that
+diff — a `property color` is dumped as a QColor object rather than the `"#rrggbb"` string it
+defaults to, so those always look changed; and `barConfigs` is rebuilt by the bar settings tab from
+only the fields that tab edits, so a dumped copy comes back with keys *missing*. Declare
+`barConfigs` from upstream's default with your overrides applied, never by pasting the dump.
 
 `session.json` is deliberately left mutable: it holds runtime state (the current wallpaper, DND,
 and `isLightMode` itself). Freezing it would stop the shell persisting the mode at all.

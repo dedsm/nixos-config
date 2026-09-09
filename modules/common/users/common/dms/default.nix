@@ -60,9 +60,13 @@ mkIf (homeManagerConfig.dms.enable or false) {
   # offers a "copy settings.json" button that puts the full JSON on the
   # clipboard to be folded back in here.
   #
-  # Only what differs from upstream's defaults is declared — the file has ~530
-  # keys and listing the ones that already agree would bury the ones that
-  # matter.
+  # Mostly only what differs from upstream's defaults is declared — the file has
+  # ~540 keys and listing the ones that already agree would bury the ones that
+  # matter. The exceptions are pinned on purpose: `lockAtStartup`,
+  # `lockPamExternallyManaged`, `lockPamInlineFprint`, `runUserMatugenTemplates`
+  # and the two suspend timeouts currently *equal* upstream's default, and are
+  # stated anyway because each one is load-bearing for the login flow or the
+  # theme chain and a default flip upstream would be silent.
   # DMS *does* watch this file (`watchChanges` on its FileView), but the watch
   # never fires for a rebuild: home-manager replaces the symlink rather than the
   # file it points at, so the inode being watched — a store path — never
@@ -165,6 +169,98 @@ mkIf (homeManagerConfig.dms.enable or false) {
           "darkMode"
           "idleInhibitor"
         ];
+
+    # Workspace pills also carry the icons of the windows on each workspace, with
+    # the focused window's icon highlighted.
+    showWorkspaceApps = true;
+    workspaceActiveAppHighlightEnabled = true;
+    # No drop shadow under the bar.
+    barElevationEnabled = false;
+    # Bar geometry. Declaring `barConfigs` means owning the whole ~55-key bar
+    # object, so everything below except spacing/innerPadding/barInsetPadding is
+    # upstream's default verbatim. Do not paste `dms ipc settings dump` in here to
+    # refresh it: the bar settings tab rebuilds the entry from only the fields it
+    # edits, so a value that has been touched in the UI comes back with keys
+    # missing, and the missing ones would then read as their *property* defaults.
+    barConfigs = [
+      {
+        id = "default";
+        name = "Main Bar";
+        enabled = true;
+        position = 0;
+        screenPreferences = [ "all" ];
+        showOnLastDisplay = true;
+        leftWidgets = [
+          "launcherButton"
+          "workspaceSwitcher"
+          "focusedWindow"
+        ];
+        centerWidgets = [
+          "music"
+          "clock"
+          "weather"
+        ];
+        rightWidgets = [
+          "systemTray"
+          "clipboard"
+          "cpuUsage"
+          "memUsage"
+          "notificationButton"
+          "battery"
+          "controlCenterButton"
+        ];
+        spacing = 0;
+        innerPadding = (-2);
+        barInsetPadding = 4;
+        bottomGap = 0;
+        transparency = 1.0;
+        widgetTransparency = 1.0;
+        squareCorners = false;
+        noBackground = false;
+        maximizeWidgetIcons = false;
+        maximizeWidgetText = false;
+        removeWidgetPadding = false;
+        widgetPadding = 8;
+        gothCornersEnabled = false;
+        gothCornerRadiusOverride = false;
+        gothCornerRadiusValue = 12;
+        borderEnabled = false;
+        borderColor = "surfaceText";
+        borderOpacity = 1.0;
+        borderThickness = 1;
+        widgetOutlineEnabled = false;
+        widgetOutlineColor = "primary";
+        widgetOutlineOpacity = 1.0;
+        widgetOutlineThickness = 1;
+        fontScale = 1.0;
+        iconScale = 1.0;
+        autoHide = false;
+        autoHideStrict = false;
+        autoHideDelay = 250;
+        showOnWindowsOpen = false;
+        openOnOverview = false;
+        visible = true;
+        popupGapsAuto = true;
+        popupGapsManual = 4;
+        maximizeDetection = true;
+        useOverlayLayer = false;
+        scrollEnabled = true;
+        scrollXBehavior = "column";
+        scrollYBehavior = "workspace";
+        shadowIntensity = 0;
+        shadowOpacity = 60;
+        shadowColorMode = "default";
+        shadowCustomColor = "#000000";
+        clickThrough = false;
+        hoverPopouts = false;
+        hoverPopoutDelay = 150;
+      }
+    ];
+
+    # --- date formats
+    # Both default to "", which falls back to the locale's short forms.
+    clockDateFormat = "ddd d MMM yyyy";
+    lockDateFormat = "dddd, MMMM d";
 
     # --- carried over from the trial
     cornerRadius = 12;
