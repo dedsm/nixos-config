@@ -83,8 +83,8 @@ let
   # `ctrl+h/j/k/l` go through the navigation plugin rather than binding
   # `focus_pane_*` directly, which is what makes them vim-aware: the action
   # forwards the key into the pane when it is running Vim/Neovim and moves
-  # herdr's focus otherwise. herdr rejects a key that is bound twice, so the
-  # `focus_pane_*` actions keep only their `prefix+` defaults.
+  # herdr's focus otherwise. herdr rejects a key that is bound twice, so
+  # `focus_pane_*` is unbound below rather than left on its defaults.
   navKeybinds =
     map
       (d: {
@@ -133,6 +133,28 @@ let
       # ALT + L` is the lock bind on manwe, and diverging per host is worse
       # than picking a chord that is free on both.
       command = navKeybinds;
+
+      # `prefix+h/j/k/l` defaults to *focusing* a pane, which the vim-aware
+      # `ctrl+h/j/k/l` above already does better — so the prefixed copies are
+      # dead weight, and the hjkl half of the keyboard is better spent on
+      # resizing, which otherwise costs a mode switch (`prefix+r`). `""` is
+      # herdr's own way of leaving an action unbound; both halves have to be
+      # written out because a key bound twice is a conflict, which herdr
+      # resolves by silently disabling one of the two (`herdr config check`
+      # reports which).
+      #
+      # `prefix+r` (resize_mode) stays bound for a run of adjustments, and
+      # `prefix+tab`/`prefix+shift+tab` remain the prefixed way to reach
+      # another pane if the navigation plugin is ever unavailable.
+      focus_pane_left = "";
+      focus_pane_down = "";
+      focus_pane_up = "";
+      focus_pane_right = "";
+
+      resize_pane_left = "prefix+h";
+      resize_pane_down = "prefix+j";
+      resize_pane_up = "prefix+k";
+      resize_pane_right = "prefix+l";
 
       # tmux muscle memory, kept as aliases beside the herdr defaults. herdr
       # names a split after the divider it draws, so "vertical" is the

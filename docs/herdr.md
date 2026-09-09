@@ -75,9 +75,11 @@ The prefix is `ctrl+f`. `prefix+?` lists live bindings and is authoritative over
 | Panes | |
 |---|---|
 | Split right / down | `prefix+v` or `prefix+\|` &nbsp;·&nbsp; `prefix+-` or `prefix+\` |
-| Focus left/down/up/right | `ctrl+h` `j` `k` `l` &nbsp;·&nbsp; `prefix+h` `j` `k` `l` |
+| Focus left/down/up/right | `ctrl+h` `j` `k` `l` |
+| Resize left/down/up/right (one nudge) | `prefix+h` `j` `k` `l` |
 | Cycle panes forward / back | `prefix+tab` · `prefix+shift+tab` |
-| Zoom · close · resize mode | `prefix+z` · `prefix+x` · `prefix+r` |
+| Zoom · close | `prefix+z` · `prefix+x` |
+| Resize mode (sticky: `h`/`l` width, `j`/`k` height, `esc` out) | `prefix+r` |
 | Rename pane · scrollback | `prefix+shift+p` · `prefix+e` |
 | Copy mode (keyboard scrollback) | `prefix+[` |
 
@@ -183,7 +185,8 @@ directory rather than a symlink into the store.
 |---|---|
 | `onboarding = false` | Skips the first-run notification setup. See "Onboarding and the read-only config" below. |
 | `keys.prefix = "ctrl+f"` | Matches the tmux prefix, so muscle memory survives running both. |
-| `keys.focus_pane_* = ["prefix+…", "ctrl+…"]` | Prefix-free `ctrl+h/j/k/l` pane movement, the chords `vim-tmux-navigator` owns under tmux. See "Prefix-free pane movement" below for what it costs. |
+| `keys.focus_pane_* = ""` | Unbound, because prefix-free `ctrl+h/j/k/l` — the chords `vim-tmux-navigator` owns under tmux — already move between panes. See "Prefix-free pane movement" below for what it costs. |
+| `keys.resize_pane_* = "prefix+h/j/k/l"` | Reuses the hjkl chords `focus_pane_*` gave up, so a single nudge needs no mode switch. Ships unset, and is one-shot — Herdr has no `bind -r`. See "Resizing" below. |
 | `keys.focus_agent` / `next_agent` / `previous_agent` | Reaching an agent directly instead of via its workspace. All three ship unset. See "Agent navigation" below. |
 | `ui.agent_panel_sort = "priority"` | Orders the agent panel as an attention queue instead of grouping by workspace, which is what makes `next_agent` mean "next agent waiting on me". See "Agent navigation" below. |
 | `ui.mouse_capture = true` | Click-to-focus panes, drag-to-resize borders, wheel scrollback. See "Mouse" below for the trade — and for why it has to be a config key rather than a toggle. |
@@ -324,7 +327,9 @@ splits and only cross into the neighbouring Herdr pane at a split edge.
 They are not bound to `focus_pane_*` directly. Each is a `[[keys.command]]` entry of
 `type = "plugin_action"` pointing at the navigation plugin (see "Plugins" below), which is
 what makes the vim-awareness possible; Herdr rejects a key bound twice, so `focus_pane_*`
-keeps only its `prefix+h/j/k/l` defaults.
+cannot also claim them. Its `prefix+h/j/k/l` defaults are not kept either — they would be
+a worse duplicate of the same movement — so all four are explicitly unbound and the chords
+go to resizing instead (see "Resizing" below).
 
 ```toml
 [[keys.command]]
@@ -348,6 +353,44 @@ TUIs that own these chords can be added to the plugin's `HERDR_NAV_PASSTHROUGH_R
 `ctrl+h` and Backspace share byte `0x08` unless the kitty keyboard protocol is active. foot
 (manwe) and Ghostty (morgoth) both speak it, so Backspace should stay distinct — but that,
 like the split aliases above, is only truly settled by trying it.
+
+### Resizing
+
+`prefix+h/j/k/l` resize the focused pane. Herdr ships `resize_pane_*` unset and puts
+`focus_pane_*` on those chords instead, which is the wrong trade here: `ctrl+h/j/k/l` above
+already focus panes, and more usefully, so the prefixed copies were a duplicate of something
+better while resizing cost a mode switch through `resize_mode` (`prefix+r`).
+
+```toml
+[keys]
+focus_pane_left = ""
+resize_pane_left = "prefix+h"
+```
+
+Both halves have to be written. `""` is Herdr's own convention for leaving an action
+unbound — the shipped-unset optional bindings use it — and without it the default
+`focus_pane_left = "prefix+h"` collides with the new `resize_pane_left`. Herdr resolves a
+collision by keeping one binding and disabling the other rather than erroring, so the
+duplicate would fail quietly in whichever direction Herdr picked; `herdr config check`
+prints the resolution (`prefix+v: kept keys.split_vertical, disabled keys.zoom`) and is the
+way to catch it.
+
+**These bindings are one-shot, and there is no repeat flag.** tmux's `bind -r` marks a
+binding repeatable, so `prefix+j` then a run of bare `j`s keeps resizing until the repeat
+timeout lapses. Herdr has no equivalent: `KeysConfigOverlay` carries no repeat or sticky
+option, upstream's docs mention none, and the `resize_pane_*` example is introduced as
+"tmux-style one-keystroke pane resizing *without entering resize mode*" — single-shot is
+the point of them. Each nudge costs a fresh `prefix+`.
+
+`prefix+r` (`resize_mode`) is the answer for a run of adjustments, and stays bound for
+exactly that. It is a mode with its own status bar, like copy mode, rather than a repeat
+timeout — `h`/`l` adjust width, `j`/`k` height, `esc` leaves — so it does not expire
+mid-adjustment the way tmux's repeat does. The two are complementary: `prefix+h/j/k/l` for
+a single nudge, `prefix+r` when the pane is properly the wrong size.
+
+`prefix+tab` / `prefix+shift+tab` remain a prefixed way to reach another pane if the
+navigation plugin is ever unavailable — dropping `focus_pane_*` does not leave pane
+movement dependent on the plugin alone.
 
 ### Mouse
 
