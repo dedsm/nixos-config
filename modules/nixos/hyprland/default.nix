@@ -44,9 +44,12 @@ let
   uwsmFixedUpstream =
     uwsmModuleFound && hasInfix "restartIfChanged" (builtins.readFile uwsmModulePath);
 
+  # Rechecked 2026-09-09: nixpkgs#532275 is merged upstream but still absent
+  # from release-26.05 (`grep restartIfChanged` in the pinned uwsm.nix finds
+  # nothing), so the backport stays and the date moves out another month.
   recheck = {
-    epoch = 1788912000;
-    date = "2026-09-09";
+    epoch = 1791504000;
+    date = "2026-10-09";
   };
 in
 {
