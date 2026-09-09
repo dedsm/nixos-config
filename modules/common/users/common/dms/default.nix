@@ -27,6 +27,13 @@ let
       # Sunrise/sunset from GeoClue2, the way darkman's usegeoclue worked.
       # "time" would switch on a fixed clock instead.
       themeModeAutoMode = "location";
+      # Defaults to *true*, which makes the light/dark schedule share gamma
+      # control's settings — and gamma control (night mode) is deliberately
+      # manual here, so it has no schedule to share. The theme automation then
+      # computes transitions from nothing: observed as a "next transition" ten
+      # minutes out, dark in the middle of the afternoon, and light/dark
+      # flapping within seconds.
+      themeModeShareGammaSettings = false;
     }
   );
 in

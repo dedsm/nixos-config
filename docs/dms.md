@@ -34,12 +34,18 @@ module. Only the keys that differ from upstream defaults are declared — the fi
 and `isLightMode` itself). Freezing it would stop the shell persisting the mode at all.
 
 **The light/dark schedule lives there too** (`themeModeAutoEnabled`, `themeModeAutoMode`,
-`themeModeStart*`), and its default is *off* — so the migration silently dropped the automatic
-switching darkman did until this was noticed. The user module now seeds those two keys on
+`themeModeStart*`, `themeModeShareGammaSettings`), and its default is *off* — so the migration silently dropped the automatic
+switching darkman did until this was noticed. The user module now seeds them on
 activation with a jq merge (`.[0] + .[1]`, defaults on the left, existing state on the right), so a
 fresh machine gets sunrise/sunset switching while anything already set is never overwritten. It is
 still weaker than declaring them: turn the schedule off in the GUI and the config will not put it
 back.
+
+`themeModeShareGammaSettings` is seeded to `false` for a specific reason: it defaults to *true*,
+pointing the light/dark schedule at gamma control's settings, and gamma control is manual here — so
+it has no schedule to share and the automation computes transitions from nothing. The symptom was a
+next transition ten minutes away, dark in the middle of the afternoon, and light/dark flapping
+within seconds of each other.
 
 A change to the declared settings does not reach a running shell on its own. DMS watches
 `settings.json` (`watchChanges` on its FileView), but home-manager replaces the *symlink* rather
