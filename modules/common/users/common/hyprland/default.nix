@@ -207,11 +207,26 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
           hl.animation({ leaf = "workspaces", enabled = true, speed = 5, bezier = "wind" })
 
           -- Focus/move the active window to a monitor chosen by physical position.
-          -- Monitors are sorted left-to-right by x each press, so it stays correct
-          -- across hotplug. Replaces the old bash+jq monitor-by-position script.
+          -- Monitors are sorted in reading order each press -- top row first, then
+          -- left to right within a row -- so it stays correct across hotplug.
+          -- Replaces the old bash+jq monitor-by-position script.
+          --
+          -- Sorting on x alone was enough while every profile was a single row, but
+          -- the docked_lid_open profile now parks the laptop *below* the two
+          -- externals and centred on their seam (x = 1714). On an x-only sort it
+          -- would come second and steal $mod+E from the right-hand LG; keyed on y
+          -- first it stays third, so $mod+R is still the laptop.
+          --
+          -- The row test is exact y equality, which is safe because every profile
+          -- states its positions outright and both externals sit at y = 0. Offset
+          -- one of them deliberately (to line their bottoms up, say) and they would
+          -- split into two rows and the slots would shift.
           local function monitorByPosition(action, slot)
             local mons = hl.get_monitors()
-            table.sort(mons, function(a, b) return a.x < b.x end)
+            table.sort(mons, function(a, b)
+              if a.y ~= b.y then return a.y < b.y end
+              return a.x < b.x
+            end)
             local n, idx = #mons, nil
             if n == 1 then idx = 1
             elseif n == 2 then

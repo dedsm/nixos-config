@@ -108,9 +108,16 @@ attrs@{
         hl.monitor({ output = "eDP-1", mode = "2256x1504@59.999", position = "0x0", scale = 1.333333 })
       '';
       "hyprdynamicmonitors/hyprconfigs/docked_lid_open.lua" = pkgs.writeText "docked_lid_open.lua" ''
+        -- The two LGs are 3840x2160 at scale 1.5, i.e. 2560x1440 logical each, so
+        -- the pair spans x 0..5120 and y 0..1440. The laptop is 2256x1504 at
+        -- 1.333333, i.e. 1692x1128 logical; (5120 - 1692) / 2 = 1714 centres it
+        -- under the seam, and y = 1440 puts its top edge flush with their bottom.
+        -- A second row is why hyprland.lua sorts monitors by (y, x) rather than x
+        -- alone: on an x-only sort the laptop would land between the two externals
+        -- and $mod+E/R would swap.
         hl.monitor({ output = "desc:LG Electronics LG ULTRAFINE 110NTZN4L965", mode = "3840x2160@59.996", position = "0x0", scale = 1.5 })
         hl.monitor({ output = "desc:LG Electronics LG ULTRAFINE 110NTMX4M035", mode = "3840x2160@59.996", position = "2560x0", scale = 1.5 })
-        hl.monitor({ output = "eDP-1", mode = "2256x1504@59.999", position = "5120x0", scale = 1.333333 })
+        hl.monitor({ output = "eDP-1", mode = "2256x1504@59.999", position = "1714x1440", scale = 1.333333 })
       '';
       "hyprdynamicmonitors/hyprconfigs/docked_lid_closed.lua" = pkgs.writeText "docked_lid_closed.lua" ''
         hl.monitor({ output = "eDP-1", disabled = true })
