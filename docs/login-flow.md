@@ -55,12 +55,18 @@ remote lock, or after five failed matches.
 | Five failed matches | `failureLimit`, counted across locker instances |
 | Remote lock | No analogue on this machine |
 
-manwe keeps Apple's numbers except the password interval, which is **10 hours**
-rather than 156. The rest of the shape is theirs, and the shape is the
-interesting part: past that 10 hours the reader keeps working *as long as you
-keep using it* — each fingerprint unlock buys another 4 — until 48 hours pass
-with the machine untouched, at which point only a password will do. Set
-`fingerprintGrace = 0` to turn the password interval back into a hard cap.
+manwe keeps Apple's numbers unmodified — the module defaults. The shape is the
+interesting part: the 4-hour grace only applies once the 156-hour password
+interval has lapsed, and from then on the reader keeps working *as long as you
+keep using it* — each fingerprint unlock buys another 4 — until a longer gap,
+or 48 hours with the machine untouched, at which point only a password will do
+(and typing it restarts the 156 hours). Set `fingerprintGrace = 0` to turn the
+password interval into a hard cap.
+
+manwe briefly ran a 10-hour password interval. It was dropped because a
+workday exhausts 10 hours, so the overnight gap then always exceeded the
+4-hour grace: in practice, a password at every first unlock of the morning,
+where a Mac asks roughly once a week.
 
 Enforcement is `modules/nixos/fingerprint-policy/`
 (`dedsm.fingerprintPolicy`), in **one** place for the whole machine: a polkit

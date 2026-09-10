@@ -327,12 +327,11 @@
         peripherals.enable = true;
         fingerprintPolicy = {
           enable = true;
-          # Apple's Touch ID conditions, with one deliberate tightening: the
-          # password interval is 10h rather than their 156h. Everything else
-          # is theirs — 48h without any unlock, a 4h fingerprint grace once
-          # the password interval lapses, 5 failed matches, and a password
-          # after a restart or a logout. See docs/login-flow.md.
-          maxTimeSincePassword = 10 * 60 * 60;
+          # Using dedsm.fingerprintPolicy's defaults. Fingerprint is refused,
+          # and the password required, after a restart or logout, after 5
+          # failed matches, after 48h with no unlock, or when the password is
+          # over 156h old and there has been no fingerprint unlock for 4h.
+          # See docs/login-flow.md.
           # The lock screen authenticates as david, not root, so its password
           # unlock can only refresh the clock if david may write the state.
           users = [ "david" ];
