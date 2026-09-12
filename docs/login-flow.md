@@ -214,6 +214,18 @@ and its D-Bus policy does not restrict who may receive it, so this needs no
 monitor privileges — `gdbus monitor` and a `case` statement. `stdbuf -oL`
 matters: without it glib's stdio sits on the lines in the pipe.
 
+**A `verify-no-match` is not necessarily a failed match.** fprintd maps a
+*cancelled* verify to the same `verify-no-match` result (`G_IO_ERROR_CANCELLED`
+in `verify_result_to_name`), and `pam_fprintd` cancels on its own 30-second
+timeout. The lock screen re-arms after every timeout, so counting the raw
+signal meant an untouched lock screen spent all five strikes in two and a half
+minutes and then refused a finger that would have matched. On the bus the two
+are indistinguishable (`('verify-no-match', true)` both ways), so the monitor
+also tracks the device's `finger-present` property: a no-match counts only if
+the sensor reported a finger since the attempt's `VerifyFingerSelected`. An
+attempt where the finger touched but never scanned cleanly and then timed out
+still counts — the conservative side of the ambiguity.
+
 If the monitor dies, the counter stops moving and the time window still
 applies — it fails open, deliberately, because the alternative is a service
 crash locking you out of your own reader.

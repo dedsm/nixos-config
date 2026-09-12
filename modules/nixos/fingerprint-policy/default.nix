@@ -177,6 +177,13 @@ let
   # instead, which it broadcasts and whose D-Bus policy does not restrict who
   # may receive it — so this needs no monitor privileges, just a match rule.
   # stdbuf matters: without it glib's stdio sits on the lines in the pipe.
+  #
+  # A `verify-no-match` alone is not a failed match: fprintd reports a
+  # *cancelled* verify under the same name, and pam_fprintd cancels on its 30s
+  # timeout — so an untouched lock screen, re-arming every 30s, used to spend
+  # all five strikes in two and a half minutes. Only a no-match during an
+  # attempt that saw `finger-present` counts. VerifyFingerSelected marks the
+  # start of each attempt.
   monitor = pkgs.writeShellScript "fingerprint-failure-monitor" ''
     write() {
       ${pkgs.coreutils}/bin/printf '%s' "$1" > ${failures}.new
@@ -184,11 +191,21 @@ let
       ${pkgs.coreutils}/bin/mv -f ${failures}.new ${failures}
     }
 
+    touched=0
     ${pkgs.coreutils}/bin/stdbuf -oL \
       ${pkgs.glib.bin}/bin/gdbus monitor --system --dest net.reactivated.Fprint |
       while IFS= read -r line; do
         case "$line" in
+          *VerifyFingerSelected*)
+            touched=0
+            ;;
+          *PropertiesChanged*"'finger-present': <true>"*)
+            touched=1
+            ;;
           *VerifyStatus*"'verify-no-match'"*)
+            # Untouched: a timeout or a cancel, not a finger that failed.
+            [ "$touched" = 1 ] || continue
+            touched=0
             ${readFailures "n=0"}
             n=$(( n + 1 ))
             write "$n"
