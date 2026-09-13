@@ -11,7 +11,7 @@ in
 {
   options.dedsm.peripherals = {
     enable = mkOption {
-      description = "David's laptop peripherals: drawing tablet, Ledger, Logitech receiver, fingerprint reader, Thunderbolt, YubiKey";
+      description = "David's laptop peripherals: drawing tablet, Ledger, Logitech receiver, fingerprint reader, Thunderbolt, YubiKey, game controllers";
       type = with types; bool;
       default = false;
     };
@@ -50,7 +50,28 @@ in
 
     # YubiKey
     services.pcscd.enable = true;
+
     services.udev.packages = [ pkgs.yubikey-personalization ];
+
+    # Game controllers. The kernel binds a DualSense on its own
+    # (hid-playstation) and logind ACLs its evdev/joystick nodes, so games see
+    # the pad with none of this. The *hidraw* node is the one that needs a
+    # rule — rumble, the LEDs, the gyro, the battery level, everything Steam
+    # Input drives — tagging it `uaccess`, which hands it to whoever is logged
+    # in at the seat rather than to a group that outlives the session.
+    #
+    # This is steam-hardware rather than the broader
+    # `pkgs.game-devices-udev-rules`, and the reason is the *filename*. udev
+    # reads rules in lexical order and systemd's 73-seat-late.rules is what
+    # turns a `uaccess` tag into an ACL, so a rule that tags the device must
+    # sort before it. nixpkgs installs the game-devices rules unprefixed
+    # (`sony-gdu.rules`), which sorts after 73: the first plug gets MODE=0660
+    # and no ACL. It then looks fixed on any re-trigger, because that rule
+    # matches with `TAG==`, which also sees the tag the previous run left in
+    # the udev database — so the bug hides itself the moment you poke it.
+    # Steam's rules ship as 60-steam-input.rules and carry the same DualSense
+    # ids (054c:0ce6, USB and Bluetooth).
+    hardware.steam-hardware.enable = true;
     services.udev.extraRules = ''
       # Disable wakeup on Logitech USB receiver to prevent spurious resume from suspend
       ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="046d", ATTR{idProduct}=="c548", ATTR{power/wakeup}="disabled"

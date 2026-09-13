@@ -343,7 +343,7 @@ Two traps worth knowing: a package that *wraps* a nixpkgs package inherits **nix
 - **SSH keys**: Managed through Home Manager SSH configuration
 - **GPG setup**: Configured for git signing with a specified key ID; agent enablement is opt-in via the `gnupg` NixOS module
 - **1Password integration**: CLI + GUI, opt-in via the `onepassword` NixOS module
-- **YubiKey / fingerprint / Ledger**: Opt-in via the `peripherals` NixOS module
+- **YubiKey / fingerprint / Ledger / game controllers**: Opt-in via the `peripherals` NixOS module. The controller rules (`hardware.steam-hardware`) exist for the `hidraw` node — rumble, LEDs, gyro, battery — which, unlike the evdev nodes, gets no ACL from logind on its own; they must also sort before systemd's `73-seat-late.rules`, which is why `pkgs.game-devices-udev-rules` (installed unprefixed by nixpkgs) does not work here
 - **Firmware updates**: Opt-in via the `fwupd` NixOS module
 - **Firewall**: Review settings for production use — `core` currently disables it for the trusted-network laptop use case
 
