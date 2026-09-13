@@ -24,7 +24,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 - **Aerospace**: Tiling window manager (macOS)
 - **Ghostty**: Terminal emulator (macOS)
 - **Framework laptop hardware**: Via a `nixos-hardware` module, wired per-host (see "Host Configuration Management" below)
-- **Custom overlays**: For packages not in nixpkgs (Slack wrapper, `cli-notify`, `dstask-note`, `vim-herdr-navigation`)
+- **Custom overlays**: For packages not in nixpkgs (Slack wrapper, `cli-notify`, `dstask-note`, `vim-herdr-navigation`) and for the three Google Antigravity components, which come from a pinned third-party source tree rather than nixpkgs — see [`docs/antigravity.md`](./docs/antigravity.md)
 
 ## Architecture Overview
 
@@ -42,7 +42,8 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │   │   ├── default.nix       # Home Manager user configuration bridge
 │   │   ├── fonts.nix          # System fonts, wired into both host builders
 │   │   └── users/common/      # Home Manager user modules — tmux, herdr, nvim, zsh, git, hyprland,
-│   │                            dms, ghostty, sketchybar, theme, claude-code, playwright, brain skill, ...
+│   │                            dms, ghostty, sketchybar, theme, claude-code, playwright, antigravity,
+│   │                            brain skill, ...
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, xserver/xkb,
 │   │   │                         dbus, xdg portals, audio, home-manager wiring, base packages
@@ -55,6 +56,8 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │       └── aerospace/         # Aerospace window manager
 ├── pkgs/                  # Custom package overlays
 │   ├── slack/ cli-notify/ dstask-note/ vim-herdr-navigation/
+│   └── default.nix          # ...plus antigravity-hub/-ide/-cli, built straight from the
+│                              `antigravity-nix` input (no directory of their own)
 ├── docs/                  # Deeper docs for specific subsystems — see "Further documentation"
 └── custom/                # Custom scripts and utilities
     └── david/
@@ -284,6 +287,10 @@ pkgs/cli-notify/          # Native notification helper (used by the claude-code 
 pkgs/dstask-note/         # pty-wrapped `dstask note` (bare command silently no-ops without a TTY)
 pkgs/vim-herdr-navigation/ # herdr plugin: vim-aware ctrl+h/j/k/l navigation, registered by the herdr module
 
+# Not every entry in the overlay has a directory: antigravity-hub, antigravity-ide
+# and antigravity-cli are callPackage'd straight out of the `antigravity-nix`
+# input in pkgs/default.nix. See docs/antigravity.md.
+
 # Testing custom packages — the `pkgs/` overlay is exposed as the flake's
 # `packages` output, filtered per system (cli-notify is Darwin-only)
 nix build .#vim-herdr-navigation
@@ -322,8 +329,13 @@ Two traps worth knowing: a package that *wraps* a nixpkgs package inherits **nix
 `passthru = builtins.removeAttrs (oldAttrs.passthru or { }) [ "updateScript" ];`, as
 `pkgs/slack` does. And nothing here runs automatically: review with `git diff`, then rebuild.
 
+Overlay entries whose version lives in a flake input are updated by `nix flake update
+<input>`, not by this runner, and so carry no `updateScript` at all: `pkgs.local.slack`
+follows `unstable`, and the three `antigravity-*` packages follow the `antigravity-nix`
+input (`nix flake update antigravity-nix`).
+
 ### Package Access
-- Custom packages: `pkgs.local.slack`, `pkgs.local.vim-herdr-navigation`
+- Custom packages: `pkgs.local.slack`, `pkgs.local.vim-herdr-navigation`, `pkgs.local.antigravity-hub`
 - Unstable packages: `pkgs.unstable.spotify`, `pkgs.unstable.vscode`
 - Unfree packages: `pkgs.unfree.dropbox`
 
@@ -358,6 +370,7 @@ Two traps worth knowing: a package that *wraps* a nixpkgs package inherits **nix
 - Neovim: hand-rolled config (no plugin manager, all plugins declared in Nix), LSP/formatting/linting all Nix-provisioned — see [`docs/nvim.md`](./docs/nvim.md)
 - Claude Code: pinned version, managed-but-mergeable settings, hooks, status line, `brain` skill — see [`docs/claude-code.md`](./docs/claude-code.md) and [`docs/brain-skill.md`](./docs/brain-skill.md)
 - Playwright MCP: points at a Nix-managed Chromium instead of downloading its own — see [`docs/playwright-mcp.md`](./docs/playwright-mcp.md)
+- Google Antigravity (hub + IDE + `agy` CLI): from the `antigravity-nix` input rather than nixpkgs, non-FHS build, Linux-only (enabled in `davidNixos`) — see [`docs/antigravity.md`](./docs/antigravity.md)
 
 ### Debugging
 ```bash
@@ -437,6 +450,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`README.md`](./README.md) — human-facing overview and setup instructions
 - [`docs/claude-code.md`](./docs/claude-code.md) — Claude Code package pinning, settings-merge strategy, hooks, status line
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — Playwright MCP browser wiring
+- [`docs/antigravity.md`](./docs/antigravity.md) — the three Google Antigravity components: why they come from the `antigravity-nix` input instead of nixpkgs (and what would let them go back), `useFHS = false`/`useSystemChromeProfile = false` and the google-chrome dependency that survives them, the IDE's keyring flag, and why macOS doesn't get it at all
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration
 - [`docs/herdr.md`](./docs/herdr.md) — the `herdr` agent-aware multiplexer: why it coexists with tmux, settings rationale (prefix, vim-aware prefix-free `ctrl+h/j/k/l` pane movement and what it costs, sidebar layout), restart semantics, how plugins are packaged and registered from an activation script (and why every herdr command there is wrapped to warn instead of failing — an out-of-date running server used to abort the whole home-manager activation), and the agent-integration bits deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill

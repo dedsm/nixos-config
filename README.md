@@ -35,7 +35,9 @@ pkgs/                    # Custom package overlays (pkgs.local.*)
 ├── slack/                 # Slack wrapper
 ├── cli-notify/            # Native notification helper
 ├── dstask-note/           # pty-wrapped `dstask note`
-└── vim-herdr-navigation/  # herdr plugin: vim-aware ctrl+h/j/k/l navigation
+├── vim-herdr-navigation/  # herdr plugin: vim-aware ctrl+h/j/k/l navigation
+└── default.nix            # ...and antigravity-hub/-ide/-cli, built from the
+                           #    `antigravity-nix` input (no directory of their own)
 
 custom/                  # One-off scripts referenced by modules (e.g. i3xmonadhelper.py)
 scripts/                 # Maintenance scripts
@@ -109,6 +111,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 
 - [`docs/claude-code.md`](./docs/claude-code.md) — package pinning, the managed-settings merge strategy, hooks, status line, editor integration
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — how the Playwright MCP server is pointed at a Nix-managed browser instead of downloading its own
+- [`docs/antigravity.md`](./docs/antigravity.md) — the Antigravity hub, IDE and `agy` CLI: why they come from a third-party flake input instead of nixpkgs, how they're built, and why macOS doesn't get them
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
 - [`docs/herdr.md`](./docs/herdr.md) — the agent-aware terminal multiplexer running alongside tmux: settings rationale, restart behaviour, why its activation-time commands are best-effort-with-a-warning, and what is deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill and how its store is bootstrapped/synced

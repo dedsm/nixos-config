@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "antigravity-nix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789197223,
+        "narHash": "sha256-MVHEq1J+aE8NaapAot0BXEFP9f+4jXQRus6tFgp2P+0=",
+        "owner": "jacopone",
+        "repo": "antigravity-nix",
+        "rev": "0d6f9760ee4d685c6e75faeafb5055b93c4bc4aa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "jacopone",
+        "repo": "antigravity-nix",
+        "type": "github"
+      }
+    },
     "darwin": {
       "inputs": {
         "nixpkgs": [
@@ -306,6 +322,7 @@
     },
     "root": {
       "inputs": {
+        "antigravity-nix": "antigravity-nix",
         "darwin": "darwin",
         "home-manager": "home-manager",
         "hyprdynamicmonitors": "hyprdynamicmonitors",

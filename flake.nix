@@ -14,6 +14,18 @@
       url = "github:NixOS/nixos-hardware";
     };
 
+    # Google Antigravity (the 2.0 "hub" app, the legacy IDE and the `agy` CLI).
+    # None of the three is in nixpkgs in a usable shape: nixpkgs has no hub at
+    # all (still an open PR, NixOS/nixpkgs#524225) and its IDE/CLI lag this
+    # repo, which bumps its pinned tarballs ~3x/week. Taken as a plain source
+    # tree rather than a flake: `pkgs/default.nix` calls its package files with
+    # our own `unstable` nixpkgs, so its own nixpkgs/flake-utils inputs would
+    # only bloat the lock. `nix flake update antigravity-nix` is the updater.
+    antigravity-nix = {
+      url = "github:jacopone/antigravity-nix";
+      flake = false;
+    };
+
     hyprdynamicmonitors = {
       url = "github:fiffeek/hyprdynamicmonitors";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -33,6 +45,7 @@
       home-manager,
       nixos-hardware,
       hyprdynamicmonitors,
+      antigravity-nix,
       darwin,
       ...
     }:
@@ -57,6 +70,7 @@
           localpkgs = import ./pkgs {
             hyprlandPkgs = hyprland;
             unstablePkgs = unstablePkgs;
+            antigravityNix = antigravity-nix;
           };
           overlay = final: prev: {
             unstable = unstablePkgs;
@@ -116,9 +130,9 @@
         starship.enable = true;
         claude-code.enable = true;
         playwright.enable = true;
-        antigravity.enable = true;
 
         # Defaults for modules not enabled on all platforms
+        antigravity.enable = false;
         kdeconnect.enable = false;
         hyprland.enable = false;
         dms.enable = false;
@@ -230,6 +244,7 @@
           kdeconnect.enable = true;
           dms.enable = true;
           defaults.enable = true;
+          antigravity.enable = true;
 
           # zsh.initContent = ''
           #   if [ $EUID -ne 0 ]; then
