@@ -20,6 +20,12 @@ with both, but mixing its package with the nixpkgs module drops some dependency 
 come from nixpkgs here. The package is taken from `unstable` (1.5.3) because 26.05 is a release
 behind (1.4.6); `quickshell` comes from stable, which satisfies DMS's ">= 0.3.0".
 
+One `overrideAttrs` sits on top, carrying two patches to the lock screen's fingerprint path — a
+`timeout=` on the bundled PAM stack and a lower cap on the retry backoff — for the reason in
+[the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time). Both use
+`--replace-fail`, so an upstream change to either anchor is a build error rather than a silent
+no-op. Nothing else about the package is patched.
+
 `dgop` (system monitoring), `matugen` (theming) and `khal` (calendar) are pulled in by the module's
 feature toggles. `enableCalendarEvents` is off — no khal here.
 
@@ -132,6 +138,94 @@ startup* whether a reader exists by running `fprintd-list`, which needs the polk
 therefore failed on every boot, and the sensor was never offered again for the whole session, hours
 after the policy would have allowed it. The flag skips the probe so the decision happens at verify
 time, where the gate is re-evaluated per attempt. See [`login-flow.md`](./login-flow.md).
+
+### The fingerprint reader was dead half the time
+
+Symptom: fingerprint unlock "works sometimes". `fingerprint-status -v` says the window is wide
+open, the journal shows no polkit denial, and yet touching the sensor often does nothing at all.
+
+It is not the policy. It is a duty cycle, and the log reads it out plainly — one lock cycle, a
+`Starting pam session ... with config "fprint"` every 60 seconds and a `Verification timed out`
+exactly 30 seconds after each:
+
+```bash
+journalctl -b -S "-2h" | grep -E 'Starting pam session|timed out|Failed to match|Screen lock active'
+```
+
+Three upstream behaviours compose into it:
+
+1. `assets/pam/fprint` passes no `timeout=`, so **pam_fprintd gives up on a verify after its
+   default 30 seconds** and returns `PAM_AUTHINFO_UNAVAIL`.
+2. DMS classifies that as `PamResult.Error` — not "nobody touched it" — and re-arms on an
+   exponential backoff, `Math.min(1500 * 2^(errorTries - 1), 30000)` (`Modules/Lock/Pam.qml`).
+3. `errorTries` is reset only by `checkAvail()`, which runs when the lock **opens** and on a
+   settings change. Nothing resets it on wake, on activity, or on a keypress.
+
+So roughly two minutes into any lock the backoff saturates at its 30-second cap and stays there:
+the sensor is armed 30s, then unclaimed 30s, indefinitely. Walk up to the machine and it is a coin
+flip whether anything is listening. Nothing on screen distinguishes the two halves — the
+fingerprint icon is lit either way (see [`login-flow.md`](./login-flow.md#what-the-lock-screen-shows)).
+
+The `overrideAttrs` in `modules/nixos/dms` patches both halves: `timeout=600` on the PAM stack, and
+the backoff cap lowered from 30000 to 3000 ms.
+
+`timeout=600` is the load-bearing one, because it removes the *error* rather than the response to
+one. pam_fprintd restarts the timer after each no-match, so with `max-tries=5` one context can live
+up to 50 minutes. The cap then closes the gaps between contexts, and the sequence becomes 1.5s, 3s,
+3s, … between ten-minute armed windows.
+
+| | armed | gap (saturated) | duty | 200-retry budget |
+| --- | --- | --- | --- | --- |
+| upstream | 30s | 30s | 50% | 3.3h |
+| `timeout=600` only | 600s | 30s | 95% | 35h |
+| 3s cap only | 30s | 3s | 91% | **1.8h** |
+| both (here) | 600s | 3s | 99.5% | 33.5h |
+
+**The cap is only safe alongside the long timeout.** DMS allows 200 retries per lock cycle
+(`errorTries < 200`, `Pam.qml`), and at upstream's 30-second timeout a 3-second cap spends all 200
+in under two hours — a laptop locked over lunch would come back with the reader switched off
+entirely. At 600s per attempt the same budget covers ~33 hours, past the point
+`dedsm.fingerprintPolicy.maxTimeSinceUnlock` demands a password anyway.
+
+The budget does burn faster in the one case that fails **instantly** — a gate denial, or a missing
+reader — where 200 retries take ~10 minutes rather than ~1.7 hours. Nothing is lost by giving up
+sooner there: within a lock cycle a denial is monotonic. Both clocks only move forward, and the
+failure counter is cleared only by a password authentication, which ends the lock. There is no
+state to wait for.
+
+Two things belong on the record:
+
+- **The gate tail.** polkit is consulted on `VerifyStart`, so an attempt armed just before a policy
+  window lapses stays usable until it ends — at most ten minutes, on windows of 48 and 156 hours.
+  This is also why the stack does *not* use `timeout=-1`, which `pam_fprintd(8)` documents as
+  "always active while this module is loaded" and which otherwise fits exactly: with no timeout
+  there is never a second `VerifyStart`, so on an untouched machine the gate would be consulted
+  once at lock time and never again.
+- **The QML anchor is the fragile half.** `assets/pam/fprint` is six lines and nixpkgs already
+  patches it; the cap is anchored to an arithmetic expression inside a 560-line QML file upstream
+  refactors freely. `--replace-fail` makes that a build failure rather than a silent no-op, which
+  is the intended outcome — re-derive the expression and move on.
+
+Neither knob addresses the actual defect, which is upstream's: a timeout with **nobody present** is
+not an error, and `Pam.qml:298` counts it as one. The principled fix is to record when a context
+started and reset `errorTries` in the `Error` branch when it lived long enough to have been a
+genuine timeout. That is a multi-line change and belongs upstream, not in a `substituteInPlace`.
+
+A no-match is a different thing and is not a bug: `Failed to match fingerprint` in the log means
+the sensor *did* read a finger and rejected it, and it counts against both `maxFprintTries` and the
+policy's `failureLimit`.
+
+### What it costs in power
+
+Holding a verify open pins the reader out of USB runtime suspend — measured at 63.9s active out of
+64s wall during a claim, against `control=auto` and a 2s autosuspend delay otherwise. The draw
+itself is **below what this machine can resolve**: system noise over a two-minute run is ~640 mW
+with ~1 W of drift between baselines, so the delta comes out as noise. The real bound is the USB
+descriptor — `bMaxPower = 100mA` on a 5 V bus, so **500 mW, ceiling**. Ten minutes at that ceiling
+is 83 mWh against a ~48 Wh pack (`charge_full` 3.119 Ah at 15.39 V), or 0.17%; the change's actual
+delta is the extra ~45% of lock time, ≈0.47%/hour worst case and realistically far less. It is zero
+while suspended: fprintd takes a sleep *delay* inhibitor and releases the device before sleep, so
+none of this touches the s2idle drain floor in [`hibernation.md`](./hibernation.md).
 
 ## Keybinds
 

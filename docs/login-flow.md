@@ -165,6 +165,16 @@ So the window is re-evaluated at exactly the moments that matter, **without
 restarting the locker**: a locker that has been up since before the window
 lapsed simply stops accepting fingerprints.
 
+The granularity of that re-evaluation is one `VerifyStart`, and this repo
+lengthens the attempt behind it: DMS's bundled fingerprint stack carries a
+`timeout=600` patched in by `modules/nixos/dms` (along with a shorter retry
+backoff), because without it the reader spends half of every lock unclaimed
+(the whole story is in
+[`dms.md`](./dms.md#the-fingerprint-reader-was-dead-half-the-time)). So an
+attempt armed just before a window lapses stays usable until it ends — a tail
+of at most ten minutes on windows of 48 and 156 hours, which is the price of a
+reader that answers when it is touched.
+
 Three things that are easy to get wrong here:
 
 - **`enroll` has to be denied alongside `verify`.** Not because enrolling
@@ -187,10 +197,18 @@ Three things that are easy to get wrong here:
 
 Not much, and this is the one place the DMS lock is worse than what it
 replaced. When the gate says no, `pam_fprintd` fails; DMS treats that as a
-retryable error and quietly re-arms (up to 200 times) while the password field
-stays live and working. Verified on hardware: no hang, no spin visible, the
-password path is unaffected — but the fingerprint icon stays lit as though the
-sensor were usable, and nothing on screen says why it is not.
+retryable error and quietly re-arms (up to 200 times, on a backoff) while the
+password field stays live and working. Verified on hardware: no hang, no spin
+visible, the password path is unaffected — but the fingerprint icon stays lit
+as though the sensor were usable, and nothing on screen says why it is not.
+
+The lit icon means the same lack of feedback covers a second, unrelated state:
+the gaps between attempts, when nothing is claiming the reader at all. That is
+what made fingerprint unlock feel intermittent rather than merely gated — see
+[`dms.md`](./dms.md#the-fingerprint-reader-was-dead-half-the-time). Either way,
+`fingerprint-status` is the thing that tells them apart: it is silent when the
+policy is open, so a silent status plus a sensor that ignores you is the gap,
+not the gate.
 
 hyprlock could not tell either, which is why its config carried a second label
 running `cmd[update:5000] fingerprint-status` to fill the slot with *why* — "no
