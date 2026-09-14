@@ -159,7 +159,21 @@ busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/deskto
   org.freedesktop.portal.Settings ReadOne ss org.freedesktop.appearance color-scheme
 ```
 
-If `dconf read` disagrees with `dms ipc call theme getMode`, something re-declared the keys
-statically — see the rule at the top. If the portal disagrees with `dconf`, the problem is in
+If `~/.local/state/theme/mode` disagrees with `dms ipc call theme getMode`, the keys are not the
+problem: **DMS's theme build is failing before it reaches matugen**, so nothing downstream has moved
+since the last transition that worked. Look for `Theme data not available for: custom` in
+`journalctl --user -u dms` and check that `customThemeFile` still resolves —
+
+```bash
+nix-store -q --references "$(readlink -f ~/.config/DankMaterialShell/settings.json)"
+```
+
+— empty output means the theme JSON was referenced as a bare string and has been garbage-collected;
+see [`dms.md`](./dms.md#customthemefile-must-be-a-store-path-in-its-own-right). In that state
+`color-scheme` stays wherever it last landed, which after home-manager's dconf-cleanup pass is
+`'default'` — the portal then answers `0`, "no preference", and Firefox and Slack fall to light.
+
+If `dconf read` disagrees with `dms ipc call theme getMode` *and* the marker file agrees with DMS,
+something re-declared the keys statically — see the rule at the top. If the portal disagrees with `dconf`, the problem is in
 `xdg-desktop-portal-gtk` instead (it is the only registered `org.freedesktop.impl.portal.Settings`
 backend; `modules/nixos/core` wires it up via `xdg.portal.extraPortals`).

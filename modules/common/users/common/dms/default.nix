@@ -80,7 +80,19 @@ mkIf (homeManagerConfig.dms.enable or false) {
     # --- theme
     currentThemeName = "custom";
     currentThemeCategory = "custom";
-    customThemeFile = toString theme;
+    # Interpolated, not `toString`. `toString ./file` yields the path *inside the
+    # flake source* ("/nix/store/<hash>-source/modules/.../solarized-osaka-night.json")
+    # as a plain string, which adds no store reference: the scanner only registers
+    # hashes belonging to the derivation's inputs, and the source tree is not one of
+    # this file's. The rendered settings.json therefore had zero references
+    # (`nix-store -q --references` on it printed nothing), so the next garbage
+    # collection deleted the `-source` path out from under a live config and left a
+    # dangling pointer. DMS then logs `Theme data not available for: custom` and its
+    # whole theme build stops — no dconf write, no matugen run, so the mode marker,
+    # foot and tmux all freeze at whatever the last successful transition wrote.
+    # Interpolating copies the JSON in as a store path of its own and registers it,
+    # which is what makes GC respect it.
+    customThemeFile = "${theme}";
     # The Solarized palette this repo uses everywhere else is declared in the
     # `theme` module and reaches foot/tmux through matugen's user templates;
     # this keeps those templates running.

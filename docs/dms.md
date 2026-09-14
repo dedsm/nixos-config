@@ -78,6 +78,33 @@ with the theme's colours imported verbatim), so "dynamic theming" here means *th
 wallpaper-derived colour. What it fans out to, and what this repo keeps for itself, is in
 [`theme.md`](./theme.md).
 
+### `customThemeFile` must be a store path in its own right
+
+The setting is a *path in a JSON file*, and it has to be written as `"${theme}"` — never
+`toString theme`. `toString` on a relative path yields the file's location inside the flake source
+(`/nix/store/<hash>-source/modules/common/users/common/dms/solarized-osaka-night.json`) as a plain
+string, and a plain string buys no store reference: Nix registers a reference only for a hash that
+belongs to the derivation's own inputs, and the source tree is not an input of the `settings.json`
+derivation. The rendered file ends up with **no references at all**, so the next garbage collection
+deletes the `-source` path out from under a config that is still live, leaving a dangling pointer.
+
+Interpolating instead copies the JSON into the store as
+`/nix/store/<hash>-solarized-osaka-night.json` and registers it, which is what makes GC respect it.
+Verify with:
+
+```bash
+nix-store -q --references "$(readlink -f ~/.config/DankMaterialShell/settings.json)"
+# must print the solarized-osaka-night.json store path; empty output is the bug
+```
+
+The failure is quiet and badly disguised: DMS logs one `WARN qml: [Theme:1873] Theme data not
+available for: custom` and then simply *stops building themes*. No dconf write, no matugen run — so
+`~/.local/state/theme/mode`, foot and tmux all freeze at whatever the last successful transition
+wrote, `dms ipc call theme getMode` drifts away from the marker file, and
+`/org/gnome/desktop/interface/color-scheme` is left wherever it last landed (`'default'` once
+home-manager's dconf-cleanup pass has reset it, which makes the portal answer `0` — "no preference"
+— and drops Firefox and Slack to light).
+
 ## Authentication
 
 The lock screen's password stack is `/etc/pam.d/dankshell`, declared like any other NixOS PAM
