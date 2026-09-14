@@ -120,7 +120,21 @@ attrs@{
 
   gtk = {
     enable = true;
+    # The `@import` is what connects GTK3 to the theme chain at all, and it has
+    # to be the first rule in the file — GTK ignores an `@import` that follows
+    # any other rule. `dank-colors.css` is DMS's matugen output (see
+    # matugen/configs/gtk3-{dark,light}.toml in the shell package): it is
+    # rewritten in place on every light/dark transition, so importing it is
+    # enough to track the schedule — nothing here needs a hook.
+    #
+    # Without it the file DMS regenerates is simply never loaded. That is not
+    # hypothetical: this option is the *only* thing that writes
+    # ~/.config/gtk-3.0/gtk.css, so declaring `extraCss` without the import
+    # silently severs the link, and GTK3 apps (pinentry's gcr prompter, say)
+    # sit on stock light Adwaita while everything else follows the schedule.
     gtk3.extraCss = ''
+      @import url("dank-colors.css");
+
       @binding-set no-emoji {
         unbind "<Control>period";
         unbind "<Control>semicolon";
@@ -137,6 +151,13 @@ attrs@{
     # `gtk-application-prefer-dark-theme` in settings.ini here would hard-lock
     # GTK4/libadwaita apps to light regardless of the current mode.
     gtk4.theme = null;
+    # libadwaita already gets light/dark right from `color-scheme`, so this is
+    # about *colour*, not mode: the same matugen import gives GTK4 apps the
+    # Solarized palette the rest of the desktop uses instead of stock Adwaita
+    # accents. DMS writes a gtk-4.0/dank-colors.css alongside the GTK3 one.
+    gtk4.extraCss = ''
+      @import url("dank-colors.css");
+    '';
     cursorTheme = {
       package = pkgs.vanilla-dmz;
       name = "Vanilla-DMZ";

@@ -31,6 +31,40 @@ Electron app follow *that*, not the GTK config files. So the chain is:
 DMS → dconf → xdg-desktop-portal-gtk → org.freedesktop.portal.Settings → Firefox / Slack / …
 ```
 
+### GTK3 is not on that chain by default
+
+The chain above reaches *portal-aware* apps, and a plain GTK3 app is not one. GTK3 reads its theme
+from `~/.config/gtk-3.0/settings.ini` and from XSettings — never from dconf, and from the portal
+only when `gdk_should_use_portal()` is true, which means inside a Flatpak/snap or with
+`GTK_USE_PORTAL=1`. A Wayland session runs no XSettings daemon, so with neither in place a GTK3 app
+sees no theme name at all and falls back to stock light Adwaita however loudly `color-scheme` says
+`prefer-dark`. GTK4/libadwaita is unaffected because libadwaita reads the portal unconditionally —
+which is why this presents as "one or two windows stayed light", typically a pinentry prompt (its
+gcr prompter is GTK3), while Firefox, Slack and every GTK4 app follow the schedule correctly.
+
+Two declarations put GTK3 back on the chain, and both are needed:
+
+| Where | What | Why |
+| --- | --- | --- |
+| `theme/default.nix` → `xdg.configFile."uwsm/env"` | `export GTK_USE_PORTAL=1` | Makes GTK3 read `gtk-theme` and `color-scheme` from the portal, so it tracks the schedule like everything else |
+| `defaults/common/default.nix` → `gtk.gtk3.extraCss` | `@import url("dank-colors.css");` | Loads the Solarized palette DMS's matugen rewrites on every transition |
+
+On `uwsm/env` rather than `uwsm/env-hyprland`: uwsm sources the bare file for every compositor and
+the suffixed one only for the compositor it names, and nothing about a toolkit portal setting is
+Hyprland's business. It also has to reach processes nobody starts from a shell — the gcr prompter is
+D-Bus activated — which uwsm's env does by way of the systemd user manager's environment and from
+there the D-Bus activation environment.
+
+On the `@import`: it must be the **first** rule in `gtk.css`, because GTK ignores an `@import` that
+follows any other rule. `gtk.gtk3.extraCss` is the only thing that writes that file, so declaring
+any CSS there without the import silently severs the link — DMS keeps regenerating
+`dank-colors.css` and nothing ever loads it. The same import is declared for `gtk4.extraCss`, where
+it is about colour rather than mode: libadwaita already has light/dark right, and this gives it the
+Solarized palette instead of stock Adwaita accents.
+
+`GTK_USE_PORTAL=1` has one visible side effect: GTK3 file choosers become portal file choosers —
+the same dialog the rest of the desktop already uses.
+
 **Nothing else in this repo may declare those two keys**, whether directly via `dconf.settings` or
 indirectly via home-manager options that mirror into them. Concretely, this is why
 `modules/common/users/common/defaults/common/default.nix` deliberately does *not* set:
@@ -172,6 +206,19 @@ nix-store -q --references "$(readlink -f ~/.config/DankMaterialShell/settings.js
 see [`dms.md`](./dms.md#customthemefile-must-be-a-store-path-in-its-own-right). In that state
 `color-scheme` stays wherever it last landed, which after home-manager's dconf-cleanup pass is
 `'default'` — the portal then answers `0`, "no preference", and Firefox and Slack fall to light.
+
+If one app is light while the rest of the desktop is dark, check its toolkit before any of the
+above: a GTK3 app that is not seeing `GTK_USE_PORTAL=1` is cut off from the chain entirely, and no
+amount of correct dconf will reach it — see [GTK3 is not on that chain by
+default](#gtk3-is-not-on-that-chain-by-default).
+
+If `color-scheme` and `gtk-theme` disagree with *each other* — `prefer-dark` alongside the light
+`adw-gtk3`, say — nothing in this repo wrote that pair: the activation below always writes them
+together. DMS toggles `gtk-theme` and `color-scheme` to force GTK apps to repaint and puts them
+back afterwards (`Failed to reset gtk-theme`, `Failed to restore color-scheme for GTK4 refresh` in
+its log), so a mismatch is a restore that did not happen. The next activation resyncs it; to fix it
+in place, write the pair by hand. It matters more than it used to: with `GTK_USE_PORTAL=1`, GTK3
+apps follow `gtk-theme`, so a stale light value there now shows up on screen.
 
 If `dconf read` disagrees with `dms ipc call theme getMode` *and* the marker file agrees with DMS,
 something re-declared the keys statically — see the rule at the top. If the portal disagrees with `dconf`, the problem is in

@@ -164,6 +164,37 @@ in
     # a template carrying only the modes fails to deserialise — and that is a
     # *config-level* failure, which silently takes every other template down
     # with it, DMS's own foot and GTK ones included.
+    # The one thing that puts GTK3 on the chain above at all.
+    #
+    # A GTK3 app reads its theme from ~/.config/gtk-3.0/settings.ini and from
+    # XSettings — *not* from dconf, and not from the portal: GTK3 consults the
+    # portal only when `gdk_should_use_portal()` is true, which means inside a
+    # Flatpak/snap or with this variable set. There is no XSettings daemon under
+    # a Wayland session, so without it GTK3 apps see no theme name at all and
+    # fall back to stock light Adwaita no matter what `color-scheme` says. That
+    # is why a pinentry prompt stayed light while every GTK4/libadwaita window,
+    # Firefox and Slack followed the schedule — libadwaita reads the portal
+    # unconditionally, so only GTK3 was ever cut off.
+    #
+    # 3.24.38 taught GTK3 to read `org.freedesktop.appearance color-scheme` as
+    # well as `gtk-theme`, and nixpkgs is on 3.24.52, so this carries both the
+    # adw-gtk3/adw-gtk3-dark name and the prefer-dark hint.
+    #
+    # `uwsm/env` rather than `uwsm/env-hyprland`: uwsm sources the bare file for
+    # every compositor and the suffixed one only for the compositor it names,
+    # and nothing about this is Hyprland's business. It also has to reach
+    # processes nobody launches from a shell — the prompter is D-Bus activated —
+    # which is exactly what uwsm's env gives it, by way of the systemd user
+    # manager's environment and from there the D-Bus activation environment.
+    #
+    # It has one visible side effect: GTK3 file choosers become portal file
+    # choosers. That is the same dialog the rest of the desktop already uses.
+    xdg.configFile."uwsm/env" = mkIf isLinux {
+      text = ''
+        export GTK_USE_PORTAL=1
+      '';
+    };
+
     xdg.configFile."matugen/config.toml" = mkIf isLinux {
       text = ''
         # The bare table header below matters, and nothing above it may repeat
