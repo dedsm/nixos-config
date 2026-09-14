@@ -42,28 +42,60 @@ sees no theme name at all and falls back to stock light Adwaita however loudly `
 which is why this presents as "one or two windows stayed light", typically a pinentry prompt (its
 gcr prompter is GTK3), while Firefox, Slack and every GTK4 app follow the schedule correctly.
 
-Two declarations put GTK3 back on the chain, and both are needed:
+#### The `@import` is what actually fixes it
 
-| Where | What | Why |
-| --- | --- | --- |
-| `theme/default.nix` → `xdg.configFile."uwsm/env"` | `export GTK_USE_PORTAL=1` | Makes GTK3 read `gtk-theme` and `color-scheme` from the portal, so it tracks the schedule like everything else |
-| `defaults/common/default.nix` → `gtk.gtk3.extraCss` | `@import url("dank-colors.css");` | Loads the Solarized palette DMS's matugen rewrites on every transition |
+`gtk.gtk3.extraCss` in `defaults/common/default.nix` opens with:
+
+```css
+@import url("dank-colors.css");
+```
+
+That file is DMS's matugen output (`matugen/configs/gtk3-{dark,light}.toml` in the shell package),
+rewritten in place on every transition — dark template for dark, light template for light — so the
+import tracks the schedule with no hook of its own. And it is enough **on its own** to turn a GTK3
+window dark, which is not obvious: it redefines 32 named colours, structural ones included —
+
+```css
+@define-color window_bg_color #001419;
+@define-color view_bg_color   #001419;
+@define-color dialog_bg_color #001419;
+@define-color window_fg_color #9eabac;
+```
+
+— and Adwaita's stylesheet resolves through those names, so overriding them repaints the whole
+window without the theme *name* ever changing. Verified on a live pinentry prompt: dark immediately,
+with no relogin and with `GTK_USE_PORTAL` still absent from the session.
+
+The import must be the **first** rule in the file; GTK ignores an `@import` that follows any other
+rule. `gtk.gtk3.extraCss` is also the only thing that writes `gtk.css`, so declaring any CSS there
+*without* the import silently severs the link — DMS keeps regenerating `dank-colors.css` and nothing
+ever loads it. That was the original bug: the option carried only the emoji unbinds.
+
+The same import is declared for `gtk4.extraCss`, where it is about colour rather than mode:
+libadwaita already has light/dark right, and this gives it the Solarized palette instead of stock
+Adwaita accents.
+
+#### `GTK_USE_PORTAL=1` is an improvement, not a prerequisite
+
+`xdg.configFile."uwsm/env"` in `theme/default.nix` exports it, which makes GTK3 read `gtk-theme` and
+`color-scheme` from the portal like everything else. With it, GTK3 uses the real `adw-gtk3-dark`
+rather than light Adwaita with dark colours substituted — so it covers what Adwaita hardcodes
+*outside* those 32 names: some borders and shadows, symbolic icon recolouring, and any widget that
+branches on the dark flag rather than on a colour. GTK 3.24.38 taught GTK3 to read
+`org.freedesktop.appearance color-scheme` alongside `gtk-theme`, and nixpkgs is on 3.24.52, so the
+portal carries both.
+
+It is deliberately *not* required for dark to work, and two things follow from that. It costs a
+relogin — uwsm sources the file at session start, so a `nixos-rebuild switch` alone does not export
+it; check with `systemctl --user show-environment | grep GTK_USE_PORTAL`. And it has one visible
+side effect: GTK3 file choosers become portal file choosers. Drop the `uwsm/env` block if that is
+unwelcome — the import stands on its own.
 
 On `uwsm/env` rather than `uwsm/env-hyprland`: uwsm sources the bare file for every compositor and
 the suffixed one only for the compositor it names, and nothing about a toolkit portal setting is
 Hyprland's business. It also has to reach processes nobody starts from a shell — the gcr prompter is
 D-Bus activated — which uwsm's env does by way of the systemd user manager's environment and from
 there the D-Bus activation environment.
-
-On the `@import`: it must be the **first** rule in `gtk.css`, because GTK ignores an `@import` that
-follows any other rule. `gtk.gtk3.extraCss` is the only thing that writes that file, so declaring
-any CSS there without the import silently severs the link — DMS keeps regenerating
-`dank-colors.css` and nothing ever loads it. The same import is declared for `gtk4.extraCss`, where
-it is about colour rather than mode: libadwaita already has light/dark right, and this gives it the
-Solarized palette instead of stock Adwaita accents.
-
-`GTK_USE_PORTAL=1` has one visible side effect: GTK3 file choosers become portal file choosers —
-the same dialog the rest of the desktop already uses.
 
 **Nothing else in this repo may declare those two keys**, whether directly via `dconf.settings` or
 indirectly via home-manager options that mirror into them. Concretely, this is why
@@ -208,9 +240,10 @@ see [`dms.md`](./dms.md#customthemefile-must-be-a-store-path-in-its-own-right). 
 `'default'` — the portal then answers `0`, "no preference", and Firefox and Slack fall to light.
 
 If one app is light while the rest of the desktop is dark, check its toolkit before any of the
-above: a GTK3 app that is not seeing `GTK_USE_PORTAL=1` is cut off from the chain entirely, and no
-amount of correct dconf will reach it — see [GTK3 is not on that chain by
-default](#gtk3-is-not-on-that-chain-by-default).
+above: a GTK3 app reaches the palette through the `dank-colors.css` import in `gtk.css`, not through
+dconf, so correct keys prove nothing about it. Confirm the import is the first line of
+`~/.config/gtk-3.0/gtk.css` and that `dank-colors.css` next to it has a recent mtime — see
+[GTK3 is not on that chain by default](#gtk3-is-not-on-that-chain-by-default).
 
 If `color-scheme` and `gtk-theme` disagree with *each other* — `prefer-dark` alongside the light
 `adw-gtk3`, say — nothing in this repo wrote that pair: the activation below always writes them

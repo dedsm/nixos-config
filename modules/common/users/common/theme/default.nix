@@ -164,21 +164,26 @@ in
     # a template carrying only the modes fails to deserialise — and that is a
     # *config-level* failure, which silently takes every other template down
     # with it, DMS's own foot and GTK ones included.
-    # The one thing that puts GTK3 on the chain above at all.
+    # Lets GTK3 read `gtk-theme` and `color-scheme` from the portal, which it
+    # otherwise never does: GTK3 takes its theme from gtk-3.0/settings.ini and
+    # XSettings, and consults the portal only when `gdk_should_use_portal()` is
+    # true — inside a Flatpak/snap, or with this set. A Wayland session runs no
+    # XSettings daemon, so without it GTK3 sees no theme name at all.
     #
-    # A GTK3 app reads its theme from ~/.config/gtk-3.0/settings.ini and from
-    # XSettings — *not* from dconf, and not from the portal: GTK3 consults the
-    # portal only when `gdk_should_use_portal()` is true, which means inside a
-    # Flatpak/snap or with this variable set. There is no XSettings daemon under
-    # a Wayland session, so without it GTK3 apps see no theme name at all and
-    # fall back to stock light Adwaita no matter what `color-scheme` says. That
-    # is why a pinentry prompt stayed light while every GTK4/libadwaita window,
-    # Firefox and Slack followed the schedule — libadwaita reads the portal
-    # unconditionally, so only GTK3 was ever cut off.
+    # This is an improvement, *not* what makes GTK3 dark. The `dank-colors.css`
+    # import in `gtk.gtk3.extraCss` already does that, by redefining the named
+    # colours Adwaita resolves through (verified on a live pinentry prompt: dark
+    # with this variable still absent from the session). What this adds is the
+    # real adw-gtk3-dark instead of light Adwaita with dark colours substituted,
+    # covering what Adwaita hardcodes outside those names — borders, shadows,
+    # symbolic icon recolouring, widgets that branch on the dark flag.
     #
     # 3.24.38 taught GTK3 to read `org.freedesktop.appearance color-scheme` as
     # well as `gtk-theme`, and nixpkgs is on 3.24.52, so this carries both the
     # adw-gtk3/adw-gtk3-dark name and the prefer-dark hint.
+    #
+    # It costs a relogin: uwsm sources this at session start, so a rebuild alone
+    # does not export it.
     #
     # `uwsm/env` rather than `uwsm/env-hyprland`: uwsm sources the bare file for
     # every compositor and the suffixed one only for the compositor it names,
