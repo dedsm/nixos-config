@@ -193,6 +193,93 @@ Three things that are easy to get wrong here:
   unprivileged `polkitd` user). The helper is three `stat`-shaped commands and
   the state files are world-readable for exactly that reason. Do not grow it.
 
+Every denial the rule makes is logged (`fingerprint-policy: denying
+net.reactivated.fprint.device.verify: <reason from the gate>`), because nothing
+else records one — and the next section is why that matters.
+
+### When it is not the policy: fprintd wedged by a suspend
+
+**Symptom.** After a resume the reader does nothing. `fingerprint-status -v`
+reports hours of window left, the journal shows no policy denial, the lock
+screen retries silently every three seconds, and only the password gets you in.
+Nothing short of a new fprintd process fixes it.
+
+Reconstructed from the journal of 2026-09-16:
+
+```
+01:00:59.285  fprintd[2755356]: Device reported an error during identify:
+                                Cannot run while suspended.
+01:00:59.287  pam_fprintd(fprint:auth): ReleaseDevice failed: … The device is
+                                still busy with another operation …
+01:01:02.370  dms: Error while authenticating: … (code 9)  ← already dead, awake
+01:01:03      PM: suspend entry (s2idle)                   ← four seconds late
+09:10:38      PM: suspend exit
+09:10:38–50   the same instant failure, five times, until a password was typed
+```
+
+The chain:
+
+1. The lock screen always has a verify armed (`timeout=600`, see
+   [`dms.md`](./dms.md#the-fingerprint-reader-was-dead-half-the-time)), so a
+   suspend nearly always interrupts one.
+2. On `PrepareForSleep` libfprint cancels that action with
+   `FP_DEVICE_ERROR_BUSY` — "Cannot run while suspended" — and waits for it to
+   finish before completing the suspend.
+3. It never finishes. `pam_fprintd`'s `Release`, two milliseconds later, is
+   refused as busy; the device stays claimed by a client that then exits; and
+   fprintd's suspend task never completes — which is also why suspend entry is
+   four seconds late, logind waiting out the delay inhibitor fprintd never
+   released.
+4. `fp_device_resume()` refuses to run while that suspend task is outstanding,
+   and fprintd calls it with no callback (`fprint_device_resume (dev, NULL,
+   NULL)`), so the error goes nowhere. `is_suspended` stays `TRUE`, and
+   libfprint is explicit about what that costs: any operation started while the
+   device is suspended fails with `BUSY`, "this includes calls to open or close
+   the device".
+
+So the daemon is useless for the rest of its life: `Claim`,
+`ListEnrolledFingers` and `VerifyStart` all fail instantly. `pam_fprintd`
+returns a bare `PAM_AUTHINFO_UNAVAIL` for each and logs nothing above debug
+level — which is indistinguishable, from the outside, from a policy denial.
+That is what makes this expensive to diagnose, and why the rule above now logs
+its denials: no `fingerprint-policy` line against a reader that ignores you
+means the gate said yes and the fault is below it.
+
+```bash
+journalctl -b -g fingerprint-policy   # policy denials, with the gate's reason
+journalctl -b -u fprintd              # "Cannot run while suspended" → wedged
+```
+
+**The fix is to stop fprintd on every resume** —
+`systemd.services.fprintd-reset-on-resume` in `modules/nixos/peripherals/`,
+`after` and `wantedBy` the four sleep targets, each of which systemd reaches
+only *after* its sleep operation returns. fprintd is D-Bus activated and exits
+when idle, so `systemctl stop` is the entire repair: the next `Claim` starts a
+clean daemon, and a stop is a no-op the rest of the time.
+
+On resume rather than before the suspend, for two reasons. A stop ordered ahead
+of `sleep.target` sits on the path to sleeping, where a daemon slow to answer
+`SIGTERM` delays the machine going down. And it would not even be earlier in
+any useful sense: the wedge is already in place by then — it happens at
+`PrepareForSleep`, before the sleep targets start — so an early stop would have
+to beat the locker's next retry to be worth anything. The price of doing it on
+resume is one lost attempt for a claim in flight at that moment; the locker
+re-arms 3s later.
+
+**Stopping the daemon under a live lock screen is safe**, which is not obvious
+— the lock survives the suspend, so something *is* holding the reader at the
+moment of resume. Two things make it work. There is no long-lived claim to
+lose: every attempt is a fresh `pam_fprintd` subprocess (`Starting pam session
+… with config "fprint"`, a new PID each time) that claims, verifies and exits,
+and the suspend has already cancelled the armed one — so the locker is sitting
+in its retry loop when the machine comes back, not waiting on a verify. And if
+a stop does land on a healthy armed verify, `pam_fprintd` does not sit out its
+ten-minute timeout: it matches `NameOwnerChanged` for `net.reactivated.Fprint`,
+and the name vanishing becomes `PAM_AUTHINFO_UNAVAIL` on the next
+`sd_bus_process`. DMS reads that as `PamResult.Error`, and `errorRetry` re-arms
+within 3s (`Modules/Lock/Pam.qml`). The only way nothing re-arms is the
+200-error budget being spent, which after a resume is single digits in.
+
 ### What the lock screen shows
 
 Not much, and this is the one place the DMS lock is worse than what it
@@ -202,13 +289,15 @@ password field stays live and working. Verified on hardware: no hang, no spin
 visible, the password path is unaffected — but the fingerprint icon stays lit
 as though the sensor were usable, and nothing on screen says why it is not.
 
-The lit icon means the same lack of feedback covers a second, unrelated state:
-the gaps between attempts, when nothing is claiming the reader at all. That is
-what made fingerprint unlock feel intermittent rather than merely gated — see
-[`dms.md`](./dms.md#the-fingerprint-reader-was-dead-half-the-time). Either way,
-`fingerprint-status` is the thing that tells them apart: it is silent when the
-policy is open, so a silent status plus a sensor that ignores you is the gap,
-not the gate.
+The lit icon means the same lack of feedback covers two further, unrelated
+states: the gaps between attempts, when nothing is claiming the reader at all —
+what made fingerprint unlock feel intermittent rather than merely gated, see
+[`dms.md`](./dms.md#the-fingerprint-reader-was-dead-half-the-time) — and a
+daemon wedged by a suspend (above). `fingerprint-status` narrows it to those
+two: it is silent when the policy is open, so a silent status plus a sensor
+that ignores you is never the gate. `journalctl -b -u fprintd` separates the
+last two, the wedged daemon being the one with "Cannot run while suspended"
+against it.
 
 hyprlock could not tell either, which is why its config carried a second label
 running `cmd[update:5000] fingerprint-status` to fill the slot with *why* — "no

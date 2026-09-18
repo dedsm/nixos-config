@@ -187,11 +187,14 @@ in under two hours — a laptop locked over lunch would come back with the reade
 entirely. At 600s per attempt the same budget covers ~33 hours, past the point
 `dedsm.fingerprintPolicy.maxTimeSinceUnlock` demands a password anyway.
 
-The budget does burn faster in the one case that fails **instantly** — a gate denial, or a missing
-reader — where 200 retries take ~10 minutes rather than ~1.7 hours. Nothing is lost by giving up
-sooner there: within a lock cycle a denial is monotonic. Both clocks only move forward, and the
-failure counter is cleared only by a password authentication, which ends the lock. There is no
-state to wait for.
+The budget does burn faster in the cases that fail **instantly** — a gate denial, a missing reader,
+or an fprintd wedged by a suspend
+([`login-flow.md`](./login-flow.md#when-it-is-not-the-policy-fprintd-wedged-by-a-suspend)) — where
+200 retries take ~10 minutes rather than ~1.7 hours. Nothing is lost by giving up sooner there:
+within a lock cycle a denial is monotonic. Both clocks only move forward, and the failure counter
+is cleared only by a password authentication, which ends the lock. There is no state to wait for.
+The wedge is the one that could have outlasted the budget, and does not: it is repaired at the
+moment of resume, before the lock screen is looked at.
 
 Two things belong on the record:
 

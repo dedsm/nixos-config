@@ -66,22 +66,30 @@ let
   # standing between a stale window and a granted fingerprint (the rule treats
   # one as "no" too, but this is not the place to lean on that).
   gate = pkgs.writeShellScript "fingerprint-gate" ''
-    deny() { echo no; exit 0; }
+    # Anything but a bare "yes" is a denial, and what follows says why: the
+    # rule below puts that in the journal. On stdout because polkit.spawn
+    # already reads it — logging from here would mean a second process inside
+    # polkitd's blocking window, which this script is explicitly not to grow.
+    deny() { echo "no: $1"; exit 0; }
 
-    ${readClocks "deny"}
+    ${readClocks ''deny "no password authentication since boot"''}
 
     # No unlock of any kind for too long.
-    [ "$sinceUnlock" -lt ${toString cfg.maxTimeSinceUnlock} ] || deny
+    [ "$sinceUnlock" -lt ${toString cfg.maxTimeSinceUnlock} ] ||
+      deny "nothing has unlocked it in $(( sinceUnlock / 3600 ))h"
 
     # No password for too long *and* no fingerprint unlock recently enough to
     # extend it. A grace of 0 makes the password interval a hard cap.
     if [ "$sincePw" -ge ${toString cfg.maxTimeSincePassword} ]; then
-      [ "$sinceFp" -ge 0 ] || deny
-      [ "$sinceFp" -lt ${toString cfg.fingerprintGrace} ] || deny
+      [ "$sinceFp" -ge 0 ] || deny "no password in $(( sincePw / 3600 ))h, and no fingerprint unlock to extend it"
+      [ "$sinceFp" -lt ${toString cfg.fingerprintGrace} ] ||
+        deny "no password in $(( sincePw / 3600 ))h, and the ${
+          toString (cfg.fingerprintGrace / 3600)
+        }h fingerprint grace lapsed $(( sinceFp / 3600 ))h ago"
     fi
     ${optionalString (cfg.failureLimit > 0) ''
-      ${readFailures "deny"}
-      [ "$n" -lt ${toString cfg.failureLimit} ] || deny
+      ${readFailures ''deny "failure counter unreadable"''}
+      [ "$n" -lt ${toString cfg.failureLimit} ] || deny "$n consecutive failed matches"
     ''}
 
     echo yes
@@ -410,8 +418,14 @@ in
             action.id != "net.reactivated.fprint.device.enroll")
           return polkit.Result.NOT_HANDLED;
         try {
-          if (polkit.spawn(["${gate}"]).trim() == "yes")
+          var verdict = polkit.spawn(["${gate}"]).trim();
+          if (verdict == "yes")
             return polkit.Result.NOT_HANDLED; // fprintd's own defaults apply
+          // Nothing else records a denial: pam_fprintd turns it into a bare
+          // PAM_AUTHINFO_UNAVAIL and logs nothing, which looks exactly like a
+          // reader that is broken rather than withheld. This line is what
+          // tells those two apart after the fact.
+          polkit.log("fingerprint-policy: denying " + action.id + ": " + verdict);
         } catch (e) {
           polkit.log("fingerprint-policy: gate failed, denying: " + e);
         }

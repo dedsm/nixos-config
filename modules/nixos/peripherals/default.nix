@@ -45,6 +45,46 @@ in
     services.fprintd.enable = true;
     security.pam.services.login.fprintAuth = false;
 
+    # fprintd cannot recover a reader that a suspend interrupted mid-verify,
+    # and the lock screen always has a verify armed (`timeout=600`, see
+    # docs/dms.md). On `PrepareForSleep` libfprint cancels that verify with
+    # "Cannot run while suspended", the cancellation never drains, and from
+    # there everything fails in sequence: `Release` is refused as busy, the
+    # device stays claimed by a pam_fprintd that has since exited, libfprint's
+    # suspend task never completes, and so the `fp_device_resume()` after the
+    # resume is refused too — fprintd discards that error, leaving the device
+    # flagged suspended for the rest of the daemon's life. Every later Claim,
+    # ListEnrolledFingers and VerifyStart then fails instantly, which
+    # pam_fprintd reports as a bare PAM_AUTHINFO_UNAVAIL and logs nowhere.
+    #
+    # fprintd is D-Bus activated and exits when idle, so *stopping* it is the
+    # entire fix: the next Claim gets a clean daemon. On resume rather than
+    # before the suspend, deliberately — it keeps a service stop off the
+    # suspend path, where a slow one would delay the machine going to sleep.
+    # The cost is that a claim already in flight at resume loses one attempt;
+    # the locker re-arms 3s later. See docs/login-flow.md.
+    systemd.services.fprintd-reset-on-resume =
+      let
+        # Each of these is reached *after* its sleep operation returns, so
+        # `after` + `wantedBy` on them is systemd's documented resume hook.
+        sleepTargets = [
+          "suspend.target"
+          "hibernate.target"
+          "hybrid-sleep.target"
+          "suspend-then-hibernate.target"
+        ];
+      in
+      {
+        description = "Stop fprintd after resume, so the next claim gets a clean one";
+        after = sleepTargets;
+        wantedBy = sleepTargets;
+        serviceConfig = {
+          Type = "oneshot";
+          # A no-op when fprintd is not running, which is the common case.
+          ExecStart = "${config.systemd.package}/bin/systemctl stop fprintd.service";
+        };
+      };
+
     # Thunderbolt
     services.hardware.bolt.enable = true;
 
