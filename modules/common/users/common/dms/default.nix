@@ -269,7 +269,12 @@ mkIf (homeManagerConfig.dms.enable or false) {
       }
     ];
 
-    # --- date formats
+    # --- clock and date formats
+    # Seconds in the bar clock (and, through the same shared format, in the
+    # lock screen's and the greeter's). Defaults to false. It also raises the
+    # bar's SystemClock precision from Minutes to Seconds, so the clock widget
+    # repaints once a second instead of once a minute.
+    showSeconds = true;
     # Both default to "", which falls back to the locale's short forms.
     clockDateFormat = "ddd d MMM yyyy";
     lockDateFormat = "dddd, MMMM d";
