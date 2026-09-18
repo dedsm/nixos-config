@@ -112,6 +112,24 @@ let
         }
       ];
 
+  # `ctrl+l` is spent on the navigation plugin above, so the shell can no
+  # longer see it and clear its screen — the same trade `vim-tmux-navigator`
+  # forces under tmux, where `bind C-l send-keys 'C-l'` buys it back. herdr
+  # has no native "send keys to the focused pane" action, so the prefixed
+  # copy goes out through the CLI instead: `type = "shell"` runs the command
+  # detached via `/bin/sh -lc` and hands it `HERDR_ACTIVE_PANE_ID` plus
+  # `HERDR_BIN_PATH`.
+  #
+  # `$HERDR_BIN_PATH` rather than this generation's store path on purpose: it
+  # is the *running server's* binary, so the call can never lose to the
+  # `protocol_mismatch` that a rebuilt-but-not-restarted herdr produces.
+  clearScreenKeybind = {
+    key = "prefix+ctrl+l";
+    type = "shell";
+    command = ''"$HERDR_BIN_PATH" pane send-keys "$HERDR_ACTIVE_PANE_ID" ctrl+l'';
+    description = "Clear screen";
+  };
+
   settings = {
     # The first-run notification setup. herdr shows it whenever this key is
     # missing, then persists `onboarding = false` back into config.toml once
@@ -132,7 +150,10 @@ let
       # `ctrl+alt+h/j/k/l` is herdr's own suggestion and is not used: `CTRL +
       # ALT + L` is the lock bind on manwe, and diverging per host is worse
       # than picking a chord that is free on both.
-      command = navKeybinds;
+      #
+      # `prefix+ctrl+l` follows, giving the shell back the `ctrl+l` that the
+      # navigation binding above takes from it.
+      command = navKeybinds ++ [ clearScreenKeybind ];
 
       # `prefix+h/j/k/l` defaults to *focusing* a pane, which the vim-aware
       # `ctrl+h/j/k/l` above already does better — so the prefixed copies are

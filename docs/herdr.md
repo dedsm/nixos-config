@@ -82,6 +82,7 @@ The prefix is `ctrl+f`. `prefix+?` lists live bindings and is authoritative over
 | Resize mode (sticky: `h`/`l` width, `j`/`k` height, `esc` out) | `prefix+r` |
 | Rename pane · scrollback | `prefix+shift+p` · `prefix+e` |
 | Copy mode (keyboard scrollback) | `prefix+[` |
+| Clear screen (gives `ctrl+l` back to the shell) | `prefix+ctrl+l` |
 
 | Tabs | |
 |---|---|
@@ -186,6 +187,7 @@ directory rather than a symlink into the store.
 | `onboarding = false` | Skips the first-run notification setup. See "Onboarding and the read-only config" below. |
 | `keys.prefix = "ctrl+f"` | Matches the tmux prefix, so muscle memory survives running both. |
 | `keys.focus_pane_* = ""` | Unbound, because prefix-free `ctrl+h/j/k/l` — the chords `vim-tmux-navigator` owns under tmux — already move between panes. See "Prefix-free pane movement" below for what it costs. |
+| `keys.command` → `prefix+ctrl+l` | Sends a literal `ctrl+l` to the focused pane, buying back the clear-screen the navigation binding takes from the shell. See "Prefix-free pane movement" below. |
 | `keys.resize_pane_* = "prefix+h/j/k/l"` | Reuses the hjkl chords `focus_pane_*` gave up, so a single nudge needs no mode switch. Ships unset, and is one-shot — Herdr has no `bind -r`. See "Resizing" below. |
 | `keys.focus_agent` / `next_agent` / `previous_agent` | Reaching an agent directly instead of via its workspace. All three ship unset. See "Agent navigation" below. |
 | `ui.agent_panel_sort = "priority"` | Orders the agent panel as an attention queue instead of grouping by workspace, which is what makes `next_agent` mean "next agent waiting on me". See "Agent navigation" below. |
@@ -345,10 +347,29 @@ host is worse than picking a chord that is free on both.
 
 **What this still costs.** Forwarding only happens for Vim/Neovim panes, so in an ordinary
 shell pane **`ctrl+l`** (clear screen), **`ctrl+k`** (kill line) and **`ctrl+j`** are
-consumed by the navigation. tmux has the same problem and keeps an escape hatch —
-`bind C-l send-keys 'C-l'` in `tmux.conf` — which Herdr cannot express: there is no
-send-keys *binding* type, only the `herdr pane send-keys` CLI. Use `clear` instead. Other
-TUIs that own these chords can be added to the plugin's `HERDR_NAV_PASSTHROUGH_RE`.
+consumed by the navigation. Other TUIs that own these chords can be added to the plugin's
+`HERDR_NAV_PASSTHROUGH_RE`.
+
+tmux has the same problem and keeps an escape hatch — `bind C-l send-keys 'C-l'` in
+`tmux.conf`. Herdr has no send-keys *binding* type, but it does have the `herdr pane
+send-keys` CLI and a `type = "shell"` custom command that can reach it, so the same chord
+is bound the same way:
+
+```toml
+[[keys.command]]
+key = "prefix+ctrl+l"
+type = "shell"
+command = '"$HERDR_BIN_PATH" pane send-keys "$HERDR_ACTIVE_PANE_ID" ctrl+l'
+description = "Clear screen"
+```
+
+`type = "shell"` runs the command detached through `/bin/sh -lc` and exports
+`HERDR_ACTIVE_PANE_ID`, `HERDR_ACTIVE_{WORKSPACE,TAB}_ID`, `HERDR_ACTIVE_PANE_CWD`,
+`HERDR_SOCKET_PATH` and `HERDR_BIN_PATH` to it. The last is used in preference to this
+generation's store path deliberately: it is the **running server's** binary, so the call
+can never lose to the `protocol_mismatch` a rebuilt-but-not-restarted Herdr produces (see
+"Talking to herdr from an activation script"). `ctrl+k` and `ctrl+j` get no equivalent —
+they are cheap to retype, and every prefixed chord spent is one fewer left.
 
 `ctrl+h` and Backspace share byte `0x08` unless the kitty keyboard protocol is active. foot
 (manwe) and Ghostty (morgoth) both speak it, so Backspace should stay distinct — but that,
