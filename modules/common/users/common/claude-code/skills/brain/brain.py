@@ -1294,6 +1294,10 @@ def cmd_set(args) -> int:
     if field not in SETTABLE and field not in ("started", "finished"):
         die(f"field '{field}' is not settable via `set` "
             f"(settable: {sorted(SETTABLE | {'started', 'finished'})})")
+    # An empty value is never a valid field — it would write `next: ` and exit 0,
+    # leaving a key that reads as set to every query. Removal is `unset`'s job.
+    if value.strip() == "":
+        die(f"empty value for '{field}' — use `brain unset {args.page} {field}` to remove it")
     path = resolve_page(args.page)
     page = parse_page(path)
     if not page.has_fm:

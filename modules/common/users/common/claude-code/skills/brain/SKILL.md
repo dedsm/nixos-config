@@ -58,7 +58,9 @@ repo's `.claude/` rules), not here. This skill is the generic mechanism.
      with an "Informed by" link list + `verified today` (ask first — never a write as a side
      effect of a read; see § QUERY in the manual).
    - **Update status** → `brain set <page> status <value>` / `brain done <page>` (it bumps
-     `updated` and stamps `started`/`finished`); when you've checked the page's claims against
+     `updated` and stamps `started`/`finished`); **`brain unset <page> <field>`** drops an
+     optional field (a closed page sheds its `next`/`attention` this way — `set` refuses an empty
+     value, and never hand-delete a line); when you've checked the page's claims against
      reality, `brain set <page> verified today`; reflect narrative in the body;
      `brain log "…"` (the commit hook reindexes).
    - **Review** → the recurring pass: `brain review`, then re-verify what's gone quiet, resolve
