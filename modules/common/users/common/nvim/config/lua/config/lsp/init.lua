@@ -17,7 +17,6 @@ vim.lsp.config('*', { capabilities = capabilities })
 require('config.lsp.servers.luals')
 require('config.lsp.servers.ruby')
 require('config.lsp.servers.python')
-require('config.lsp.servers.markdown')
 require('config.lsp.servers.frontend')
 require('config.lsp.servers.docker')
 

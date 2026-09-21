@@ -38,7 +38,6 @@ mkIf (homeManagerConfig.nvim.enable or false) {
 
       # Markdown extra
       markdownlint-cli2
-      marksman
 
       # Docker extra
       typescript-language-server

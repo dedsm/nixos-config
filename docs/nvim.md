@@ -10,7 +10,7 @@ Lua config lives under `config/` and is symlinked wholesale into `~/.config/nvim
 
 ## What's wired up
 
-- **LSP**: `nvim-lspconfig`, with per-language server config split into `config/lua/config/lsp/servers/` (`docker.lua`, `frontend.lua`, `luals.lua`, `markdown.lua`, `python.lua`, `ruby.lua`). Server *binaries* are Nix packages listed in `extraPackages` (`lua-language-server`, `vscode-langservers-extracted`, `typescript-language-server`, `dockerfile-language-server`, `yaml-language-server`, `marksman`, ...) rather than installed by an in-editor tool like Mason.
+- **LSP**: `nvim-lspconfig`, with per-language server config split into `config/lua/config/lsp/servers/` (`docker.lua`, `frontend.lua`, `luals.lua`, `python.lua`, `ruby.lua`). Server *binaries* are Nix packages listed in `extraPackages` (`lua-language-server`, `vscode-langservers-extracted`, `typescript-language-server`, `dockerfile-language-server`, `yaml-language-server`, ...) rather than installed by an in-editor tool like Mason.
 - **Formatting**: `conform-nvim`, backed by `nixfmt` (Nix — the same `pkgs.nixfmt` the flake's `nix fmt` runs, there via the `nixfmt-tree` treefmt wrapper, so `<leader>f` and the CLI agree), `stylua`, `shfmt`, `markdownlint-cli2`, all provided as Nix packages.
 - **Linting**: `nvim-lint`, plus `hadolint`, `docker-compose-language-service`.
 - **Fuzzy finding / file tree**: `telescope-nvim` (+ `fzf-native`, `ui-select`), `neo-tree-nvim`.

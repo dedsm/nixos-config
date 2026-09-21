@@ -286,7 +286,6 @@
               imagemagick
               slurp
               grim
-              marksman
               pkgs.unstable.restream
               pkgs.unfree._1password-cli
             ]);
