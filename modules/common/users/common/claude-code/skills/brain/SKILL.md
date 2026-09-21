@@ -169,6 +169,20 @@ latest conventions after a rebuild shipped a new template/CLI.
      Show each proposed destination and ask. Then, if adopting the
      goals layer, wire it: create the quarter's goal pages (`brain new goal …`) and set `parent`
      on the live projects that serve them (§ Goals in the manual). Stamp last, as ever.
+   - **v14 specifically:** *pages hold the design, the tracker holds the standings.* Two backfills,
+     and only the first gates the stamp.
+     **(a) `progress` — required before stamping.** It is now an error on any page whose `links:`
+     name a tracker. `brain q --json` (or `rtk proxy grep -rn '^progress:' ~/brain`) lists them;
+     for each, **show David the value and ask**. Most are pure readings and simply go; a few carry
+     one sentence of judgment ("none started", "blocked on the Ruby ruling") that belongs in the
+     body or in `next` — lift it first, then `brain unset <page> progress`. A page with no tracker
+     link may keep its `progress`; leave those alone.
+     **(b) the state-reading backlog — not required before stamping.** `brain check --strict` now
+     warns on every status-word-beside-an-issue-key, PR ledger and issue tally in a page body. The
+     commit gate blocks only lines a *new* commit adds, so the backlog can be worked down over
+     several LINT passes; do not try to clear it inside the sync. Offer to start with the worst
+     pages (the report is sorted by file) and remember its blind spot: it catches tokens, not
+     claims, so prose restating a tracker is still yours to find.
    - `brain check` to confirm the migrated store is schema-valid; commit the backfill on its own.
 3. **Stamp last:** `brain version --stamp`, on its own commit, so "did the migration complete" is
    a single visible fact. Never stamp before the backfill lands — `brain sync` refusing to do this

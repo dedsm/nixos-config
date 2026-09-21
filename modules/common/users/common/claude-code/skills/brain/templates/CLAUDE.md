@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v13 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v14 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -29,6 +29,49 @@ frontmatter is deterministic instead of hand-typed — see **Tooling** below.
   for next-actions that don't belong in a team tracker. Link tasks to pages here.
 - **This store** — the narrative and overall status that neither of the above captures: why an
   initiative exists, its rollout state, decisions, and cross-cutting maps.
+
+### Pages hold the design; the tracker holds the standings
+
+The sharp edge of the rule above, and **enforced** since v14. A page stops restating external
+state: no story counts, no project statuses, no PR ledgers, no `progress` mirroring a tracker
+number. What stays is what no other system holds — invariants, decisions and their reasoning,
+counting rules, orderings that are unrecoverable if got wrong, and cross-system correspondences
+neither system can answer alone.
+
+Why it is worth a gate rather than a good intention: a tracker reorganisation can invalidate a
+dozen carefully-verified readings across six pages in one afternoon. A page that mirrors a tracker
+is wrong from the next merge onward, and a **recent `verified:` stamp makes it more dangerous, not
+less**, because the stamp invites trust. On a page written this way `verified:` comes to mean *the
+design still holds* — a question measured in months rather than merges.
+
+**The rule in one sentence: outside `## Tracker`, `## Decisions`, `## Drift` and
+`## Execution log`, do not put a status word next to an issue key.** Cite the identifier alone and
+the sentence stays true forever.
+
+- **`## Tracker` is the sanctioned home for tracker references: links and stable identifiers only,
+  never status.** The shape:
+  > Initiative `Foundation · Platform & IaC Kit` · five milestone projects named `IaC Kit · …` ·
+  > stories PLT-42–PLT-63 under epics PLT-134–PLT-153. Structure: [[kits-structure]].
+- **What makes ID-only citation safe** — this is the load-bearing assumption, so know it: Linear
+  guarantees **identifiers never change on a move**. Renaming a project or initiative preserves
+  both the id and the URL (a renamed project still resolves from its old slug). A tracker without
+  that guarantee needs its own convention before this rule can be trusted there.
+- **How it is enforced.** `brain check --staged` (the commit gate) rejects a state reading on a
+  line the commit **adds**, and only there — the pre-existing backlog is a `brain check --strict`
+  warning for the LINT pass to work down, because a gate that blocks every commit until a backlog
+  clears is a gate that gets switched off. It reads page **bodies**; `progress` has its own rule,
+  `summary` its length warning, and `next` is exempt as judgment.
+- **Its blind spot, stated rather than discovered later: it catches tokens, not claims.** Prose
+  that restates a tracker with no issue key, PR number, status word or tally — "the kit is filed
+  and the platform team has picked it up" — passes by construction. Catching *that* is the LINT
+  and REVIEW passes' job, below; the gate is deliberately mechanical because it runs in a
+  pre-commit hook, where a model would be slow, non-deterministic, cost money per commit and fail
+  open offline — and a gate that passes for unreproducible reasons is worse than none, because it
+  still looks green.
+- **The escape, for a citation the rules misread** (a third-party issue whose state is the fact
+  itself, a PR cited as evidence for a design claim): end the line with `<!-- state-ok -->`. It is
+  greppable on purpose, so the LINT pass can audit every use. Reach for it after checking that the
+  line is not simply a standings copy.
 
 ## Structure (PARA + Maps of Content)
 
@@ -74,7 +117,7 @@ title: Human title
 kind: goal | initiative | project | area | resource | moc
 status: idea | planned | active | blocked | done | archived
 attention: focus | tracking  # optional — omit for ordinary active work
-progress: "optional, e.g. 12/40 services or 30%"
+progress: "optional — and ONLY on a page with no tracker: see the rule below"
 next: "optional — the single next concrete move"
 owner: me
 created: YYYY-MM-DD          # ISO date — set once on creation, never changed
@@ -103,12 +146,19 @@ links:                       # cross-references
   finer ladder rots faster than it informs. `brain review` groups on this.
 - `summary` is what `brain reindex` prints for the page in `index.md` (falls back to `title` if
   absent). **One crisp line** — `brain check` warns past 200 characters, because at that point it
-  has become a changelog. Progress belongs in `progress`, the next move in `next`, detail in the body.
+  has become a changelog. The next move belongs in `next`, detail in the body — and a tally
+  belongs in the tracker, not in `summary` and not in `progress` (see the rule below).
+- `progress` is **an error on any page whose `links:` name a tracker** — `brain check` rejects it,
+  and `brain set` refuses to write it. A tally is a reading of someone else's system, so a copy of
+  it here is wrong from the next merge onward. It survives only on a page with no system of record
+  for its standings ("first sweep reclaimed 3.5 TB, flat for 27d"). What counts as a tracker link:
+  a URL on a tracker host, a forge URL on an `/issues/`, `/pull/` or `/milestone/` path, or a
+  `links:` entry in the `ISSUE-123 https://…` form. The CLI holds the list (`TRACKER_HOSTS`).
 - `next` is the single next concrete move, in one line, and it's what makes `brain review`
-  actionable rather than a status dump. Distinguish it from its neighbours: `progress` = how far
-  along ("11/14 stories"), `next` = the next move ("start STO-496"), **dstask** = actions you will
-  personally do. A `next` may well be someone else's action or a decision, which is why it isn't
-  a task.
+  actionable rather than a status dump. Distinguish it from its neighbours: `next` = the next move
+  ("start STO-496"), **dstask** = actions you will personally do. A `next` may well be someone
+  else's action or a decision, which is why it isn't a task. `next` is judgment, so it may name an
+  issue key — it is the one frontmatter field the state-reading rule below does not read.
 - `verified` is **when this page's claims were last checked against reality** — code read, tracker
   reconciled, person asked. It is not `updated`, which moves on a typo fix. This is the field
   staleness should be judged on, so a page nobody edited but that you re-checked yesterday doesn't
@@ -188,7 +238,9 @@ brain review [--since DAYS] [--stale DAYS] [--log N] [--json]
                                    # READ-ONLY briefing; --since gives the window ("what moved")
 brain q [--status S | --kind K | --tag T | --attention A | --overdue | --due-before D
          | --stale DAYS [--all] | --unverified [DAYS]] [--json]
-brain check [--staged] [--strict]  # validate frontmatter (the gate); exits non-zero on errors
+brain check [--staged] [--strict]  # validate frontmatter + links + state readings (the gate);
+                                   # --staged judges state readings only on the lines a commit
+                                   # ADDS; --strict promotes the whole-store backlog to errors
 brain normalize [paths…]           # repair-on-drift: lowercase status/kind, map synonyms, sort tags
 brain capture "<text>" | - [--title SLUG]   # append to raw/inbox.md, or write a raw file from stdin
 brain log "<what changed> — [[page]]"  # prepend a dated log.md entry (date from the clock)
@@ -234,9 +286,15 @@ brain today                        # today's date from the system clock — neve
   one) as **errors** (blocking), and softer issues (done without `finished`, relative markdown
   paths, etc.) as **warnings** (non-blocking). Two consequences: **create a page before linking
   it** (`brain new`, then link), and **stage a new page together with the pages that link it**.
+  It also rejects a **state reading** (a status word beside an issue key, a PR ledger, an issue
+  tally) — but under `--staged`, only on the lines the commit **adds**, so an existing page's
+  backlog never blocks unrelated work; the whole store is a `--strict` warning instead. See
+  **Pages hold the design; the tracker holds the standings** above for the rule, its four exempt
+  sections, its blind spot and the `<!-- state-ok -->` escape.
   Link errors **always** block, including in the rebuild→sync window: every store is link-clean, so
-  the deferral that once softened them there is gone. The one remaining deferral is a `kind` the
-  schema no longer knows, which demotes to a warning until the store is stamped — otherwise
+  the deferral that once softened them there is gone. Deferrals now cover exactly what a pending
+  migration is *about* — a `kind` the schema no longer knows (v12), and `progress` plus the state
+  readings (v14) — each demoting to a warning until the store is stamped, because otherwise
   `brain sync`'s own mechanical commit could not pass its own gate.
 - **Auto-push**: a `post-commit` hook pushes the store to its remote when one is configured, so a
   commit is also a backup and multi-machine sync — no reliance on remembering `git push`. If the
@@ -369,15 +427,22 @@ Read-only detection, then judgment. Nothing here is automatic: `brain review` fi
 Run a health pass and fix:
 
 - **`brain check --strict`** for schema/consistency issues (warnings become actionable here);
-  stale `updated` dates vs `log.md`; over-long `summary` fields that have become changelogs.
+  stale `updated` dates vs `log.md`; over-long `summary` fields that have become changelogs; and
+  the whole-store **state-reading** report (step 2 below is where you work it down).
 - Oversized pages → work the ladder below, cheapest first. **Splitting is the last resort, not the
   first move** — most oversized pages are carrying weight they should not be carrying at all, and
   three of these four steps only delete.
   1. **Delete what a tool now generates.** Hand-maintained status prose, "next action" lists and
-     link inventories are superseded by the `next` / `progress` frontmatter, `brain review`, and
+     link inventories are superseded by the `next` frontmatter, `brain review`, and
      `links:`. Keeping a copy guarantees it goes stale.
   2. **Delete what duplicates a system of record.** A section restating a Notion page, a tracker
-     issue or a repo doc is drift waiting to happen — link it and cut the copy.
+     issue or a repo doc is drift waiting to happen — link it and cut the copy. This is the step
+     **Pages hold the design; the tracker holds the standings** (above) sharpens: strip the status
+     words and the tallies, keep the identifiers, and move the references into `## Tracker`. The
+     backlog is enumerated for you — `brain check --strict` lists every state reading in the store,
+     which is the half the commit gate deliberately does not block. Work a page at a time and
+     re-run it. Its blind spot is yours to cover here: **prose** that restates a tracker without
+     an issue key or a status word passes the check and still has to go.
   3. **Delete superseded body sections**, noting the asymmetry: a superseded *decision* stays in
      `## Decisions`, struck through, pointing at what replaced it — that trail is the point. A
      superseded *analysis* in the body goes, because the section that superseded it already
@@ -451,7 +516,16 @@ The recurring shape, across kinds:
 - **Decisions** — *appended*, dated, each with its reasoning and consequences. Superseded entries
   stay, struck through, pointing at what replaced them.
 - **Open** — questions, risks, blockers. This section should **shrink**; delete lines as they close.
+- **Tracker** (optional) — the external issues this page follows: **links and stable identifiers
+  only, never status**. See the stanza shape under **Pages hold the design** above. One of the four
+  sections where naming a status is permitted, because quoting the tracker is the section's job.
 - **Drift** (projects tracking an external doc) — where the doc, the tracker and the code disagree.
+  Exempt from the state-reading rule for the same reason: the disagreement cannot be recorded
+  without quoting both sides.
+- **Execution log** (optional) — *appended*, dated: a record of operations **actually performed**
+  ("2026-09-17 — steps 2 and 4 done; nothing else touched"). A past action, not a present reading,
+  which is why it is exempt from the state-reading rule and why it is never rewritten. Keep it for
+  a page driving a multi-step change through another system; delete it when the change is over.
 - **Milestones** (goals) — *appended and checked off*: `- [ ]` lines that `review` counts at read
   time and never writes back.
 
@@ -541,6 +615,9 @@ people with no Slack handle, no work email, and no job title.
 - **Never write a `[[link]]` to a page that doesn't exist** (the gate rejects it), and **move or
   rename pages only with `brain mv`** — a hand `mv` breaks every path-qualified reference.
 - **Write frontmatter through the `brain` CLI**, not by hand — that's what keeps it schema-valid.
+- **Don't restate the tracker.** Cite the identifier, never the status — see **Pages hold the
+  design; the tracker holds the standings**. `<!-- state-ok -->` silences the check for one line;
+  it is not a way to keep a ledger, and every use is greppable for the LINT pass.
 - **Run `brain check` before committing**; never bypass the pre-commit gate (`--no-verify`) or
   loosen a rule locally. To change a rule, see Governance above (ask David → change nixos-config).
 - **The store auto-pushes** to its remote (post-commit hook) when one exists, auto-reconciling a

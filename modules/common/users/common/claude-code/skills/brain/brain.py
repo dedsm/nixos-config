@@ -7,7 +7,8 @@ nixos-config alongside the brain skill; do NOT edit the deployed copy. See the
 governance note in ~/brain/CLAUDE.md before changing any rule here.
 
 Subcommands:
-  check     validate frontmatter + internal links (exits non-zero on errors)
+  check     validate frontmatter + internal links + state readings (exits
+            non-zero on errors; --staged gates only the lines a commit adds)
   reindex   regenerate index.md's generated region and the people directory's
             generated "Where they appear" column from the pages
   q         structured query over frontmatter (status/overdue/stale/tag/kind)
@@ -55,7 +56,7 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 13     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 14     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 # `goal` is the quarterly outcomes layer: 3-5 live at a time, due = quarter
@@ -120,6 +121,26 @@ STATUS_SYNONYMS = {
 # A tracked decision is a project page: the decision text itself belongs in
 # its external system of record; the brain page follows the rollout.
 KIND_SYNONYMS = {"decision": "project", "note": "resource", "reference": "resource"}
+
+# --------------------------------------------------------------------------
+# Tracker links — what makes a page "the tracker also holds this".
+#
+# The manual is deliberately workspace-agnostic about WHICH tracker (that
+# follows the active workspace's rules), but `progress` has to know whether a
+# system of record exists for the page's standings, so the CLI needs a
+# concrete test. Two signals, either one sufficient:
+#   * a `links:` URL on a pure tracker host — anything there is an issue view;
+#   * a `links:` URL on a forge, but only on an issue/PR/milestone path (a bare
+#     repo link is a code pointer, not a tracker reference);
+#   * a `links:` entry written in the manual's documented issue-key form
+#     ("ISSUE-123 https://…"), which covers a tracker not listed here.
+# Extend TRACKER_HOSTS rather than loosening the forge paths.
+# --------------------------------------------------------------------------
+TRACKER_HOSTS = ("linear.app", "atlassian.net", "app.asana.com",
+                 "app.shortcut.com", "trello.com", "youtrack.cloud")
+FORGE_HOSTS = ("github.com", "gitlab.com", "codeberg.org")
+FORGE_ISSUE_PATH = re.compile(r"/(?:issues|pull|merge_requests|milestone)s?/")
+ISSUE_KEY_ENTRY = re.compile(r"^[A-Z]{2,5}-\d{1,5}\b")
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 GEN_BEGIN = "<!-- BEGIN generated: run `brain reindex` — hand edits here are overwritten -->"
@@ -486,6 +507,206 @@ def _staged_universe() -> list | None:
     return [ln for ln in out.splitlines() if ln]
 
 
+def _has_tracker_link(fields: dict) -> bool:
+    """True when this page's `links:` name an external issue tracker — i.e.
+    when a system of record exists for its standings. See TRACKER_HOSTS."""
+    for item in (fields.get("links") or []):
+        s = str(item).strip()
+        if ISSUE_KEY_ENTRY.match(s):
+            return True
+        for m in re.finditer(r"https?://([^/\s\"'>)]+)(/[^\s\"'>)]*)?", s):
+            host, path = m.group(1).lower(), m.group(2) or ""
+            if any(host == h or host.endswith("." + h) for h in TRACKER_HOSTS):
+                return True
+            if any(host == h or host.endswith("." + h) for h in FORGE_HOSTS) \
+                    and FORGE_ISSUE_PATH.search(path):
+                return True
+    return False
+
+
+# --------------------------------------------------------------------------
+# The state-reading lint (v14) — "pages hold the design; the tracker holds the
+# standings".
+#
+# Not a new rule: the manual has said it in three places since v8 ("link the
+# document, don't restate it"; "no reason left to hand-maintain a copy";
+# LINT step 2). It had simply never been enforced, so it rotted — one tracker
+# reorganisation invalidated a dozen verified readings across six pages in an
+# afternoon, and a fresh `verified:` stamp on such a page makes it MORE
+# dangerous, not less, because the stamp invites trust.
+#
+# Mechanical, not agent-driven, BECAUSE OF WHERE IT RUNS. In a pre-commit hook
+# a model is slow, non-deterministic, costs money per commit, needs network and
+# fails open offline — and a gate that passes for unreproducible reasons is
+# worse than no gate, because it still looks green. Agent judgment belongs in
+# the periodic LINT sweep, which is already agent-driven.
+#
+# BLIND SPOT — state it, don't hide it: this catches TOKENS, NOT CLAIMS. Prose
+# that restates a tracker without an issue key, a PR number, a status word or a
+# tally ("the kit is filed and the platform team has picked it up") passes by
+# construction. That class is the LINT/REVIEW pass's job. It also reads BODIES
+# ONLY: `next` legitimately names an issue key ("start STO-496"), `summary` is
+# policed by its length warning, and `progress` has its own rule above.
+#
+# Scope is the other half of the design: under --staged it judges only the
+# ADDED lines of the staged diff. There is a real backlog of pre-existing hits;
+# a whole-file gate would block every commit until the backlog was cleared and
+# would be switched off within a day. Catch the regression, not the backlog —
+# the whole-store view is a WARNING, which `check --strict` promotes for the
+# LINT pass to work down.
+# --------------------------------------------------------------------------
+
+_SL_KEY = r"\b[A-Z]{2,5}-\d{1,5}\b"
+_SL_STATUS = (r"\b(?:Backlog|In Progress|In Review|Done|Canceled|Cancelled|"
+              r"Planned|Completed|Todo|Triage)\b")
+_SL_PRREF = r"(?:^|\s)#\d{1,5}\b"
+_SL_PRSTATE = r"\b(?:merged|closed|approved|open|reopened|conflicting|draft)\b"
+
+# (rule, left, right, max gap, what it means) — matched in either order.
+_SL_NEAR = [
+    ("key-near-status", re.compile(_SL_KEY), re.compile(_SL_STATUS), 60,
+     "an issue key next to a tracker status"),
+    ("pr-ledger", re.compile(_SL_PRREF), re.compile(_SL_PRSTATE), 40,
+     "a PR number next to a PR state"),
+]
+_SL_SINGLE = [
+    ("issue-tally", re.compile(
+        r"\b\d+\s+(?:done|in progress|backlog|of\s+\d+\s+(?:stories|issues|PRs))\b",
+        re.I), "a count of issues by state"),
+    ("ratio", re.compile(
+        r"\b\d+\s*(?:of|/)\s*\d+\s+(?:stories|issues|PRs|done)\b", re.I),
+     "a progress ratio"),
+    ("project-status", re.compile(r"\(?status\s+\*{0,2}" + _SL_STATUS, re.I),
+     "a project's tracker status"),
+]
+
+# Sections where naming a status is the POINT, so the rules stand down:
+#   Decisions      the supersession trail — a superseded decision keeps its
+#                  original wording, struck through, forever.
+#   Drift          the record of where the doc, the tracker and the code
+#                  DISAGREE; it cannot be written without quoting both.
+#   Tracker        the sanctioned home for tracker references (ids + links).
+#   Execution log  the dated record of operations actually performed — a past
+#                  action, not a present reading, and never rewritten.
+# All four are documented in the manual. Adding a name here without adding it
+# there would be an undocumented escape hatch, which is worse than no gate.
+_SL_EXEMPT_SECTIONS = {"decisions", "drift", "tracker", "execution log"}
+# The struck-through supersession trail the manual explicitly wants kept.
+_SL_STRIKETHROUGH = "~~"
+# Per-line escape for a genuine citation the rules misread (a third-party
+# issue, a PR cited as evidence for a design claim). A blocking gate with no
+# escape is a gate that gets disabled; this one is greppable, so the LINT pass
+# can audit every use. Documented in the manual beside the rule.
+_SL_ESCAPE = "<!-- state-ok -->"
+_SL_HEADING = re.compile(r"^##(?!#)\s+(.*?)\s*$")
+
+
+def _sl_section(heading: str) -> str:
+    """The comparable name of a section heading: everything before a dash-set
+    subtitle or a parenthetical, folded. `## Status — production-capable
+    (verified 2026-08-17)` and `## Status` are the same section."""
+    return re.split(r"\s+[—–-]\s+|\s*\(", heading, maxsplit=1)[0].strip().lower()
+
+
+def _state_lint(text: str, only_lines: set | None = None) -> list:
+    """(line_no, rule, evidence, why) for every state reading in a page's BODY.
+
+    Line numbers are absolute in `text` (a whole file, frontmatter included),
+    so they match a git diff's new-side numbering. `only_lines` restricts the
+    verdict to those absolute line numbers — the staged diff's added lines."""
+    body_start = 1
+    if text.startswith("---\n"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            body_start = text[:end + 4].count("\n") + 2
+    raw = text.split("\n")
+    # Verbatim regions blanked: a tracker dump pasted into a fenced block, an
+    # example in inline code and an HTML comment are all quotation, not claims.
+    clean = _lintable(text).split("\n")
+
+    hits, section = [], ""
+    for n, (raw_line, line) in enumerate(zip(raw, clean), 1):
+        m = _SL_HEADING.match(line)
+        if m:
+            section = _sl_section(m.group(1))
+            continue
+        if n < body_start or (only_lines is not None and n not in only_lines):
+            continue
+        if section in _SL_EXEMPT_SECTIONS or _SL_STRIKETHROUGH in raw_line \
+                or _SL_ESCAPE in raw_line:
+            continue
+        for rule, left, right, gap, why in _SL_NEAR:
+            found = None
+            for a in left.finditer(line):
+                for b in right.finditer(line):
+                    if a.span() != b.span() and \
+                            max(a.start(), b.start()) - min(a.end(), b.end()) <= gap:
+                        found = f"{a.group(0).strip()} … {b.group(0).strip()}"
+                        break
+                if found:
+                    break
+            if found:
+                hits.append((n, rule, found, why))
+        for rule, pat, why in _SL_SINGLE:
+            m2 = pat.search(line)
+            if m2:
+                hits.append((n, rule, m2.group(0).strip(), why))
+    return hits
+
+
+def _staged_added_lines(relp: str) -> set:
+    """New-side line numbers the staged diff ADDS to `relp`. Empty set on git
+    trouble — the caller then has nothing to judge, which is the safe way to
+    fail for a gate scoped to regressions."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(brain_dir()), "diff", "--cached", "-U0", "--", relp],
+            capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return set()
+    added = set()
+    for m in re.finditer(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", out, re.M):
+        start = int(m.group(1))
+        count = int(m.group(2)) if m.group(2) is not None else 1
+        added.update(range(start, start + count))
+    return added
+
+
+def _staged_blob(relp: str) -> str | None:
+    """The page as the commit will record it. The diff's line numbers refer to
+    THIS, not to the worktree, which may have moved on since `git add`."""
+    try:
+        return subprocess.run(
+            ["git", "-C", str(brain_dir()), "show", f":{relp}"],
+            capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return None
+
+
+def _state_lint_page(path: Path, staged: bool) -> list:
+    """Formatted findings for one page. Under `staged`, only what this commit
+    ADDS; otherwise the whole body."""
+    r = rel(path)
+    if staged:
+        added = _staged_added_lines(r)
+        if not added:
+            return []
+        text = _staged_blob(r)
+        if text is None:
+            return []
+        hits = _state_lint(text, only_lines=added)
+    else:
+        try:
+            hits = _state_lint(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            return []
+    return [f"{r}:{n}: state reading [{rule}] — {why}: {ev!r}. The tracker "
+            f"holds the standings; this page holds the design. Cite the id "
+            f"without the status, move it under `## Tracker`, or mark a "
+            f"genuine citation with {_SL_ESCAPE}"
+            for n, rule, ev, why in hits]
+
+
 def _link_lint(universe: list | None = None) -> tuple:
     """(errors, warnings) across the store. Deterministic and whole-store:
     inbound links break when a *different* file is deleted or renamed, so
@@ -597,6 +818,16 @@ def validate_page(page: Page, required_fm: bool) -> tuple:
     for lf in LIST_FIELDS:
         if lf in f and not isinstance(f[lf], list):
             errors.append(f"{r}: {lf} must be a list")
+    # v14: `progress` is the one field that is pure state reading, and on a page
+    # whose `links:` name a tracker it is a hand-maintained copy of a number
+    # the tracker already owns — wrong from the next merge onward. A page with
+    # no system of record for its standings may still carry one.
+    if f.get("progress") and _has_tracker_link(f):
+        errors.append(
+            f"{r}: 'progress' on a tracker-linked page (v14) — the tracker "
+            f"holds the standings. Lift anything that is judgment rather than "
+            f"a reading into the body or `next`, then "
+            f"`brain unset {slug_of(page.path)} progress`")
 
     # Semantic niceties — warnings only (never block a commit).
     # started/finished only mean something for kinds with a timeline: an area,
@@ -649,18 +880,30 @@ def cmd_check(args) -> int:
         page = parse_page(path)
         errs, warns = validate_page(
             page, required_fm=(bucket in required_buckets and not nested))
-        # A kind the schema no longer knows is exactly what a pending
-        # migration re-files. Until the store is stamped current it demotes
-        # to a warning — otherwise sync's own mechanical commit could never
-        # pass the gate. This is now the *only* deferral: link errors used to
-        # take the same stance, but every store is link-clean, so they gate
-        # hard in the rebuild→sync window too.
+        # Errors a pending migration is *about* demote to warnings until the
+        # store is stamped current — otherwise sync's own mechanical commit
+        # could never pass the gate (normalize rewrites the frontmatter block,
+        # so a v13 `progress:` line lands in the staged diff as an addition).
+        # A stale `kind` is the v12 case; `progress` and the state readings are
+        # the v14 one. Link errors deliberately do NOT defer: every store is
+        # link-clean, so they gate hard in the rebuild→sync window too.
         if not synced:
-            stale_kind = [e for e in errs if ": kind '" in e]
-            if stale_kind:
-                errs = [e for e in errs if e not in stale_kind]
+            marks = (": kind '", ": 'progress' on a tracker-linked",
+                     ": state reading [")
+            deferred = [e for e in errs if any(m in e for m in marks)]
+            if deferred:
+                errs = [e for e in errs if e not in deferred]
                 warns = warns + [e + "  [deferred until the store is synced]"
-                                 for e in stale_kind]
+                                 for e in deferred]
+        # The state-reading lint. Under --staged it judges only the lines this
+        # commit ADDS and those are errors (the regression is what the gate is
+        # for); everywhere else it reports the whole body as warnings, which
+        # `--strict` promotes so the LINT pass can work the backlog down.
+        state = _state_lint_page(path, staged=bool(args.staged))
+        if args.staged:
+            errs = errs + state
+        else:
+            warns = warns + state
         all_errors += errs
         all_warnings += warns
 
@@ -2367,6 +2610,15 @@ JUDGMENT_MIGRATIONS = {
         "layer if adopting it: create goal pages in goals/ and set `parent` "
         "on the live projects/initiatives each one covers (see the skill's "
         "v12 notes)",
+    14: "pages hold the design, the tracker holds the standings. Two "
+        "backfills (see the skill's v14 notes): (a) `progress` is now an "
+        "error on any page whose `links:` name a tracker — show each value, "
+        "lift whatever is judgment rather than a reading into the body or "
+        "`next`, then `brain unset <page> progress`; most are pure readings "
+        "and simply go. (b) `brain check --strict` now warns on state "
+        "readings in page bodies — work that backlog down in a LINT pass. "
+        "The gate itself blocks only NEW ones, so (b) need not finish before "
+        "the stamp; (a) must",
 }
 
 
@@ -2498,7 +2750,9 @@ def main() -> int:
     c = sub.add_parser("check", help="validate frontmatter (the gate)")
     c.add_argument("paths", nargs="*")
     c.add_argument("--staged", action="store_true", help="only git-staged pages")
-    c.add_argument("--strict", action="store_true", help="treat warnings as errors")
+    c.add_argument("--strict", action="store_true",
+                   help="treat warnings as errors — including the whole-store "
+                        "state-reading report the gate only applies to new lines")
     c.set_defaults(func=cmd_check)
 
     r = sub.add_parser("reindex", help="regenerate index.md's generated region "
