@@ -25,6 +25,100 @@ let
   # only when it declares one — so mirror that fallback rather than assuming.
   screenshotSaveDir = "${homeManagerConfig.home.homeDirectory or "/home/${username}"}/Downloads";
 
+  # Every launcher action goes through this.
+  #
+  # It closes spotlight first and waits: `execDetached` fires while the launcher
+  # is still on screen and `dms screenshot` pre-captures every output
+  # immediately, so without it the picker itself lands in the image. There is no
+  # "closed" callback to hook, hence a sleep.
+  #
+  # Window and monitor are *pickers*, as `hyprshot -m window` and `-m output`
+  # were. DMS has no picker of its own — `screenshot window` only ever takes the
+  # active window and the region selector does not snap to anything — so slurp
+  # provides the selection and its `-r` ("restrict to predefined boxes") mode
+  # snaps it to real rectangles.
+  #
+  #  * Monitors stay entirely on DMS: `-o` seeds slurp with one box per output
+  #    and `-f '%o'` prints the chosen output's *name*, which is exactly what
+  #    `dms screenshot output -o` wants.
+  #  * Windows cannot: no `dms screenshot` subcommand accepts a geometry (`-g`
+  #    only prints one), so grim captures the rectangle instead. That path alone
+  #    loses DMS's wp_color_management/CICP handling, which matters on an HDR
+  #    output and is currently moot on this machine's SDR panel.
+  #
+  # Window rectangles are filtered to the *active workspace*. `hyprctl clients`
+  # spans every workspace, and windows on the others report the same geometry as
+  # the visible one — feeding those to slurp would offer invisible, overlapping
+  # boxes.
+  #
+  # `dms` and `hyprctl` are left to PATH, as the CTRL+Print picker script does;
+  # pinning dms would drag a second, unpatched copy of dms-shell into the closure
+  # alongside the one the NixOS module builds. The rest are pinned, since they
+  # are ordinary tools and the shell's PATH is not this module's to assume.
+  screenshotRun = pkgs.writeShellScript "dms-screenshot-run" ''
+    set -eu
+    target="''${1:?target required}"
+    mode="''${2:?copy or save required}"
+
+    jq=${pkgs.jq}/bin/jq
+    slurp=${pkgs.slurp}/bin/slurp
+    grim=${pkgs.grim}/bin/grim
+    wlcopy=${pkgs.wl-clipboard}/bin/wl-copy
+
+    dms ipc call spotlight close >/dev/null 2>&1 || true
+    sleep 0.35
+
+    dmsshot() {
+      case "$mode" in
+        copy) exec dms screenshot "$@" --no-file ;;
+        save) exec dms screenshot "$@" -d ${screenshotSaveDir} ;;
+        *) echo "unknown mode: $mode" >&2; exit 1 ;;
+      esac
+    }
+
+    case "$target" in
+      region)
+        dmsshot region
+        ;;
+
+      monitor)
+        # Cancelling slurp is a normal outcome, not an error.
+        name=$("$slurp" -o -r -f '%o') || exit 0
+        [ -n "$name" ] || exit 0
+        dmsshot output -o "$name"
+        ;;
+
+      window)
+        ws=$(hyprctl -j activeworkspace | "$jq" -r '.id')
+        rects=$(hyprctl -j clients \
+          | "$jq" -r --argjson w "$ws" \
+              '.[] | select(.mapped and (.hidden|not) and .workspace.id==$w)
+               | "\(.at[0]),\(.at[1]) \(.size[0])x\(.size[1])"')
+        [ -n "$rects" ] || { echo "no windows on workspace $ws" >&2; exit 1; }
+
+        geom=$(printf '%s\n' "$rects" | "$slurp" -r -f '%x,%y %wx%h') || exit 0
+        [ -n "$geom" ] || exit 0
+
+        case "$mode" in
+          copy)
+            "$grim" -g "$geom" - | "$wlcopy" --type image/png
+            ;;
+          save)
+            # Matches the name DMS gives its own saves.
+            out="${screenshotSaveDir}/screenshot_$(date +%Y-%m-%d_%H-%M-%S).png"
+            mkdir -p "${screenshotSaveDir}"
+            "$grim" -g "$geom" "$out"
+            "$wlcopy" --type image/png < "$out"
+            echo "$out"
+            ;;
+          *) echo "unknown mode: $mode" >&2; exit 1 ;;
+        esac
+        ;;
+
+      *) echo "unknown target: $target" >&2; exit 1 ;;
+    esac
+  '';
+
   # session.json is DMS's mutable runtime state — wallpaper, volumes, the
   # current mode — so it is deliberately not a store symlink. Two of its keys
   # are policy rather than state, though: the automatic light/dark schedule
@@ -139,9 +233,9 @@ mkIf (homeManagerConfig.dms.enable or false) {
   # `builtins.replaceStrings` over the file rather than a derivation: it keeps
   # the QML a real .qml file (so it reads as QML and needs no Nix-string
   # escaping of its `${...}` template syntax) while still getting the save
-  # directory substituted in.
+  # directory and the window helper's path substituted in.
   xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/Launcher.qml".text =
-    builtins.replaceStrings [ "@saveDir@" ] [ screenshotSaveDir ]
+    builtins.replaceStrings [ "@saveDir@" "@shot@" ] [ screenshotSaveDir "${screenshotRun}" ]
       (builtins.readFile ./screenshot-plugin/Launcher.qml);
 
   xdg.configFile."DankMaterialShell/settings.json".onChange = ''

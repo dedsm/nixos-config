@@ -283,39 +283,44 @@ silently mattered — HDR handling, reading `wp_color_management_v1` and writing
 points into the PNG, where `grim` has no concept of colour encoding at all. The frozen backdrop
 hyprshot made opt-in with `-z` is unconditional (`preCaptureAllOutputs`).
 
-The six-entry picker on `CTRL+Print` is a **DMS launcher plugin**, declared at
+The picker on `CTRL+Print` is a **DMS launcher plugin**, declared at
 `modules/common/users/common/dms/screenshot-plugin/`. It is a plugin rather than an IPC call
 because spotlight has no stdin equivalent: its surface is `open`/`close`/`toggle`,
 `openWith(mode)` over *built-in* modes, and `openQuery(query)` which only prefills the search box —
 and nothing returns the chosen item to a caller, which is exactly what the anyrun stdin plugin it
 replaced did. A plugin is the supported way to put arbitrary entries in front of the user.
 
-Three details are load-bearing:
+It lists six entries — region, window and monitor, each as copy and save — and **window and
+monitor open a picker**, as `hyprshot -m window` and `-m output` did (`-m active` was the modifier
+meaning "the focused one"; these were never the active-only forms).
 
-- **It is declared, not installed.** `PluginService.scanPlugins()` watches two directories on an
-  equal footing — `~/.config/DankMaterialShell/plugins` and `/etc/xdg/quickshell/dms-plugins` — so a
-  plugin need not come from the registry browser. The user directory is the one used here because
-  the "Save" entries need `$HOME` baked in, which a system-wide `/etc` entry cannot know. The scan
-  lists *directories* and reads `<dir>/plugin.json`, skipping any whose path does not start with the
-  base directory; home-manager creates the directories for real and symlinks only leaf files, so the
-  prefix check passes.
-- **`@saveDir@` is substituted with `builtins.replaceStrings` over the `.qml` file**, rather than
-  the QML being a Nix string. That keeps it a real `.qml` (no escaping of QML's own `${...}`
-  template syntax) while still getting an absolute path in. It has to be absolute and space-free:
-  an `exec:` action is split on whitespace and handed to `Quickshell.execDetached`, so there is no
-  shell to expand a `~`.
-- **A discovered plugin is not an enabled one.** `PluginService` gates loading on
-  `getPluginSetting(id, "enabled", false)`, and only a plugin whose *sole* surface is `desktop` is
-  exempt — a launcher plugin is not. Enablement also cannot be declared in `settings.json`: it
-  lives in its own file, `~/.config/DankMaterialShell/plugin_settings.json`, which the shell writes.
-  So it is seeded on activation with the same defaults-on-the-left `jq` merge session.json's
-  schedule keys use, which enables it the first time while leaving a later manual disable alone.
-  Without that the plugin installs, is found by the scan, and never appears — indistinguishable
-  from a broken manifest.
-- **The bind goes through a script, not an inline command.** The plugin's trigger is `#`, which is
-  Hyprland's comment character — an `exec_cmd` carrying it would be truncated at the `#` in the
-  generated config. Wrapping it in a `writeShellScript` means the config only ever references a
-  store path.
+DMS has no picker to offer. `dms screenshot window` only ever captures the active window, `output`
+requires an explicit `-o <name>`, the region selector does not snap to anything, and no subcommand
+accepts a geometry — `-g` only *prints* one. `compositor.go` exposes `GetActiveWindow` and nothing
+that enumerates. So **slurp** provides the selection, its `-r` ("restrict to predefined boxes")
+mode snapping it to real rectangles:
+
+- **Monitors stay entirely on DMS.** `slurp -o` seeds one box per output and `-f '%o'` prints the
+  chosen output's *name*, which is exactly what `dms screenshot output -o` takes.
+- **Windows cannot.** Nothing in `dms screenshot` accepts a geometry, so `grim -g` captures the
+  rectangle and `wl-copy` puts it on the clipboard. That path alone loses DMS's
+  `wp_color_management`/CICP handling — it matters on an HDR output and is moot on this machine's
+  SDR panel. It is also why `grim`, `slurp` and `wl-clipboard` are load-bearing again rather than
+  merely installed.
+
+Window rectangles are filtered to the **active workspace**. `hyprctl clients` spans every
+workspace, and windows on the others report the same geometry as the visible one, so feeding the
+unfiltered list to slurp offers invisible, overlapping boxes.
+
+**An earlier version enumerated outputs and windows into their own launcher entries instead. That
+cannot work, and the reasons are worth keeping.** `getItems()` is synchronous while any enumeration
+is not; `PluginService.ensureLauncherInstance()` is lazy and nothing calls
+`ensureLauncherInstances()` at startup, so the plugin's `Item` is built on the *first* launcher
+query and anything `Component.onCompleted` starts cannot land before that query returns; and
+`itemsChanged`, which the plugin guide documents as triggering a UI refresh, is wired to nothing —
+it occurs only in the bundled example plugins and the docs, with no listener anywhere in the shell.
+A plugin therefore has no way to say "I have more items now", which is why the picking belongs in a
+selector after the launcher closes rather than in the list.
 
 Because plugin loading is QML evaluated by the running shell, none of this is visible to
 `nix flake check` or a `system.build.toplevel` build. A broken manifest or QML surfaces only as the

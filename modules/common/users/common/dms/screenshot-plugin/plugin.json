@@ -5,9 +5,17 @@
   "version": "1.0.0",
   "author": "david",
   "type": "launcher",
-  "capabilities": ["launcher"],
+  "capabilities": [
+    "launcher"
+  ],
   "icon": "screenshot_region",
   "trigger": "#",
   "component": "./Launcher.qml",
-  "dependencies": ["dms"]
+  "dependencies": [
+    "dms",
+    "hyprctl"
+  ],
+  "permissions": [
+    "process"
+  ]
 }
