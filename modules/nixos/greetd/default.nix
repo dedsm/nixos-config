@@ -7,6 +7,7 @@
 with lib;
 let
   cfg = config.dedsm.greetd;
+  greeterCfg = config.services.displayManager.dms-greeter;
 in
 {
   options.dedsm.greetd = {
@@ -72,6 +73,57 @@ in
         })
       '';
     };
+
+    # 26.05's dms-greeter module builds its greetd command against the pre-1.6
+    # layout: `sh ${package}/share/quickshell/dms/Modules/Greetd/assets/dms-greeter`
+    # plus `-p ${package}/share/quickshell/dms`. Neither path exists any more.
+    # Upstream split the greeter into its own repo (AvengeMedia/dank-greeter),
+    # nixpkgs packages it separately as `dms-greeter` with the UI baked into the
+    # binary the same way dms-shell now bakes its own, and unstable's module was
+    # rewritten to exec `${package}/bin/dms-greeter` with no `-p` at all. 26.05
+    # has not caught up, and its `package` option defaults to
+    # `programs.dms-shell.package` — so our 1.6.2 shell flows straight into a
+    # path that is gone, and greetd is left with a command it cannot exec.
+    #
+    # Nothing else in the 26.05 module is stale: its config block differs from
+    # unstable's only in miracle-wm attribute pathing and `config.systemd.package`
+    # vs `pkgs.systemd` in the autologin branch, neither of which applies here.
+    # So the whole repair is this one command, and everything else — the
+    # `dms-greeter` user, the cache dir, greetd's settings, the PAM stack — keeps
+    # coming from the module. Delete this block when 26.05 backports the rewrite.
+    #
+    # Reproduced from unstable's `greeterScript`, reading the module's own option
+    # values rather than re-deriving them, so only the exec line is duplicated.
+    # `pkgs.glib` is not carried over from 26.05 — it is new in unstable's
+    # version, for the gdbus the greeter's fprintd probe and portal reads need.
+    services.greetd.settings.default_session.command = mkForce (
+      getExe (
+        pkgs.writeShellScriptBin "dms-greeter-start" ''
+          export PATH=$PATH:${
+            makeBinPath [
+              greeterCfg.quickshell.package
+              config.programs.hyprland.package
+              pkgs.glib
+            ]
+          }
+          ${
+            escapeShellArgs (
+              [
+                "${pkgs.unstable.dms-greeter}/bin/dms-greeter"
+                "--cache-dir"
+                "/var/lib/dms-greeter"
+                "--command"
+                greeterCfg.compositor.name
+              ]
+              ++ optionals (greeterCfg.compositor.customConfig != "") [
+                "-C"
+                "${pkgs.writeText "dmsgreeter-compositor-config" greeterCfg.compositor.customConfig}"
+              ]
+            )
+          } ${optionalString greeterCfg.logs.save "> ${greeterCfg.logs.path} 2>&1"}
+        ''
+      )
+    );
 
     # A password flows through PAM at login here, which is the ordinary way to
     # unlock the login keyring — so the lock screen does not have to.

@@ -18,6 +18,30 @@ security boundary; the greeter authenticates before a session exists.
    its own system user in a short-lived Hyprland instance
    (`services.displayManager.dms-greeter`). It reads david's DMS config, so the
    login screen carries the same theme and wallpaper as the desktop behind it.
+
+   The greeter is its own package. Upstream split it out of DankMaterialShell
+   into [dank-greeter](https://github.com/AvengeMedia/dank-greeter), and nixpkgs
+   follows with a separate `dms-greeter` derivation whose UI is baked into the
+   binary the same way `dms-shell`'s now is (see
+   [`dms.md`](./dms.md#packaging)). 26.05's module has not caught up: it still
+   builds its greetd command as
+   `sh ${package}/share/quickshell/dms/Modules/Greetd/assets/dms-greeter -p …`,
+   against a tree 1.6.x no longer ships, and its `package` option defaults to
+   `programs.dms-shell.package` — so the 1.6.2 shell flows straight into a path
+   that is gone and greetd is left with a command it cannot exec. Nothing warns:
+   the path is inside a generated script, so evaluation and the full
+   `system.build.toplevel` both succeed and the failure only shows at boot, with
+   no `initial_session` to fall back to.
+
+   `dedsm.greetd` therefore `mkForce`s `default_session.command` to a script
+   modelled on unstable's, execing `${pkgs.unstable.dms-greeter}/bin/dms-greeter`
+   with no `-p` and with `pkgs.glib` added to PATH for the gdbus its fprintd
+   probe and portal reads need. Only that one command is overridden — the two
+   modules' `config` blocks are otherwise identical bar miracle-wm attribute
+   pathing and an autologin detail, neither of which applies here — so the
+   `dms-greeter` user, the cache dir, greetd's settings and the PAM stack all
+   still come from the module. **Delete the override when 26.05 backports the
+   rewrite.**
 3. **The session**: on a successful password the greeter hands over to
    `uwsm start hyprland-uwsm.desktop`, and DankMaterialShell starts unlocked —
    the authentication already happened.
