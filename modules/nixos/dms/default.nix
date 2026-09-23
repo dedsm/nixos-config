@@ -79,7 +79,7 @@ in
   config = mkIf cfg.enable {
     programs.dms-shell = {
       enable = true;
-      # 26.05 ships 1.4.6; unstable is 1.5.3. Upstream's own flake is at 1.6.0,
+      # 26.05 ships 1.4.6; unstable is 1.6.2. Upstream's own flake runs ahead,
       # but mixing its package with this module drops some dependency wiring,
       # so track nixpkgs on both.
       #
@@ -87,15 +87,31 @@ in
       # a `timeout=` on the bundled PAM stack, and a shorter cap on the retry
       # backoff that timeout feeds. See the comments on `fprintTimeout` and
       # `fprintRetryCapMs` above, and docs/dms.md.
+      #
+      # These patch the *source* tree and re-run `make sync-shell`, rather than
+      # editing the installed tree. As of 1.6.x the QML shell is baked into the
+      # Go binary — nixpkgs builds with the `withshell` tag, and `sync-shell`
+      # copies `quickshell/` into `core/internal/shellembed/dist` for `go:embed`
+      # — so `$out/share/quickshell` no longer exists and a postInstall
+      # substitution has nothing to bite on. `sync-shell` is `rm -rf` plus a
+      # fresh copy, so re-running it after the edits is safe and, importantly,
+      # recomputes the `.dankrev` content hash the shell keys its extracted
+      # copy on; patching the embed dir in place would leave that stale.
       package = pkgs.unstable.dms-shell.overrideAttrs (old: {
-        postInstall = (old.postInstall or "") + ''
-          substituteInPlace $out/share/quickshell/dms/assets/pam/fprint \
+        preBuild = (old.preBuild or "") + ''
+          substituteInPlace ../quickshell/assets/pam/fprint \
             --replace-fail 'max-tries=' 'timeout=${toString fprintTimeout} max-tries='
 
-          substituteInPlace $out/share/quickshell/dms/Modules/Lock/Pam.qml \
+          substituteInPlace ../quickshell/Modules/Lock/Pam.qml \
             --replace-fail \
               'Math.min(1500 * Math.pow(2, Math.max(0, fprint.errorTries - 1)), 30000)' \
               'Math.min(1500 * Math.pow(2, Math.max(0, fprint.errorTries - 1)), ${toString fprintRetryCapMs})'
+
+          # nixpkgs' preBuild has already run `make sync-shell` once, and the
+          # copy it left behind carries the store's read-only permissions — so
+          # the `rm -rf` that opens a second run fails without this.
+          chmod -R u+w internal/shellembed/dist
+          make sync-shell
         '';
       });
       systemd.enable = true;

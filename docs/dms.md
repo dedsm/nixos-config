@@ -17,7 +17,7 @@ Two modules configure it:
 `programs.dms-shell` is a **nixpkgs** module; there is no home-manager module in nixpkgs, which is
 why the settings file is written with plain `xdg.configFile`. Upstream also ships its own flake
 with both, but mixing its package with the nixpkgs module drops some dependency wiring, so both
-come from nixpkgs here. The package is taken from `unstable` (1.5.3) because 26.05 is a release
+come from nixpkgs here. The package is taken from `unstable` (1.6.2) because 26.05 is a release
 behind (1.4.6); `quickshell` comes from stable, which satisfies DMS's ">= 0.3.0".
 
 One `overrideAttrs` sits on top, carrying two patches to the lock screen's fingerprint path — a
@@ -25,6 +25,18 @@ One `overrideAttrs` sits on top, carrying two patches to the lock screen's finge
 [the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time). Both use
 `--replace-fail`, so an upstream change to either anchor is a build error rather than a silent
 no-op. Nothing else about the package is patched.
+
+**Both patches run in `preBuild`, against the source tree, and then re-run `make sync-shell`.** As
+of 1.6.x the QML shell is no longer installed as files: nixpkgs builds with upstream's `withshell`
+tag, and `sync-shell` copies `quickshell/` into `core/internal/shellembed/dist` to be `go:embed`ed
+into the `dms` binary. `$out/share/quickshell` does not exist any more, so the `postInstall`
+substitutions these started life as had nothing to bite on — which is exactly how the 1.5.3 → 1.6.2
+bump announced itself, as `substitute(): ERROR: file ... does not exist`. Re-running `sync-shell` is
+safe (it is an `rm -rf` plus a fresh copy) and is what keeps the edits honest: it recomputes the
+`.dankrev` content hash that names the directory the shell extracts itself into at runtime
+(`$XDG_RUNTIME_DIR/dms-shell/<dankrev>/`). Editing the embed dir in place would leave that hash
+stale and let a previously-extracted copy win. The re-run needs a `chmod -R u+w` first, because
+nixpkgs' own `sync-shell` has already left a copy carrying the store's read-only permissions.
 
 `dgop` (system monitoring), `matugen` (theming) and `khal` (calendar) are pulled in by the module's
 feature toggles. `enableCalendarEvents` is off — no khal here.
@@ -43,7 +55,9 @@ Because a GUI change is live-only, it is lost at the next shell restart — whic
 touches `settings.json` performs, via the `onChange` hook below. To find what has drifted before
 that happens, diff the running shell against the file: `dms ipc settings dump` prints every key the
 shell holds, and upstream's defaults are the `def` fields in
-`share/quickshell/dms/Common/settings/SettingsSpec.js` in the package. Two caveats when reading that
+`Common/settings/SettingsSpec.js` — which, since the shell is embedded in the binary rather than
+installed, is read from the extracted copy under `$XDG_RUNTIME_DIR/dms-shell/<dankrev>/` (or from
+upstream's source tree) rather than from the package. Two caveats when reading that
 diff — a `property color` is dumped as a QColor object rather than the `"#rrggbb"` string it
 defaults to, so those always look changed; and `barConfigs` is rebuilt by the bar settings tab from
 only the fields that tab edits, so a dumped copy comes back with keys *missing*. Declare
@@ -207,7 +221,9 @@ Two things belong on the record:
 - **The QML anchor is the fragile half.** `assets/pam/fprint` is six lines and nixpkgs already
   patches it; the cap is anchored to an arithmetic expression inside a 560-line QML file upstream
   refactors freely. `--replace-fail` makes that a build failure rather than a silent no-op, which
-  is the intended outcome — re-derive the expression and move on.
+  is the intended outcome — re-derive the expression and move on. The *paths* are the other moving
+  part: they follow upstream's build layout, which is why 1.6.x's move to an embedded shell turned
+  both into `preBuild` edits (see [Packaging](#packaging)).
 
 Neither knob addresses the actual defect, which is upstream's: a timeout with **nobody present** is
 not an error, and `Pam.qml:298` counts it as one. The principled fix is to record when a context
