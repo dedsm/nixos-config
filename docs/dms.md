@@ -322,6 +322,18 @@ it occurs only in the bundled example plugins and the docs, with no listener any
 A plugin therefore has no way to say "I have more items now", which is why the picking belongs in a
 selector after the launcher closes rather than in the list.
 
+**Qt's compiled-QML disk cache must be dropped whenever the plugin changes**, which is what the
+`onChange` hook on both plugin files does. Qt validates that cache against the source file's mtime;
+every file in the Nix store carries the same epoch mtime and the plugin always lives at the same
+path, so a changed `Launcher.qml` is never noticed and the shell keeps running the *previously
+compiled* version — old entry text, old actions — across restarts and rebuilds alike, while the
+file on disk plainly holds the new code. This is not theoretical: it silently masked three
+successive versions of this plugin. The symptom is entries whose wording does not match the file,
+and the confirmation is that `~/.cache/quickshell/qmlcache/<hash>.qmlc` keeps its path-derived name
+and only changes size once the directory is removed by hand. The shell's own QML is immune, being
+extracted to `$XDG_RUNTIME_DIR/dms-shell/<dankrev>/`, a path that changes whenever its content
+does.
+
 Because plugin loading is QML evaluated by the running shell, none of this is visible to
 `nix flake check` or a `system.build.toplevel` build. A broken manifest or QML surfaces only as the
 plugin silently not appearing; `dms ipc call plugins list` is the quickest check.

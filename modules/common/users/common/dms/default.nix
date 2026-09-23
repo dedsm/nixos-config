@@ -55,6 +55,25 @@ let
   # pinning dms would drag a second, unpatched copy of dms-shell into the closure
   # alongside the one the NixOS module builds. The rest are pinned, since they
   # are ordinary tools and the shell's PATH is not this module's to assume.
+  # Qt validates its compiled-QML disk cache against the source file's mtime.
+  # Every file in the Nix store carries the same epoch mtime, and this plugin
+  # always lives at the same path, so a changed Launcher.qml is never noticed:
+  # the shell goes on running the previously compiled version — old entry text,
+  # old actions — across restarts and rebuilds alike, while the file on disk
+  # plainly holds the new code. Observed directly: the cache entry keeps its
+  # path-derived name and only changes size once the directory is deleted by
+  # hand.
+  #
+  # The shell's own QML is immune, because it is extracted to
+  # $XDG_RUNTIME_DIR/dms-shell/<dankrev>/ — a path that changes whenever the
+  # content does. A plugin declared at a fixed path has no such escape, so the
+  # cache is dropped whenever the plugin changes. It is only a cache; the cost
+  # is one recompile on the next start.
+  invalidateQmlCache = ''
+    rm -rf "''${XDG_CACHE_HOME:-$HOME/.cache}/quickshell/qmlcache"
+    ${pkgs.systemd}/bin/systemctl --user try-restart dms.service || true
+  '';
+
   screenshotRun = pkgs.writeShellScript "dms-screenshot-run" ''
     set -eu
     target="''${1:?target required}"
@@ -229,6 +248,10 @@ mkIf (homeManagerConfig.dms.enable or false) {
   # ~/.config and the prefix check passes.
   xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/plugin.json".source =
     ./screenshot-plugin/plugin.json;
+  xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/plugin.json".onChange =
+    invalidateQmlCache;
+  xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/Launcher.qml".onChange =
+    invalidateQmlCache;
 
   # `builtins.replaceStrings` over the file rather than a derivation: it keeps
   # the QML a real .qml file (so it reads as QML and needs no Nix-string
