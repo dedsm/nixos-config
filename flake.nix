@@ -365,7 +365,6 @@
       manweUserConfig = pkgs: {
         david = (davidNixos pkgs) // {
           hyprland.enable = true;
-          anyrun.enable = true;
           dms.enable = true;
           packages =
             pkgs:

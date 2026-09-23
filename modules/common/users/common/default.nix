@@ -22,7 +22,6 @@ let
   ghostty = import ./ghostty attrs;
   sketchybar = import ./sketchybar attrs;
   theme = import ./theme attrs;
-  anyrun = import ./anyrun attrs;
   claude-code = import ./claude-code attrs;
   playwright = import ./playwright attrs;
   antigravity = import ./antigravity attrs;
@@ -53,6 +52,5 @@ lib.mkMerge [
   antigravity
   cli-notify
 
-  anyrun
   defaults
 ]

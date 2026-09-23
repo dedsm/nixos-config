@@ -18,25 +18,13 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
   hyprdynamicmonitors
   (
     let
-      anyrunPkg = pkgs.unstable.anyrun;
-      # Prefix patterns, not exact ones: anyrun 26.x emits a plugin's `Stdout` result
-      # twice when it runs without a daemon (once as the selection is handled, again
-      # from the post-run action on close), so the captured choice comes back doubled
-      # and unseparated — "Copy RegionCopy Region" (anyrun-org/anyrun#324, open and
-      # unfixed as of 26.6.1). The anyrun module now runs that daemon, which emits a
-      # single copy, so this is a safeguard rather than the live workaround: it keeps
-      # the picker correct if the daemon is down or the bug is fixed upstream. No
-      # entry is a prefix of another, so matching this way stays unambiguous.
-      hyprshot-picker = pkgs.writeShellScript "hyprshot-picker" ''
-        choice=$(printf "Copy Region\nCopy Window\nCopy Monitor\nSave Region\nSave Window\nSave Monitor" | ${anyrunPkg}/bin/anyrun --plugins ${anyrunPkg}/lib/libstdin.so --show-results-immediately true 2>/dev/null)
-        case "$choice" in
-          "Copy Region"*)  ${pkgs.hyprshot}/bin/hyprshot -m region --clipboard-only ;;
-          "Copy Window"*)  ${pkgs.hyprshot}/bin/hyprshot -m window --clipboard-only ;;
-          "Copy Monitor"*) ${pkgs.hyprshot}/bin/hyprshot -m output --clipboard-only ;;
-          "Save Region"*)  ${pkgs.hyprshot}/bin/hyprshot -m region -o ~/Downloads ;;
-          "Save Window"*)  ${pkgs.hyprshot}/bin/hyprshot -m window -o ~/Downloads ;;
-          "Save Monitor"*) ${pkgs.hyprshot}/bin/hyprshot -m output -o ~/Downloads ;;
-        esac
+      # Opens the launcher already filtered to the `dedsmScreenshot` plugin's six
+      # entries (see the dms module). Wrapped in a script rather than inlined into
+      # the bind because the trigger is `#`, which is Hyprland's comment character
+      # — an `exec_cmd` carrying it would be truncated at the `#` in the generated
+      # config. The bind then references only a store path.
+      screenshot-picker = pkgs.writeShellScript "dms-screenshot-picker" ''
+        exec dms ipc call spotlight openQuery "#"
       '';
       screencast-inhibit = pkgs.writeShellScript "screencast-inhibit" ''
         ${pkgs.socat}/bin/socat -U - "UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock" | while IFS= read -r line; do
@@ -280,8 +268,7 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
           -- needs misc:allow_session_lock_restore above.
           hl.bind("CTRL + ALT + SHIFT + L", hl.dsp.exec_cmd("systemctl --user restart dms.service"), { locked = true })
           hl.bind(mod .. " + P", hl.dsp.exec_cmd("dms ipc call spotlight toggle"))
-          -- The rest of the shell, on keys the layout had free. anyrun stays
-          -- installed: the screenshot picker above is built on its stdin plugin.
+          -- The rest of the shell, on keys the layout had free.
           hl.bind(mod .. " + V", hl.dsp.exec_cmd("dms ipc call clipboard toggle"))
           hl.bind(mod .. " + N", hl.dsp.exec_cmd("dms ipc call notifications toggle"))
           hl.bind(mod .. " + O", hl.dsp.exec_cmd("dms ipc call control-center toggle"))
@@ -293,8 +280,8 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
           hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("dms ipc call mpris playPause"))
           hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("dms ipc call mpris previous"))
           hl.bind("XF86AudioNext", hl.dsp.exec_cmd("dms ipc call mpris next"))
-          hl.bind("Print", hl.dsp.exec_cmd("uwsm app -- ${pkgs.hyprshot}/bin/hyprshot -m region --clipboard-only"))
-          hl.bind("CTRL + Print", hl.dsp.exec_cmd("${hyprshot-picker}"))
+          hl.bind("Print", hl.dsp.exec_cmd("uwsm app -- dms screenshot region --no-file"))
+          hl.bind("CTRL + Print", hl.dsp.exec_cmd("${screenshot-picker}"))
           hl.bind("XF86AudioMute", hl.dsp.exec_cmd("dms ipc call audio mute"))
           hl.bind(mod .. " + SHIFT + RETURN", hl.dsp.exec_cmd("uwsm app -- " .. terminal))
           hl.bind(mod .. " + SHIFT + C", hl.dsp.window.close())

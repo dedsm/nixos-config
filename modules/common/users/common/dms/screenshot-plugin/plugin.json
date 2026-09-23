@@ -1,0 +1,13 @@
+{
+  "id": "dedsmScreenshot",
+  "name": "Screenshot",
+  "description": "Capture a region, window or monitor to the clipboard or to disk",
+  "version": "1.0.0",
+  "author": "david",
+  "type": "launcher",
+  "capabilities": ["launcher"],
+  "icon": "screenshot_region",
+  "trigger": "#",
+  "component": "./Launcher.qml",
+  "dependencies": ["dms"]
+}

@@ -260,6 +260,8 @@ moved to `dms ipc call`:
 | `$mod+V` / `$mod+N` / `$mod+O` | `clipboard` / `notifications` / `control-center` toggle |
 | `CTRL+ALT+L` | `loginctl lock-session` (unchanged — DMS listens on logind) |
 | `CTRL+ALT+SHIFT+L` | `systemctl --user restart dms.service`, the locked-session escape hatch |
+| `Print` | `dms screenshot region --no-file` — region to clipboard, no file |
+| `CTRL+Print` | the screenshot picker, via `spotlight openQuery "#"` — see below |
 
 `dms ipc` with no arguments lists every target; the live surface is wider than upstream's
 `docs/IPC.md`.
@@ -269,6 +271,47 @@ Mind the arity. `brightness increment` documents its device as optional but the 
 one argument it fails, and a bind's `exec_cmd` failure goes nowhere, so the key simply does nothing.
 `audio increment/decrement` really does take only the step; everything else above is a
 zero-argument toggle.
+
+## Screenshots, and the picker as a launcher plugin
+
+`dms screenshot` replaced hyprshot. It is its own `wlr-screencopy` client, so it needs neither
+`grim` nor `slurp` (both stay installed as general-purpose tools, but nothing here calls them), and
+it adds several things hyprshot had no equivalent for: `scroll` mode, which stitches a scrolled
+region into one tall image; JPEG/PPM output with a quality knob; a remembered last region (`last`,
+`--reset`); `--json` metadata and `-g` to print a geometry without capturing; and — the one that
+silently mattered — HDR handling, reading `wp_color_management_v1` and writing H.273 CICP code
+points into the PNG, where `grim` has no concept of colour encoding at all. The frozen backdrop
+hyprshot made opt-in with `-z` is unconditional (`preCaptureAllOutputs`).
+
+The six-entry picker on `CTRL+Print` is a **DMS launcher plugin**, declared at
+`modules/common/users/common/dms/screenshot-plugin/`. It is a plugin rather than an IPC call
+because spotlight has no stdin equivalent: its surface is `open`/`close`/`toggle`,
+`openWith(mode)` over *built-in* modes, and `openQuery(query)` which only prefills the search box —
+and nothing returns the chosen item to a caller, which is exactly what the anyrun stdin plugin it
+replaced did. A plugin is the supported way to put arbitrary entries in front of the user.
+
+Three details are load-bearing:
+
+- **It is declared, not installed.** `PluginService.scanPlugins()` watches two directories on an
+  equal footing — `~/.config/DankMaterialShell/plugins` and `/etc/xdg/quickshell/dms-plugins` — so a
+  plugin need not come from the registry browser. The user directory is the one used here because
+  the "Save" entries need `$HOME` baked in, which a system-wide `/etc` entry cannot know. The scan
+  lists *directories* and reads `<dir>/plugin.json`, skipping any whose path does not start with the
+  base directory; home-manager creates the directories for real and symlinks only leaf files, so the
+  prefix check passes.
+- **`@saveDir@` is substituted with `builtins.replaceStrings` over the `.qml` file**, rather than
+  the QML being a Nix string. That keeps it a real `.qml` (no escaping of QML's own `${...}`
+  template syntax) while still getting an absolute path in. It has to be absolute and space-free:
+  an `exec:` action is split on whitespace and handed to `Quickshell.execDetached`, so there is no
+  shell to expand a `~`.
+- **The bind goes through a script, not an inline command.** The plugin's trigger is `#`, which is
+  Hyprland's comment character — an `exec_cmd` carrying it would be truncated at the `#` in the
+  generated config. Wrapping it in a `writeShellScript` means the config only ever references a
+  store path.
+
+Because plugin loading is QML evaluated by the running shell, none of this is visible to
+`nix flake check` or a `system.build.toplevel` build. A broken manifest or QML surfaces only as the
+plugin silently not appearing; `dms ipc call plugins list` is the quickest check.
 
 ## Things not to do
 

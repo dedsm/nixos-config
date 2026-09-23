@@ -1,5 +1,6 @@
 attrs@{
   lib,
+  username,
   homeManagerConfig,
   pkgs,
   ...
@@ -13,6 +14,16 @@ let
   # own base3/base2 in light. Vendored rather than installed through the
   # registry browser so the palette is pinned and reproducible.
   theme = ./solarized-osaka-night.json;
+
+  # Where the launcher plugin's three "Save" entries write. Kept at ~/Downloads
+  # because that is where the hyprshot picker this replaced put them.
+  #
+  # These modules are plain functions applied to `attrs`, not home-manager
+  # modules, so `config` here is the *system* config and there is no
+  # `config.home.homeDirectory` to read. The bridge in modules/common passes
+  # `username` and the user config, and sets home.homeDirectory from the latter
+  # only when it declares one — so mirror that fallback rather than assuming.
+  screenshotSaveDir = "${homeManagerConfig.home.homeDirectory or "/home/${username}"}/Downloads";
 
   # session.json is DMS's mutable runtime state — wallpaper, volumes, the
   # current mode — so it is deliberately not a store symlink. Two of its keys
@@ -72,6 +83,36 @@ mkIf (homeManagerConfig.dms.enable or false) {
   # file it points at, so the inode being watched — a store path — never
   # changes. Hence the explicit restart, which is safe now that nothing locks
   # the screen on shell start (see `lockAtStartup` below).
+  # The screenshot picker, as a DMS launcher plugin — six entries behind the `#`
+  # trigger, replacing the anyrun stdin list that used to drive hyprshot. It is a
+  # plugin rather than an IPC call because spotlight has no stdin equivalent:
+  # its whole surface is open/close/toggle, `openWith(mode)` over *built-in*
+  # modes and `openQuery(query)` which only prefills the search box, and nothing
+  # returns the chosen item to a caller. A plugin is the supported way to put
+  # arbitrary entries in front of the user.
+  #
+  # PluginService scans two directories on an equal footing — this one and
+  # /etc/xdg/quickshell/dms-plugins — so a plugin can be declared rather than
+  # installed through the registry browser. The user directory is the one used
+  # here because the save entries need $HOME baked in, which a system-wide
+  # /etc entry has no way to know.
+  #
+  # Each plugin is a *directory* holding plugin.json; the scan lists directories
+  # under the base path and reads `<dir>/plugin.json`, skipping anything whose
+  # path does not start with the base. home-manager creates the directories for
+  # real and symlinks only the leaf files, so the paths it lists stay inside
+  # ~/.config and the prefix check passes.
+  xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/plugin.json".source =
+    ./screenshot-plugin/plugin.json;
+
+  # `builtins.replaceStrings` over the file rather than a derivation: it keeps
+  # the QML a real .qml file (so it reads as QML and needs no Nix-string
+  # escaping of its `${...}` template syntax) while still getting the save
+  # directory substituted in.
+  xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/Launcher.qml".text =
+    builtins.replaceStrings [ "@saveDir@" ] [ screenshotSaveDir ]
+      (builtins.readFile ./screenshot-plugin/Launcher.qml);
+
   xdg.configFile."DankMaterialShell/settings.json".onChange = ''
     ${pkgs.systemd}/bin/systemctl --user try-restart dms.service || true
   '';
