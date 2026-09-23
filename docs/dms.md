@@ -304,6 +304,14 @@ Three details are load-bearing:
   template syntax) while still getting an absolute path in. It has to be absolute and space-free:
   an `exec:` action is split on whitespace and handed to `Quickshell.execDetached`, so there is no
   shell to expand a `~`.
+- **A discovered plugin is not an enabled one.** `PluginService` gates loading on
+  `getPluginSetting(id, "enabled", false)`, and only a plugin whose *sole* surface is `desktop` is
+  exempt — a launcher plugin is not. Enablement also cannot be declared in `settings.json`: it
+  lives in its own file, `~/.config/DankMaterialShell/plugin_settings.json`, which the shell writes.
+  So it is seeded on activation with the same defaults-on-the-left `jq` merge session.json's
+  schedule keys use, which enables it the first time while leaving a later manual disable alone.
+  Without that the plugin installs, is found by the scan, and never appears — indistinguishable
+  from a broken manifest.
 - **The bind goes through a script, not an inline command.** The plugin's trigger is `#`, which is
   Hyprland's comment character — an `exec_cmd` carrying it would be truncated at the `#` in the
   generated config. Wrapping it in a `writeShellScript` means the config only ever references a

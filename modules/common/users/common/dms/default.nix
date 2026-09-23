@@ -47,8 +47,39 @@ let
       themeModeShareGammaSettings = false;
     }
   );
+
+  # A discovered plugin is *not* enabled: PluginService reads
+  # `getPluginSetting(id, "enabled", false)`, and only a plugin whose sole
+  # surface is "desktop" is exempt — a launcher plugin is not. So without this
+  # the screenshot plugin below installs, is found by the scan, and never
+  # appears, which is indistinguishable from a broken manifest.
+  #
+  # It cannot be declared in settings.json: plugin enablement lives in its own
+  # file, `plugin_settings.json`, which the shell writes. So it is seeded the
+  # same way session.json's schedule keys are — defaults on the left, existing
+  # state on the right — which enables it on first activation while leaving a
+  # later manual disable alone.
+  pluginDefaults = pkgs.writeText "dms-plugin-defaults.json" (
+    builtins.toJSON {
+      dedsmScreenshot.enabled = true;
+    }
+  );
 in
 mkIf (homeManagerConfig.dms.enable or false) {
+  home.activation.dmsPluginDefaults = ''
+    plugins="$HOME/.config/DankMaterialShell/plugin_settings.json"
+    $DRY_RUN_CMD mkdir -p "$(dirname "$plugins")"
+    if [ -f "$plugins" ]; then
+      if ${pkgs.jq}/bin/jq -s '.[0] + .[1]' ${pluginDefaults} "$plugins" > "$plugins.new" 2>/dev/null; then
+        $DRY_RUN_CMD mv -f "$plugins.new" "$plugins"
+      else
+        $DRY_RUN_CMD rm -f "$plugins.new"
+      fi
+    else
+      $DRY_RUN_CMD install -m 0644 ${pluginDefaults} "$plugins"
+    fi
+  '';
+
   home.activation.dmsSessionDefaults = ''
     state="$HOME/.local/state/DankMaterialShell/session.json"
     $DRY_RUN_CMD mkdir -p "$(dirname "$state")"
