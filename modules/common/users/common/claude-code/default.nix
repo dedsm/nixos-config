@@ -217,6 +217,9 @@ let
       # off by the same switch — so a session gets no task tracking at all.
       # See docs/claude-code.md § Task tools.
       CLAUDE_CODE_ENABLE_TODO_TOOLS = "1";
+      # Raises the per-session WebSearch cap so long research sessions don't
+      # hit it. See docs/claude-code.md § Web search cap.
+      CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION = "10000";
     };
   }
   // (cfg.extraSettings or { });
