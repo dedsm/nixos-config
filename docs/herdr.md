@@ -150,6 +150,11 @@ Existing worktrees just need a workspace, via `herdr workspace create --cwd` or
 already pins, so there is no entry under `pkgs/` and no extra flake input. It builds for
 both `aarch64-darwin` and `x86_64-linux`.
 
+It carries one local patch, `defer-appearance-report.patch` beside the module, which fixes
+Claude Code's "auto" theme inside panes — see "Pane apps and the appearance race" under
+"Theming". A version bump that stops applying it fails the build loudly; drop it once
+upstream ships an equivalent fix.
+
 Home Manager 26.05 ships no `programs.herdr` module — the flake pins
 `home-manager/release-26.05`, and a grep for "herdr" across its 396 program modules finds
 nothing. So the config file is rendered here from a Nix attrset with `pkgs.formats.toml` and
@@ -250,6 +255,28 @@ There is also a `name = "terminal"` theme that adopts the host terminal's ANSI p
 directly. That would track Ghostty's `Selenized` exactly rather than approximating it with
 Solarized, but whether it re-reads the palette when the terminal switches modes is not
 documented, so the explicit pair is used instead.
+
+#### Pane apps and the appearance race
+
+herdr also passes the transition *into* panes: an app that sets DEC mode 2031 gets a
+`CSI ?997;1n`/`2n` report, and herdr answers the pane's OSC 10/11 queries with the host
+terminal's default colours. Claude Code's "auto" theme uses both — on a 2031 report it does
+not trust the reported mode, it immediately re-queries OSC 11 and picks from the colour's
+luminance.
+
+Upstream (0.9.1) forwards the report the moment the host sends it, but only learns the host's
+new background after re-querying the host, a round trip later. A probe in a pane measured
+the reply to an OSC 11 query sent on receipt of the report as the *old* background, and
+the correct one ~20 ms later — so Claude Code read the stale colour and never switched.
+
+The local patch holds the transition in the client until the host's OSC 11 reply has been
+forwarded to the server (foreground is queried first, so both colours are in place), then
+sends it. Every transition already triggers that query, so the hold is normally one round
+trip; a 500 ms deadline on the client tick releases it anyway for a terminal that never
+answers. Tracked upstream as
+[herdrdev/herdr#4183](https://github.com/herdrdev/herdr/issues/4183) — check it when bumping
+herdr, and drop the patch once the fix ships. The client still repaints its own chrome in the new palette immediately; what waits
+is the server's copy of the appearance, and with it the report to panes.
 
 ### Splits and workspace jumps
 

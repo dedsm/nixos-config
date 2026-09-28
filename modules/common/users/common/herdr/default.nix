@@ -7,7 +7,15 @@
 let
   tomlFormat = pkgs.formats.toml { };
 
-  herdrPkg = pkgs.unstable.herdr;
+  # One local patch: hold a host light/dark transition back from the panes
+  # until the host's new background has arrived, so an app that answers the
+  # mode 2031 report with an OSC 11 query (Claude Code's "auto" theme) reads
+  # the new colour rather than the old one. See docs/herdr.md, "Theming".
+  # Upstream: https://github.com/herdrdev/herdr/issues/4183 — drop the patch
+  # once that is fixed in the herdr nixpkgs-unstable ships.
+  herdrPkg = pkgs.unstable.herdr.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ./defer-appearance-report.patch ];
+  });
 
   # Every herdr command this module runs is best-effort: a rebuild must not
   # fail because the multiplexer is unreachable. But it must not be *silent*

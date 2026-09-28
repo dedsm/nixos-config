@@ -1,0 +1,211 @@
+Hold a host light/dark transition back from panes until the host's new
+default colours have reached the server.
+
+Upstream: https://github.com/herdrdev/herdr/issues/4183 (the Linux "OSC 11
+stale by one flip" comment is this bug). Drop this patch once that issue is
+closed and the fix ships in the herdr version nixpkgs-unstable carries.
+
+Local patch only: herdr closes unsolicited PRs from non-approved
+contributors, and its bug template forbids attaching patches.
+
+diff --git a/src/client/mod.rs b/src/client/mod.rs
+index cb46509..6b37e5a 100644
+--- a/src/client/mod.rs
++++ b/src/client/mod.rs
+@@ -2095,6 +2095,7 @@ async fn run_client_loop(
+                     let (effects, outcome, frame) = {
+                         let shell = state.shell.as_mut().expect("checked shell mode");
+                         let mut outcome = shell.tick_selection_autoscroll(now);
++                        shell.tick_deferred_host_appearance(now, &mut outcome.requests);
+                         for expired in expired_endpoints {
+                             if !shell.endpoint_is_active(&expired.endpoint_id) {
+                                 continue;
+diff --git a/src/client/shell/input.rs b/src/client/shell/input.rs
+index c6d458c..860e6c9 100644
+--- a/src/client/shell/input.rs
++++ b/src/client/shell/input.rs
+@@ -164,7 +164,25 @@ impl ClientShellState {
+         }
+         for event in events {
+             if let Some(update) = host_theme_update(&event) {
+-                push_host_theme_update(&mut outcome.requests, update);
++                if let crate::protocol::ClientHostThemeUpdate::Appearance(appearance) = update {
++                    // Hold the transition until the host's new default colors
++                    // arrive: the server forwards it to panes as a mode 2031
++                    // report, and apps answer that with an OSC 11 query that
++                    // would otherwise see the old background.
++                    self.defer_host_appearance(appearance);
++                } else {
++                    let background = matches!(
++                        update,
++                        crate::protocol::ClientHostThemeUpdate::DefaultColor {
++                            kind: crate::protocol::ClientHostDefaultColorKind::Background,
++                            ..
++                        }
++                    );
++                    push_host_theme_update(&mut outcome.requests, update);
++                    if background {
++                        self.release_deferred_host_appearance(&mut outcome.requests);
++                    }
++                }
+             }
+             match event {
+                 RawInputEvent::Key(key) => self.handle_key(key, &mut outcome),
+diff --git a/src/client/shell/state.rs b/src/client/shell/state.rs
+index 901c5a2..54dcd17 100644
+--- a/src/client/shell/state.rs
++++ b/src/client/shell/state.rs
+@@ -4,6 +4,9 @@ pub(super) const MIN_TAB_WIDTH: u16 = 8;
+ pub(super) const NEW_TAB_WIDTH: u16 = 3;
+ pub(super) const WORKSPACE_HEADER_ROWS: u16 = 2;
+ const ENDPOINT_ERROR_TIMEOUT_SECS: u64 = 5;
++/// Upper bound on holding a host appearance transition while waiting for the
++/// host's default-color reply, for terminals that never answer OSC 11.
++const DEFERRED_HOST_APPEARANCE_TIMEOUT_MS: u64 = 500;
+ 
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub(crate) enum ClientShellKeybindingSource {
+@@ -920,6 +923,8 @@ pub(crate) struct ClientShellState {
+     pub(super) host_appearance: Option<crate::terminal_theme::HostAppearance>,
+     pub(super) host_appearance_explicit: bool,
+     pub(super) host_background: Option<crate::terminal_theme::RgbColor>,
++    pub(super) deferred_host_appearance: Option<crate::protocol::ClientHostAppearance>,
++    pub(super) deferred_host_appearance_deadline: Option<std::time::Instant>,
+     pub(super) local_config_diagnostic: Option<String>,
+     pub(super) config_diagnostic: Option<String>,
+     pub(super) endpoint_error: Option<String>,
+@@ -1082,6 +1087,8 @@ impl ClientShellState {
+             host_appearance: None,
+             host_appearance_explicit: false,
+             host_background: None,
++            deferred_host_appearance: None,
++            deferred_host_appearance_deadline: None,
+             config_diagnostic: local_config_diagnostic.clone(),
+             local_config_diagnostic,
+             endpoint_error: None,
+@@ -1836,6 +1843,39 @@ impl ClientShellState {
+         false
+     }
+ 
++    pub(super) fn defer_host_appearance(
++        &mut self,
++        appearance: crate::protocol::ClientHostAppearance,
++    ) {
++        self.deferred_host_appearance = Some(appearance);
++        self.deferred_host_appearance_deadline = Some(
++            std::time::Instant::now()
++                + std::time::Duration::from_millis(DEFERRED_HOST_APPEARANCE_TIMEOUT_MS),
++        );
++    }
++
++    pub(super) fn release_deferred_host_appearance(&mut self, requests: &mut Vec<ClientMessage>) {
++        self.deferred_host_appearance_deadline = None;
++        if let Some(appearance) = self.deferred_host_appearance.take() {
++            requests.push(ClientMessage::ClientShellHostTheme {
++                update: crate::protocol::ClientHostThemeUpdate::Appearance(appearance),
++            });
++        }
++    }
++
++    pub(crate) fn tick_deferred_host_appearance(
++        &mut self,
++        now: std::time::Instant,
++        requests: &mut Vec<ClientMessage>,
++    ) {
++        if self
++            .deferred_host_appearance_deadline
++            .is_some_and(|deadline| now >= deadline)
++        {
++            self.release_deferred_host_appearance(requests);
++        }
++    }
++
+     pub(crate) fn timer_delay(&self, now: std::time::Instant) -> std::time::Duration {
+         let default = std::time::Duration::from_millis(100);
+         self.selection_autoscroll_deadline
+diff --git a/src/client/shell/tests/input.rs b/src/client/shell/tests/input.rs
+index b55cf9a..419b0ad 100644
+--- a/src/client/shell/tests/input.rs
++++ b/src/client/shell/tests/input.rs
+@@ -44,14 +44,8 @@ fn host_appearance_prefers_explicit_reports_over_background_inference() {
+     )]);
+     assert!(explicit.repaint);
+     assert!(explicit.query_host_theme);
+-    assert!(matches!(
+-        explicit.requests.as_slice(),
+-        [ClientMessage::ClientShellHostTheme {
+-            update: crate::protocol::ClientHostThemeUpdate::Appearance(
+-                crate::protocol::ClientHostAppearance::Dark
+-            )
+-        }]
+-    ));
++    // Deferred until the host's new background arrives.
++    assert!(explicit.requests.is_empty());
+     assert_eq!(
+         state.host_appearance,
+         Some(crate::terminal_theme::HostAppearance::Dark)
+@@ -68,7 +62,22 @@ fn host_appearance_prefers_explicit_reports_over_background_inference() {
+         },
+     }]);
+     assert!(!ignored.repaint);
+-    assert_eq!(ignored.requests.len(), 1);
++    assert!(matches!(
++        ignored.requests.as_slice(),
++        [
++            ClientMessage::ClientShellHostTheme {
++                update: crate::protocol::ClientHostThemeUpdate::DefaultColor {
++                    kind: crate::protocol::ClientHostDefaultColorKind::Background,
++                    ..
++                }
++            },
++            ClientMessage::ClientShellHostTheme {
++                update: crate::protocol::ClientHostThemeUpdate::Appearance(
++                    crate::protocol::ClientHostAppearance::Dark
++                )
++            }
++        ]
++    ));
+     assert_eq!(
+         state.host_appearance,
+         Some(crate::terminal_theme::HostAppearance::Dark)
+@@ -76,6 +85,40 @@ fn host_appearance_prefers_explicit_reports_over_background_inference() {
+     assert_eq!(state.config.palette, dark);
+ }
+ 
++#[test]
++fn deferred_host_appearance_is_released_after_timeout() {
++    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
++
++    let outcome = state.handle_raw_events(vec![RawInputEvent::HostColorSchemeChanged(
++        crate::terminal_theme::HostAppearance::Light,
++    )]);
++    assert!(outcome.requests.is_empty());
++
++    let mut requests = Vec::new();
++    state.tick_deferred_host_appearance(std::time::Instant::now(), &mut requests);
++    assert!(requests.is_empty());
++
++    state.tick_deferred_host_appearance(
++        std::time::Instant::now() + std::time::Duration::from_secs(1),
++        &mut requests,
++    );
++    assert!(matches!(
++        requests.as_slice(),
++        [ClientMessage::ClientShellHostTheme {
++            update: crate::protocol::ClientHostThemeUpdate::Appearance(
++                crate::protocol::ClientHostAppearance::Light
++            )
++        }]
++    ));
++
++    let mut again = Vec::new();
++    state.tick_deferred_host_appearance(
++        std::time::Instant::now() + std::time::Duration::from_secs(2),
++        &mut again,
++    );
++    assert!(again.is_empty());
++}
++
+ #[test]
+ fn full_host_palette_response_is_sent_as_one_theme_update() {
+     use std::fmt::Write as _;
