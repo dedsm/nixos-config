@@ -696,14 +696,26 @@ script bound with `[[keys.command]] type = "shell"` doing the same `process-info
 
 ## Deliberately not managed here
 
-**Agent detection.** `herdr integration install claude` writes hooks into the Claude Code
-configuration so that Claude reports its own state via `herdr pane report-agent`. It is not
-run from this module — the Claude Code setup here already installs hooks of its own (see
-[`docs/claude-code.md`](./claude-code.md)), and the two need to be reconciled by hand
-before mixing them.
+**The Claude integration.** `herdr integration install claude` writes
+`~/.claude/hooks/herdr-agent-state.sh` and a `hooks.SessionStart` entry into
+`~/.claude/settings.json`. For Claude it is a *session-identity* integration only: on
+session start (`startup`/`resume`/`clear`/`compact`/`fork` — v10 narrowed the matcher from a
+wildcard to exactly those sources) it reports the session UUID and transcript path, which is
+what restore resumes from (see "Restart behaviour" above). It does **not** report lifecycle
+state. herdr only lets agents with complete lifecycle hooks (Pi, OMP, OpenCode, Kimi, …) be
+the state authority; for Claude, `idle`/`working`/`blocked` always come from herdr's *screen
+manifest* detection — the foreground process is identified, then TOML rules are matched
+against the live bottom of the pane buffer. A misread state is diagnosed with
+`herdr agent explain <pane>`, not by looking at hooks.
 
-Because state is *pushed* by that integration rather than sniffed from process names, Nix's
-`claude` → `.claude-wrapped` wrapper is not an obstacle to detection.
+It is not run from this module — the Claude Code setup here already installs hooks of its
+own (see [`docs/claude-code.md`](./claude-code.md)), and the two need to be reconciled by
+hand before mixing them. `herdr integration status` reports an outdated version after a
+herdr upgrade; rerun the install to update it.
+
+Nix's `claude` → `.claude-wrapped` wrapper does not hide the process from detection:
+`herdr agent list` reports those panes as `claude`. If a future wrapper ever does,
+`HERDR_AGENT=claude` on the wrapper command tells herdr which manifest to use.
 
 The two do coexist as installed: the Claude Code module's settings merge recurses into objects
 and — since its managed brain-health hook joined `hooks.SessionStart` — **array-merges that key
