@@ -228,12 +228,11 @@
             # already pins via patchShebangs, so this costs no extra build.
             python3
 
-            # rtk (Rust Token Killer) — token-optimizing CLI proxy.
-            # Pinned to stable: unstable's 0.43.0 fails its test build under
-            # `-D warnings` on upstream dead code (FILTERS_TOML,
-            # TomlFilterRegistry::load). Revert to `pkgs.unstable.rtk` once
-            # unstable ships a version that compiles cleanly.
-            rtk
+            # rtk (Rust Token Killer) — token-optimizing CLI proxy. From
+            # unstable: it moves faster than stable. It was briefly pinned to
+            # stable while unstable's 0.43.0 failed its test build under
+            # `-D warnings`; 0.49.0 builds cleanly.
+            pkgs.unstable.rtk
           ];
       };
 
