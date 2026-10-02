@@ -36,6 +36,7 @@ pkgs/                    # Custom package overlays (pkgs.local.*)
 ├── cli-notify/            # Native notification helper
 ├── dstask-note/           # pty-wrapped `dstask note`
 ├── vim-herdr-navigation/  # herdr plugin: vim-aware ctrl+h/j/k/l navigation
+├── caveman/               # caveman CLI + its Go proxy/engine binaries
 └── default.nix            # ...and antigravity-hub/-ide/-cli, built from the
                            #    `antigravity-nix` input (no directory of their own)
 
@@ -110,6 +111,7 @@ nix flake update                              # Bump input pins
 Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 
 - [`docs/claude-code.md`](./docs/claude-code.md) — package pinning, the managed-settings merge strategy, hooks, status line, editor integration
+- [`docs/caveman.md`](./docs/caveman.md) — the caveman context-compression proxy: why its Go binaries are built from source instead of downloaded at runtime, the CLI/binary version guard, telemetry, and how it interacts with rtk and the Claude Code module's hooks
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — how the Playwright MCP server is pointed at a Nix-managed browser instead of downloading its own
 - [`docs/antigravity.md`](./docs/antigravity.md) — the Antigravity hub, IDE and `agy` CLI: why they come from a third-party flake input instead of nixpkgs, how they're built, and why macOS doesn't get them
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
