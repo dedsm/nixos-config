@@ -24,7 +24,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 - **Aerospace**: Tiling window manager (macOS)
 - **Ghostty**: Terminal emulator (macOS)
 - **Framework laptop hardware**: Via a `nixos-hardware` module, wired per-host (see "Host Configuration Management" below)
-- **Custom overlays**: For packages not in nixpkgs (Slack wrapper, `cli-notify`, `dstask-note`, `vim-herdr-navigation`, `caveman` + `caveman-bin`) and for the three Google Antigravity components, which come from a pinned third-party source tree rather than nixpkgs — see [`docs/antigravity.md`](./docs/antigravity.md)
+- **Custom overlays**: For packages not in nixpkgs (Slack wrapper, `cli-notify`, `dstask-note`, `vim-herdr-navigation`) and for the three Google Antigravity components, which come from a pinned third-party source tree rather than nixpkgs — see [`docs/antigravity.md`](./docs/antigravity.md)
 
 ## Architecture Overview
 
@@ -55,7 +55,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │       ├── default.nix       # macOS system defaults
 │       └── aerospace/         # Aerospace window manager
 ├── pkgs/                  # Custom package overlays
-│   ├── slack/ cli-notify/ dstask-note/ vim-herdr-navigation/ caveman/
+│   ├── slack/ cli-notify/ dstask-note/ vim-herdr-navigation/
 │   └── default.nix          # ...plus antigravity-hub/-ide/-cli, built straight from the
 │                              `antigravity-nix` input (no directory of their own)
 ├── docs/                  # Deeper docs for specific subsystems — see "Further documentation"
@@ -286,7 +286,6 @@ pkgs/slack/               # Slack wrapper with custom settings
 pkgs/cli-notify/          # Native notification helper (used by the claude-code module on Darwin)
 pkgs/dstask-note/         # pty-wrapped `dstask note` (bare command silently no-ops without a TTY)
 pkgs/vim-herdr-navigation/ # herdr plugin: vim-aware ctrl+h/j/k/l navigation, registered by the herdr module
-pkgs/caveman/             # caveman CLI (default.nix, npm tarball) + its Go binaries (bin.nix → caveman-bin)
 
 # Not every entry in the overlay has a directory: antigravity-hub, antigravity-ide
 # and antigravity-cli are callPackage'd straight out of the `antigravity-nix`
@@ -370,7 +369,6 @@ input (`nix flake update antigravity-nix`).
 ### Editor Integration
 - Neovim: hand-rolled config (no plugin manager, all plugins declared in Nix), LSP/formatting/linting all Nix-provisioned — see [`docs/nvim.md`](./docs/nvim.md)
 - Claude Code: pinned version, managed-but-mergeable settings, hooks, status line, `brain` skill — see [`docs/claude-code.md`](./docs/claude-code.md) and [`docs/brain-skill.md`](./docs/brain-skill.md)
-- caveman: context-compression proxy for Claude Code (`caveman claude`), complementing rtk — see [`docs/caveman.md`](./docs/caveman.md)
 - Playwright MCP: points at a Nix-managed Chromium instead of downloading its own — see [`docs/playwright-mcp.md`](./docs/playwright-mcp.md)
 - Google Antigravity (hub + IDE + `agy` CLI): from the `antigravity-nix` input rather than nixpkgs, non-FHS build, Linux-only (enabled in `davidNixos`) — see [`docs/antigravity.md`](./docs/antigravity.md)
 
@@ -451,7 +449,6 @@ ls -la /nix/var/nix/profiles/system-*-link
 
 - [`README.md`](./README.md) — human-facing overview and setup instructions
 - [`docs/claude-code.md`](./docs/claude-code.md) — Claude Code package pinning, settings-merge strategy, hooks, status line
-- [`docs/caveman.md`](./docs/caveman.md) — caveman context-compression proxy: Go binaries built from source and pinned via `CAVEMAN_*_BIN`, the CLI/`bin-v*` version guard, telemetry off by default, and its hooks vs rtk and the managed `UserPromptSubmit`
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — Playwright MCP browser wiring
 - [`docs/antigravity.md`](./docs/antigravity.md) — the three Google Antigravity components: why they come from the `antigravity-nix` input instead of nixpkgs (and what would let them go back), `useFHS = false`/`useSystemChromeProfile = false` and the google-chrome dependency that survives them, the IDE's keyring flag, and why macOS doesn't get it at all
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration

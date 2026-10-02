@@ -31,10 +31,6 @@ in
 
   dstask-note = super.callPackage ./dstask-note { };
 
-  # From unstable: go.mod requires a newer Go than stable carries.
-  caveman-bin = unstablePkgs.callPackage ./caveman/bin.nix { };
-  caveman = super.callPackage ./caveman { caveman-bin = self.local.caveman-bin; };
-
   # herdr itself comes from unstable, and the plugin's wrapper has to call the
   # same binary the user runs.
   vim-herdr-navigation = super.callPackage ./vim-herdr-navigation {

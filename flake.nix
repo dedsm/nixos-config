@@ -233,11 +233,6 @@
             # stable while unstable's 0.43.0 failed its test build under
             # `-D warnings`; 0.49.0 builds cleanly.
             pkgs.unstable.rtk
-
-            # caveman — recoverable context compression for coding agents
-            # (`caveman claude` runs Claude Code behind its local proxy). CLI and
-            # Go binaries both pinned in pkgs/caveman; see docs/caveman.md.
-            pkgs.local.caveman
           ];
       };
 
