@@ -37,6 +37,11 @@ in
     herdr = unstablePkgs.herdr;
   };
 
+  # Granola's macOS build on nixpkgs' Electron. From unstable for allowUnfree
+  # (Granola is proprietary). The Electron major must match the one Granola
+  # ships, which the build checks; see docs/granola.md.
+  granola = unstablePkgs.callPackage ./granola { electron = unstablePkgs.electron_44; };
+
   # Google Antigravity, from the `antigravity-nix` input rather than nixpkgs:
   # nixpkgs has no hub package at all (open PR NixOS/nixpkgs#524225) and its
   # antigravity-ide/antigravity-cli trail the upstream releases that input

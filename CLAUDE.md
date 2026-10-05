@@ -24,7 +24,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 - **Aerospace**: Tiling window manager (macOS)
 - **Ghostty**: Terminal emulator (macOS)
 - **Framework laptop hardware**: Via a `nixos-hardware` module, wired per-host (see "Host Configuration Management" below)
-- **Custom overlays**: For packages not in nixpkgs (Slack wrapper, `cli-notify`, `dstask-note`, `vim-herdr-navigation`) and for the three Google Antigravity components, which come from a pinned third-party source tree rather than nixpkgs — see [`docs/antigravity.md`](./docs/antigravity.md)
+- **Custom overlays**: For packages not in nixpkgs (Slack wrapper, `cli-notify`, `dstask-note`, `vim-herdr-navigation`, and `granola` — the macOS Electron app repackaged for Linux, see [`docs/granola.md`](./docs/granola.md)) and for the three Google Antigravity components, which come from a pinned third-party source tree rather than nixpkgs — see [`docs/antigravity.md`](./docs/antigravity.md)
 
 ## Architecture Overview
 
@@ -55,7 +55,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │       ├── default.nix       # macOS system defaults
 │       └── aerospace/         # Aerospace window manager
 ├── pkgs/                  # Custom package overlays
-│   ├── slack/ cli-notify/ dstask-note/ vim-herdr-navigation/
+│   ├── slack/ cli-notify/ dstask-note/ vim-herdr-navigation/ granola/
 │   └── default.nix          # ...plus antigravity-hub/-ide/-cli, built straight from the
 │                              `antigravity-nix` input (no directory of their own)
 ├── docs/                  # Deeper docs for specific subsystems — see "Further documentation"
@@ -286,6 +286,7 @@ pkgs/slack/               # Slack wrapper with custom settings
 pkgs/cli-notify/          # Native notification helper (used by the claude-code module on Darwin)
 pkgs/dstask-note/         # pty-wrapped `dstask note` (bare command silently no-ops without a TTY)
 pkgs/vim-herdr-navigation/ # herdr plugin: vim-aware ctrl+h/j/k/l navigation, registered by the herdr module
+pkgs/granola/             # Granola's macOS build on nixpkgs' Electron (x86_64-linux, manwe only); update.sh is its updateScript
 
 # Not every entry in the overlay has a directory: antigravity-hub, antigravity-ide
 # and antigravity-cli are callPackage'd straight out of the `antigravity-nix`
@@ -458,6 +459,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching: DMS as the **sole** owner of the `color-scheme`/`gtk-theme` dconf keys (and the list of home-manager options that must therefore stay unset), the DMS → dconf → xdg-desktop-portal-gtk → Firefox/Slack chain, why GTK3 reaches the palette only through the `dank-colors.css` import in `gtk.css` (and what `GTK_USE_PORTAL=1` adds on top), the post-`dconfSettings` activation guard, and the matugen templates that carry a transition to foot and tmux
 - [`docs/login-flow.md`](./docs/login-flow.md) — the DMS greeter as the auth gate (and why it beat autologin plus a boot lock), the fprintd/polkit fingerprint policy (Apple's Touch ID conditions, mapped) and why it can't live in PAM, gnome-keyring PAM unlock, boot-speed rationale
 - [`docs/performance.md`](./docs/performance.md) — the `dedsm.performance` module: sched_ext/`scx_lavd`, ananicy-cpp with CachyOS rules, writeback sysctls sized for 128 GiB, and what was deliberately *not* ported from CachyOS
+- [`docs/granola.md`](./docs/granola.md) — Granola (meeting notes) repackaged from the macOS auto-update zip: the platform-label patch the API needs, why `ELECTRON_FORCE_IS_PACKAGED` and the `process.resourcesPath` rewrite are needed (dev mode otherwise registers `granola-dev://`), rebuilding the bundled SQLite fork against `electron.headers` past nixpkgs' `node-gyp` wrapper, `patchelfUnstable` for `drag.node`, the Electron-major guard, how system-audio capture works on Linux (default-output monitor, tested), what doesn't work, and the feed-driven updater
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB RAM, suspend-then-hibernate settings, why `boot.resumeDevice` must be set explicitly with a systemd initrd, `pm_async=0` resume workaround
 
 Remember the mandate at the top of this file: these all need to stay current.

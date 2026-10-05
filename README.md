@@ -36,6 +36,7 @@ pkgs/                    # Custom package overlays (pkgs.local.*)
 ├── cli-notify/            # Native notification helper
 ├── dstask-note/           # pty-wrapped `dstask note`
 ├── vim-herdr-navigation/  # herdr plugin: vim-aware ctrl+h/j/k/l navigation
+├── granola/               # Granola's macOS Electron app, repackaged for Linux (manwe only)
 └── default.nix            # ...and antigravity-hub/-ide/-cli, built from the
                            #    `antigravity-nix` input (no directory of their own)
 
@@ -112,6 +113,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 - [`docs/claude-code.md`](./docs/claude-code.md) — package pinning, the managed-settings merge strategy, hooks, status line, editor integration
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — how the Playwright MCP server is pointed at a Nix-managed browser instead of downloading its own
 - [`docs/antigravity.md`](./docs/antigravity.md) — the Antigravity hub, IDE and `agy` CLI: why they come from a third-party flake input instead of nixpkgs, how they're built, and why macOS doesn't get them
+- [`docs/granola.md`](./docs/granola.md) — Granola (macOS/Windows only upstream) running on nixpkgs' Electron: what's patched and why, the native-module rebuild, system-audio capture (it works, via the default output's monitor), what doesn't work on Linux, and how updates are pulled from Granola's own update feed
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
 - [`docs/herdr.md`](./docs/herdr.md) — the agent-aware terminal multiplexer running alongside tmux: settings rationale, the local patch that lets pane apps (Claude Code's "auto" theme) follow light/dark switches, restart behaviour, why its activation-time commands are best-effort-with-a-warning, and what is deliberately left unmanaged
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" Claude Code skill and how its store is bootstrapped/synced

@@ -370,6 +370,7 @@
             (davidNixos pkgs).packages pkgs
             ++ (with pkgs; [
               pkgs.local.slack
+              pkgs.local.granola
               pkgs.unstable.spotify
               (pkgs.unstable.vscode.override {
                 commandLineArgs = "--password-store=gnome-libsecret";
