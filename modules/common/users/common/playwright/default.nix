@@ -13,6 +13,15 @@ let
   pw = pkgs.playwright-driver;
   chromiumRevision = pw.browsersJSON.chromium.revision;
   playwrightChromiumPath = "${pw.browsers}/chromium-${chromiumRevision}/chrome-linux64/chrome";
+
+  # Claude Code's wrapper (pkgs.unstable) prefixes LD_LIBRARY_PATH with
+  # unstable's alsa-lib, which needs a newer glibc than this nixpkgs' Chromium
+  # links; every MCP server it spawns inherits it and Chromium dies with
+  # "GLIBC_2.43 not found". The browser finds its own libraries without it.
+  playwrightChromium = pkgs.writeShellScript "playwright-mcp-chromium" ''
+    unset LD_LIBRARY_PATH
+    exec ${playwrightChromiumPath} "$@"
+  '';
   playwrightMcpCacheDir = "$HOME/.cache/playwright-mcp/profiles";
 
   mkdir = "${pkgs.coreutils}/bin/mkdir";
@@ -23,7 +32,7 @@ lib.mkIf (enable && isLinux) {
     PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
     PLAYWRIGHT_MCP_USER_DATA_DIR = "${playwrightMcpCacheDir}";
-    PLAYWRIGHT_MCP_EXECUTABLE_PATH = playwrightChromiumPath;
+    PLAYWRIGHT_MCP_EXECUTABLE_PATH = "${playwrightChromium}";
   };
 
   home.activation.ensurePlaywrightCacheDir = {

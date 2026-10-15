@@ -11,7 +11,7 @@ Instead, this module points Playwright at nixpkgs' `playwright-driver.browsers` 
 | `PLAYWRIGHT_BROWSERS_PATH` | Points Playwright at the Nix store path containing prefetched browsers instead of `~/.cache/ms-playwright`. |
 | `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS` | Skips a host-dependency check that doesn't understand NixOS. |
 | `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` | Never let Playwright fetch its own browser binaries. |
-| `PLAYWRIGHT_MCP_EXECUTABLE_PATH` | Resolved at eval time from `playwright-driver.browsersJSON.chromium.revision`, so it always points at the exact Chromium build the pinned `playwright-driver` ships. |
+| `PLAYWRIGHT_MCP_EXECUTABLE_PATH` | A small launcher that unsets `LD_LIBRARY_PATH` and execs the exact Chromium build the pinned `playwright-driver` ships (revision resolved at eval time from `playwright-driver.browsersJSON.chromium.revision`). The unset matters because Claude Code's wrapper (built from `pkgs.unstable`) prefixes `LD_LIBRARY_PATH` with unstable's `alsa-lib`, which needs a newer glibc than this nixpkgs' Chromium; every MCP server Claude Code spawns inherits it, and Chromium would otherwise fail with `GLIBC_2.43 not found`. |
 | `PLAYWRIGHT_MCP_USER_DATA_DIR` | `~/.cache/playwright-mcp/profiles` — a stable, persistent browser profile dir for the MCP server (cookies/login state survive across sessions), created by a `home.activation` step. |
 
 Linux-only (`enable && isLinux`): on Darwin, Playwright's own Chromium download works fine natively and nixpkgs' `playwright-driver` browser bundle isn't set up the same way, so the module is a no-op there.
