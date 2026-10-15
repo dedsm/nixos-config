@@ -259,12 +259,21 @@ moved to `dms ipc call`:
 | `$mod+P` | `spotlight toggle` |
 | `$mod+V` / `$mod+N` / `$mod+O` | `clipboard` / `notifications` / `control-center` toggle |
 | `CTRL+ALT+L` | `loginctl lock-session` (unchanged — DMS listens on logind) |
+| `XF86PowerOff` | `powermenu toggle` — the power button's short press; see below |
 | `CTRL+ALT+SHIFT+L` | `systemctl --user restart dms.service`, the locked-session escape hatch |
 | `Print` | `dms screenshot region --no-file` — region to clipboard, no file |
 | `CTRL+Print` | the screenshot picker, via `spotlight openQuery "#"` — see below |
 
 `dms ipc` with no arguments lists every target; the live surface is wider than upstream's
 `docs/IPC.md`.
+
+The power button needs more than a bind. logind acts on `KEY_POWER` itself, straight off the evdev
+node, so with its default `HandlePowerKey=poweroff` the machine shuts down whatever the compositor
+binds — and DMS takes no `handle-power-key` inhibitor that would stop it. `modules/nixos/dms` sets
+`HandlePowerKey=ignore` so the short press is the bind's alone, and keeps
+`HandlePowerKeyLongPress=poweroff`: holding the button still shuts down from the lock screen and the
+greeter (neither can open the menu — the bind is not `locked`, and the greeter has no Hyprland
+session) or with the shell wedged. Disabling `dedsm.dms` hands the button back to logind.
 
 Mind the arity. `brightness increment` documents its device as optional but the running signature is
 `increment(step: string, device: string)`, so the bind passes `""` (the default backlight) — with

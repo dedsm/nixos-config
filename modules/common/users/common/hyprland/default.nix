@@ -262,6 +262,9 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
           hl.bind("ALT + SHIFT + P", hl.dsp.exec_cmd("uwsm app -- nautilus"))
           hl.bind("ALT + SHIFT + C", hl.dsp.exec_cmd("uwsm app -- gnome-calculator"))
           hl.bind("CTRL + ALT + L", hl.dsp.exec_cmd("uwsm app -- ${pkgs.systemd}/bin/loginctl lock-session"))
+          -- The power button's short press; logind ignores it so this can see
+          -- it (HandlePowerKey in modules/nixos/dms).
+          hl.bind("XF86PowerOff", hl.dsp.exec_cmd("dms ipc call powermenu toggle"))
           -- Recovers a locked session whose locker is gone: restarting the shell
           -- brings a new lock client that takes the orphaned lock. `locked` is
           -- required for the bind to run at all while locked; taking the lock

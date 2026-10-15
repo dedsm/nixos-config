@@ -173,6 +173,22 @@ in
       '';
     };
 
+    # Hand the power button's short press to DMS's power menu. logind would
+    # otherwise power off on its own the moment the key goes down — it acts on
+    # the evdev event itself, before (and regardless of) any compositor bind,
+    # and DMS takes no `handle-power-key` inhibitor that would stop it. With
+    # logind ignoring it, the press reaches Hyprland as XF86PowerOff and the
+    # bind there calls `dms ipc call powermenu toggle`.
+    #
+    # The long press stays with logind, so holding the button still powers off
+    # when the shell is wedged, while locked, or at the greeter — none of which
+    # can open the menu (the bind is not `locked`, and the greeter has no
+    # Hyprland session at all).
+    services.logind.settings.Login = {
+      HandlePowerKey = "ignore";
+      HandlePowerKeyLongPress = "poweroff";
+    };
+
     # The lock screen's password stack. DMS generates a PAM config under
     # ~/.local/state by default; settings.lockPamExternallyManaged points it at
     # /etc/pam.d/dankshell instead, so the factors and their ordering are
