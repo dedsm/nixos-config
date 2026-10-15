@@ -106,17 +106,9 @@ attrs@{
     style.name = "adwaita";
   };
 
-  # NOTE: `color-scheme` and `gtk-theme` are deliberately NOT set here. They are
-  # owned exclusively by DankMaterialShell at runtime — see
-  # docs/theme.md. Declaring them statically makes every home-manager activation
-  # `dconf load` them back to their light values, which the xdg-desktop-portal-gtk
-  # Settings backend then broadcasts to every portal-aware app (Firefox, Slack,
-  # ...), silently knocking them back to light mid-session.
-  dconf.settings = {
-    "org/gnome/desktop/interface" = {
-      icon-theme = "Papirus";
-    };
-  };
+  # NOTE: `color-scheme`, `gtk-theme` and `icon-theme` are deliberately NOT set
+  # here, directly or through the gtk options that mirror into them: DMS owns
+  # them at runtime. See docs/theme.md, "The one rule".
 
   gtk = {
     enable = true;
@@ -164,10 +156,9 @@ attrs@{
       size = 24;
     };
 
-    iconTheme = {
-      package = pkgs.papirus-icon-theme;
-      name = "Papirus";
-    };
+    # Mirrors into the DMS-owned `icon-theme` key; the package is in
+    # `home.packages` below.
+    iconTheme = null;
 
     # `theme.name` is left unset on purpose: home-manager mirrors it into BOTH
     # gtk-3.0/settings.ini and the `gtk-theme` dconf key, which would re-pin the
@@ -189,7 +180,11 @@ attrs@{
   home = {
     # Adwaita/Adwaita-dark, kept as the fallback pair for apps that ask for a
     # theme by name rather than following the `color-scheme` key DMS drives.
-    packages = [ pkgs.gnome-themes-extra ];
+    # Papirus: selected per mode by DMS (iconThemeLight/iconThemeDark).
+    packages = [
+      pkgs.gnome-themes-extra
+      pkgs.papirus-icon-theme
+    ];
 
     pointerCursor = {
       package = pkgs.vanilla-dmz;

@@ -20,13 +20,20 @@ with both, but mixing its package with the nixpkgs module drops some dependency 
 come from nixpkgs here. The package is taken from `unstable` (1.6.2) because 26.05 is a release
 behind (1.4.6); `quickshell` comes from stable, which satisfies DMS's ">= 0.3.0".
 
-One `overrideAttrs` sits on top, carrying two patches to the lock screen's fingerprint path — a
-`timeout=` on the bundled PAM stack and a lower cap on the retry backoff — for the reason in
-[the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time). Both use
-`--replace-fail`, so an upstream change to either anchor is a build error rather than a silent
-no-op. Nothing else about the package is patched.
+One `overrideAttrs` sits on top, carrying three patches. Two are to the lock screen's fingerprint
+path — a `timeout=` on the bundled PAM stack and a lower cap on the retry backoff — for the reason in
+[the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time). The third removes the
+`pkill -HUP -f 'gtk'` that ends `updateGtkIconTheme` in `Common/SettingsData.qml`. It was meant to
+make GTK apps re-read `settings.ini`, but GTK does not handle SIGHUP, so it *kills* every process
+whose command line contains "gtk" — chiefly `xdg-desktop-portal-gtk`. With `iconThemePerMode` on
+(see [`theme.md`](./theme.md#the-icon-theme-is-a-third-dms-owned-key)) that ran on every light/dark
+transition, at the very moment the portal should have been broadcasting the new `color-scheme`, so
+Firefox missed each change and sat one mode behind — dark in light mode and vice versa. GTK apps
+already get the icon theme live through the portal. All three use `--replace-fail`, so an upstream
+change to any anchor is a build error rather than a silent no-op. Nothing else about the package is
+patched.
 
-**Both patches run in `preBuild`, against the source tree, and then re-run `make sync-shell`.** As
+**All three patches run in `preBuild`, against the source tree, and then re-run `make sync-shell`.** As
 of 1.6.x the QML shell is no longer installed as files: nixpkgs builds with upstream's `withshell`
 tag, and `sync-shell` copies `quickshell/` into `core/internal/shellembed/dist` to be `go:embed`ed
 into the `dms` binary. `$out/share/quickshell` does not exist any more, so the `postInstall`

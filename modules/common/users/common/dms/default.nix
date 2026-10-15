@@ -286,6 +286,12 @@ mkIf (homeManagerConfig.dms.enable or false) {
     # `theme` module and reaches foot/tmux through matugen's user templates;
     # this keeps those templates running.
     runUserMatugenTemplates = true;
+    # Papirus' tray icons are one flat colour per variant, so each mode needs
+    # its own (docs/theme.md, "The icon theme is a third DMS-owned key"). The
+    # theme module's activation guard writes the same two names.
+    iconThemePerMode = true;
+    iconThemeLight = "Papirus-Light";
+    iconThemeDark = "Papirus-Dark";
 
     # --- lock screen authentication
     #

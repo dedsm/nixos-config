@@ -108,11 +108,45 @@ indirectly via home-manager options that mirror into them. Concretely, this is w
 | `gtk.theme.name` | home-manager mirrors it into **both** `gtk-3.0/settings.ini` *and* the `gtk-theme` dconf key |
 | `gtk.gtk3.colorScheme` | Mirrors into the `color-scheme` dconf key |
 | `gtk4.extraConfig.gtk-application-prefer-dark-theme` | Hard-locks GTK4/libadwaita apps to one mode in `gtk-4.0/settings.ini` |
+| `dconf.settings."org/gnome/desktop/interface".icon-theme`, `gtk.iconTheme` | See [the icon theme](#the-icon-theme-is-a-third-dms-owned-key) below — `gtk.iconTheme` mirrors into the dconf key too |
 
 `gtk.theme.package` is gone with `gtk.theme`. DMS points `gtk-theme` at `adw-gtk3` /
 `adw-gtk3-dark` and patches a copy into `~/.local/share/themes`, so that theme has to be on disk:
 `modules/nixos/dms` installs `pkgs.adw-gtk3` for exactly this reason. A missing theme is not an
 error anywhere — GTK3 apps just fall back to raw defaults.
+
+### The icon theme is a third DMS-owned key
+
+`/org/gnome/desktop/interface/icon-theme` follows the mode as well: `Papirus-Light` in light,
+`Papirus-Dark` in dark, set by `iconThemePerMode`/`iconThemeLight`/`iconThemeDark` in the `dms`
+module's `settings.json`. A single Papirus variant cannot serve both modes, because its *panel*
+icons — the ones tray items ask for by name, like KDE Connect's `kdeconnectindicatordark` and
+Solaar's `battery-good` — are drawn in one flat colour: `#dfdfdf` in Papirus and Papirus-Dark,
+`#444444` in Papirus-Light. With plain `Papirus` everywhere they all but vanished against the light
+bar. (Tray items that ship a pixmap instead, like Slack and 1Password, are unaffected.)
+
+DMS resolves launcher and app icons itself, but **tray** icons arrive as `image://icon/<name>` and
+go through Qt's own icon loader, which asks the Qt platform theme. The session's platform theme is
+`gtk3`, which reports an icon theme once, at startup, from `settings.ini` — so the tray neither
+followed a transition nor, once home-manager stopped writing the name there, found Papirus at all
+(Solaar's `battery-good` rendered as a checkerboard). The `dms` unit therefore runs on the
+`qtengine` platform theme instead (`QT_QPA_PLATFORMTHEME=qtengine` in the `modules/nixos/dms`
+drop-in, with the plugin on `QT_PLUGIN_PATH`): qtengine watches `~/.config/qtengine/config.json`,
+and DMS rewrites that file's `theme.iconTheme` on every transition (`dms matugen qtengine
+--icon-theme`). Only the shell runs on it; every other Qt app stays on `gtk3`.
+
+For apps, DMS also writes the dconf key (which reaches GTK3 through the portal, given
+`GTK_USE_PORTAL=1`) and `icon_theme=` in `qt5ct.conf`/`qt6ct.conf`; it skips
+`gtk-{3,4}.0/settings.ini` because home-manager's copies are read-only.
+
+This key has a sharper failure mode than the other two. At startup DMS compares `icon-theme` with
+the names it last applied, and if they differ it concludes the user changed the icon theme outside
+DMS, switches `iconThemePerMode` off for the session and raises an "Icon theme changed outside DMS"
+toast. So home-manager must not declare it — `gtk.iconTheme` is `null` and `papirus-icon-theme` is
+installed through `home.packages` instead — and the activation guard below writes it alongside the
+other two. The guard matters once, too: the generation that stopped declaring `icon-theme` has
+dconf-cleanup reset it to `Adwaita`, which would otherwise trip the check on the very next shell
+restart.
 
 ### The failure mode this prevents
 
@@ -134,8 +168,8 @@ usual "fix" is toggling light and back to dark, which re-runs the transition.
 ### The activation guard
 
 Removing the static declarations is the actual fix, but `home.activation.reassertColorScheme` in the
-`theme` module makes it stick: ordered `after = ["dconfSettings"]`, it re-writes both keys to
-whatever mode is current, so no activation can leave them stale. It outlived darkman deliberately —
+`theme` module makes it stick: ordered `after = ["dconfSettings"]`, it re-writes all three keys —
+`color-scheme`, `gtk-theme` and `icon-theme` — to whatever mode is current, so no activation can leave them stale. It outlived darkman deliberately —
 the trigger is home-manager's own `dconf load`, not whoever owns the keys at runtime, and DMS would
 otherwise only put them back at its next transition.
 
@@ -170,10 +204,15 @@ user template in `~/.config/matugen/config.toml` if it is missed.
 
 - **foot** is signalled in place: `SIGUSR1` selects `[colors-dark]`, `SIGUSR2` selects
   `[colors-light]`. Both palettes are declared in the `foot` settings in
-  `modules/common/users/common/defaults/common/default.nix`; `main.initial-color-theme` pins what a
-  *newly started* terminal uses before the first transition.
-- **tmux** has no signal equivalent, so each transition (a) repoints
-  `~/.local/state/tmux/current-theme.conf` at the combined Solarized config for the new mode, which
+  `modules/common/users/common/defaults/common/default.nix`. A *newly started* terminal takes its
+  mode from `main.initial-color-theme`, which only accepts a literal `dark` or `light` — foot has no
+  "follow the system" value — so `foot.ini` includes `~/.config/foot/mode.ini`, a one-line file the
+  same hook rewrites on every transition. It is written to a temporary file and `mv`'d into place,
+  because a foot started mid-write that cannot parse its config exits fatally (`foot --check-config`
+  returns 230) rather than falling back to defaults; and it is seeded by an activation script,
+  because a *missing* include is equally fatal.
+- **tmux** has no signal equivalent, so each transition (a) rewrites
+  `~/.local/state/tmux/current-theme.conf` with the combined Solarized config for the new mode, which
   is what new servers source at startup, and (b) walks every tmux socket under `/run/user/<uid>` and
   `/tmp` and `source-file`s it into the already-running servers. On Darwin the same work is done by
   `~/.local/bin/theme-apply`, invoked by the `dark-notify` launchd agent (it searches `/private/tmp`,
@@ -192,6 +231,24 @@ file for the scheme matugen just built, which is why no hook has to work out whi
 | --- | --- | --- |
 | `theme-mode` | `~/.local/state/theme/mode` (the word `dark` or `light`) | signals foot `SIGUSR1`/`SIGUSR2` |
 | `tmux` | `~/.local/state/tmux/current-theme.conf` | `source-file`s it into every live tmux socket |
+
+Two traps in that file, both of which fail silently:
+
+- **The bare `[templates]` header is load-bearing.** DMS merges the file by searching for that
+  header as a literal substring and copying from there to the end (`extractTOMLSection`,
+  `core/internal/matugen/matugen.go`). A dotted header like `[templates.tmux]` alone does not
+  match, so the section is dropped while matugen still reports success; and the header text
+  appearing earlier, even in a comment, starts the copy mid-comment and breaks the config.
+- **`input_path` is required even beside `input_path_modes`.** matugen's `Template` struct declares
+  it non-optional, so a template without it fails to deserialise — a config-level error that takes
+  every other template down with it, DMS's own GTK and Hyprland ones included.
+
+The tmux file is seeded at activation for servers started before the first transition of the boot.
+It is a copy, not a store symlink, because matugen opens it with `O_TRUNC` afterwards, which would
+follow the symlink into the read-only store and fail.
+
+Neovim needs nothing: its TUI queries the terminal background (OSC 11) at startup and sets
+`'background'` itself, so it follows foot.
 
 DMS ships its own `foot.ini` template too; it stays off, because these colours are canonical
 Solarized rather than the 16 ANSI values DMS derives from a palette (`core/internal/dank16`).
@@ -219,6 +276,8 @@ journalctl --user -u dms | grep -i matugen
 # What the keys actually say
 dconf read /org/gnome/desktop/interface/color-scheme
 dconf read /org/gnome/desktop/interface/gtk-theme
+dconf read /org/gnome/desktop/interface/icon-theme   # Papirus-Light | Papirus-Dark
+cat ~/.config/qtengine/config.json                   # the tray's icon theme (theme.iconTheme)
 
 # What portal-aware apps (Firefox, Slack, …) actually see — 1 = dark, 2 = light, 0 = no preference
 busctl --user call org.freedesktop.portal.Desktop /org/freedesktop/portal/desktop \

@@ -83,10 +83,12 @@ in
       # but mixing its package with this module drops some dependency wiring,
       # so track nixpkgs on both.
       #
-      # Two patches on top, both aimed at the lock screen's fingerprint path:
-      # a `timeout=` on the bundled PAM stack, and a shorter cap on the retry
-      # backoff that timeout feeds. See the comments on `fprintTimeout` and
-      # `fprintRetryCapMs` above, and docs/dms.md.
+      # Three patches on top. Two are aimed at the lock screen's fingerprint
+      # path: a `timeout=` on the bundled PAM stack, and a shorter cap on the
+      # retry backoff that timeout feeds. See the comments on `fprintTimeout`
+      # and `fprintRetryCapMs` above. The third drops a `pkill -HUP -f 'gtk'`
+      # that ends every icon-theme apply — see the comment at the patch. All
+      # three are explained in docs/dms.md.
       #
       # These patch the *source* tree and re-run `make sync-shell`, rather than
       # editing the installed tree. As of 1.6.x the QML shell is baked into the
@@ -106,6 +108,17 @@ in
             --replace-fail \
               'Math.min(1500 * Math.pow(2, Math.max(0, fprint.errorTries - 1)), 30000)' \
               'Math.min(1500 * Math.pow(2, Math.max(0, fprint.errorTries - 1)), ${toString fprintRetryCapMs})'
+
+          # Applying an icon theme ends by SIGHUPing every process whose
+          # command line contains "gtk", meant to make GTK apps re-read
+          # settings.ini. GTK doesn't handle SIGHUP, so it kills them instead —
+          # chiefly xdg-desktop-portal-gtk. With iconThemePerMode that happens
+          # on every light/dark transition, right as the portal should be
+          # announcing the new color-scheme, so Firefox missed each change
+          # and stayed one mode behind. GTK apps get the icon theme live
+          # through the portal anyway.
+          substituteInPlace ../quickshell/Common/SettingsData.qml \
+            --replace-fail "pkill -HUP -f 'gtk' 2>/dev/null || true" "true"
 
           # nixpkgs' preBuild has already run `make sync-shell` once, and the
           # copy it left behind carries the store's read-only permissions — so
@@ -158,7 +171,23 @@ in
       # at verify time, through fprintd, where the gate is re-evaluated on every
       # attempt. A denied attempt then falls back to the password field, which
       # is the intended behaviour rather than a permanent capability loss.
-      environment.DMS_FORCE_FPRINT_AVAILABLE = "1";
+      environment = {
+        DMS_FORCE_FPRINT_AVAILABLE = "1";
+
+        # The shell runs on the qtengine Qt platform theme rather than the
+        # session's gtk3 one. Tray icons are resolved by Qt's own icon loader,
+        # and gtk3 only reports an icon theme once, at startup (from
+        # settings.ini, which home-manager no longer writes it to), so the tray
+        # neither followed the light/dark switch nor found Papirus at all.
+        # qtengine watches ~/.config/qtengine/config.json, which DMS rewrites
+        # with the per-mode icon theme on every transition. Only this unit:
+        # other Qt apps stay on gtk3. See docs/theme.md.
+        QT_QPA_PLATFORMTHEME = "qtengine";
+        QT_QPA_PLATFORMTHEME_QT6 = "qtengine";
+        # Replaces the inherited value, so the user profile is spelled out
+        # again (%u expands to the user name in a user unit).
+        QT_PLUGIN_PATH = "${pkgs.unstable.qtengine}/lib/qt-6/plugins:/etc/profiles/per-user/%u/lib/qt-6/plugins";
+      };
 
       serviceConfig.ExecStartPre = pkgs.writeShellScript "dms-wait-for-wayland" ''
         for _ in $(${pkgs.coreutils}/bin/seq 100); do

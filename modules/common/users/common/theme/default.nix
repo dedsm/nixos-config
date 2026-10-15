@@ -1,3 +1,5 @@
+# Light/dark switching for everything DMS does not theme itself: foot, tmux,
+# and the dconf keys after an activation. See docs/theme.md.
 {
   lib,
   pkgs,
@@ -59,48 +61,27 @@ let
     source-file ${tmuxDarkCustom}
   '';
 
-  # The two dconf keys every portal-aware app ultimately reads: xdg-desktop-portal-gtk
-  # exposes them over org.freedesktop.portal.Settings, and Firefox/Electron follow that.
-  # Nothing else in this repo may declare them statically — see the note in
-  # modules/common/users/common/defaults/common/default.nix.
-  # `run` is "$DRY_RUN_CMD …" from the activation script below, the only caller.
-  # DMS writes these two keys itself on every theme build (adw-gtk3/adw-gtk3-dark,
-  # not the Adwaita pair); this exists to put them back after an activation.
-  # `|| true` matters on the activation path: home-manager activation runs under
-  # `set -eu`, and a theme write that can't reach a bus must not fail the whole rebuild.
-  gtkModeSettings = run: scheme: theme: ''
+  # The mode-dependent dconf keys DMS owns; nothing may declare them statically
+  # (docs/theme.md, "The one rule"). The icon theme names must match
+  # iconThemeLight/iconThemeDark in the dms module. `|| true`: activation runs
+  # under `set -eu`, and a write that can't reach a bus must not fail it.
+  gtkModeSettings = run: scheme: theme: icons: ''
     ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/color-scheme "'${scheme}'" || true
     ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'${theme}'" || true
+    ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/icon-theme "'${icons}'" || true
   '';
 
-  # The active mode, as a word in a file. Written by the matugen template below
-  # on every theme change, which makes it readable without a session bus — the
-  # activation scripts run from home-manager-<user>.service, which has none, and
-  # `dms ipc` would fail there and silently read as light. Missing means "not
-  # switched yet this install": treat that as dark, the default DMS starts in.
+  # The current mode as a word in a file, written by the `theme-mode` template
+  # on every transition. Readable without a session bus, which activation lacks
+  # (`dms ipc` would fail there and read as light). Missing means dark.
   modeFile = "$HOME/.local/state/theme/mode";
 
-  # Template inputs for the mode marker. matugen picks one by the active
-  # scheme (`input_path_modes`), so the file is always the mode it just built.
   modeDark = pkgs.writeText "theme-mode-dark" "dark\n";
   modeLight = pkgs.writeText "theme-mode-light" "light\n";
 
-  # foot re-reads its config on SIGUSR1/SIGUSR2, which also select the
-  # [colors-dark]/[colors-light] section (foot 1.27). Its colours are declared
-  # in Nix rather than generated, so DMS's own foot template stays off and this
-  # is the whole of the switch.
-  #
-  # Running instances are signalled; instances started *later* need the mode in
-  # their config, because `initial-color-theme` only takes a literal `dark` or
-  # `light` — foot has no "follow the system" value, and a foot launched while
-  # the system is dark would otherwise paint light and be corrected by the zsh
-  # hook a moment later. So the same hook writes the one-line include that
-  # foot.ini pulls in (see the `defaults` module).
-  #
-  # Written via a temporary file and `mv`, which is atomic within $HOME: a foot
-  # started mid-write must never see a truncated include, because a config file
-  # it cannot parse is a *fatal* error (`foot --check-config` exits 230) rather
-  # than a fallback to defaults.
+  # Switches running foot instances (SIGUSR1 dark, SIGUSR2 light) and rewrites
+  # the include new ones start from, atomically — see docs/theme.md, "foot and
+  # tmux".
   footModeInclude = "$HOME/.config/foot/mode.ini";
   footSignal = pkgs.writeShellScript "theme-foot-signal" ''
     if [ "$(${pkgs.coreutils}/bin/cat "${modeFile}" 2>/dev/null)" = "light" ]; then
@@ -120,8 +101,7 @@ let
     fi
   '';
 
-  # tmux cannot be signalled: every running server has to be told to re-source
-  # the file matugen just rewrote.
+  # tmux cannot be signalled: every running server re-sources the new file.
   tmuxReload = pkgs.writeShellScript "theme-tmux-reload" ''
     theme="$HOME/.local/state/tmux/current-theme.conf"
     [ -f "$theme" ] || exit 0
@@ -138,8 +118,6 @@ in
   };
 
   config = mkIf cfg.enable {
-    # theme-get reads the marker file rather than asking DMS, so it also works
-    # in a tty or before the shell is up (zsh calls it from every foot startup).
     home.packages = mkIf isLinux [
       (pkgs.writeShellScriptBin "theme-get" ''
         if ${isDarkNow}; then echo dark; else echo light; fi
@@ -149,68 +127,21 @@ in
       '')
     ];
 
-    # DMS merges the [templates] section of this file into the matugen config it
-    # generates (settings.runUserMatugenTemplates), so these render — and their
-    # post_hooks run — on every theme change and every light/dark flip. That is
-    # what replaced darkman's transition scripts.
-    #
-    # Neither template's colours come from matugen: this palette is Solarized,
-    # declared above, and only the *mode* moves. `input_path_modes` picks the
-    # file for the scheme matugen just built, which is why no hook has to work
-    # out which mode it is in.
-    #
-    # `input_path` is repeated even though `input_path_modes` supersedes it:
-    # matugen's Template struct declares it non-optional (src/template.rs), so
-    # a template carrying only the modes fails to deserialise — and that is a
-    # *config-level* failure, which silently takes every other template down
-    # with it, DMS's own foot and GTK ones included.
-    # Lets GTK3 read `gtk-theme` and `color-scheme` from the portal, which it
-    # otherwise never does: GTK3 takes its theme from gtk-3.0/settings.ini and
-    # XSettings, and consults the portal only when `gdk_should_use_portal()` is
-    # true — inside a Flatpak/snap, or with this set. A Wayland session runs no
-    # XSettings daemon, so without it GTK3 sees no theme name at all.
-    #
-    # This is an improvement, *not* what makes GTK3 dark. The `dank-colors.css`
-    # import in `gtk.gtk3.extraCss` already does that, by redefining the named
-    # colours Adwaita resolves through (verified on a live pinentry prompt: dark
-    # with this variable still absent from the session). What this adds is the
-    # real adw-gtk3-dark instead of light Adwaita with dark colours substituted,
-    # covering what Adwaita hardcodes outside those names — borders, shadows,
-    # symbolic icon recolouring, widgets that branch on the dark flag.
-    #
-    # 3.24.38 taught GTK3 to read `org.freedesktop.appearance color-scheme` as
-    # well as `gtk-theme`, and nixpkgs is on 3.24.52, so this carries both the
-    # adw-gtk3/adw-gtk3-dark name and the prefer-dark hint.
-    #
-    # It costs a relogin: uwsm sources this at session start, so a rebuild alone
-    # does not export it.
-    #
-    # `uwsm/env` rather than `uwsm/env-hyprland`: uwsm sources the bare file for
-    # every compositor and the suffixed one only for the compositor it names,
-    # and nothing about this is Hyprland's business. It also has to reach
-    # processes nobody launches from a shell — the prompter is D-Bus activated —
-    # which is exactly what uwsm's env gives it, by way of the systemd user
-    # manager's environment and from there the D-Bus activation environment.
-    #
-    # It has one visible side effect: GTK3 file choosers become portal file
-    # choosers. That is the same dialog the rest of the desktop already uses.
+    # Lets GTK3 read the theme keys from the portal (docs/theme.md,
+    # "GTK_USE_PORTAL=1 is an improvement, not a prerequisite"). Takes effect
+    # at the next login.
     xdg.configFile."uwsm/env" = mkIf isLinux {
       text = ''
         export GTK_USE_PORTAL=1
       '';
     };
 
+    # Merged by DMS into every matugen run (runUserMatugenTemplates), so the
+    # post_hooks fire on each transition. Only the mode moves; the colours are
+    # Solarized, not matugen's. Both traps in this file — the bare header and
+    # the required `input_path` — are in docs/theme.md.
     xdg.configFile."matugen/config.toml" = mkIf isLinux {
       text = ''
-        # The bare table header below matters, and nothing above it may repeat
-        # it. DMS merges this file by finding that header as a literal
-        # substring and copying from there to the end of the file
-        # (extractTOMLSection, core/internal/matugen/matugen.go): a dotted
-        # sub-table header does not match it, so without a bare one the whole
-        # section is silently dropped — matugen still reports success, having
-        # rendered only DMS's own templates. Equally, writing the header text
-        # in a comment first makes the copy start mid-comment and matugen fails
-        # to parse its own config.
         [templates]
 
         [templates.theme-mode]
@@ -227,10 +158,6 @@ in
       '';
     };
 
-    # Neovim needs nothing here: its TUI queries the terminal background (OSC 11)
-    # at startup and sets 'background' itself, so it follows foot.
-
-    # We can also export these colors as environment variables or files if needed
     home.file = mkMerge [
       {
         ".colorscheme-palette".text = builtins.toJSON colors;
@@ -250,8 +177,7 @@ in
               THEME="${solarizedLightTheme}"
             fi
 
-            # A real file, not a symlink: the same path is matugen's output on
-            # Linux, and keeping both platforms identical avoids surprises.
+            # A real file, not a symlink, as on Linux.
             ${pkgs.coreutils}/bin/rm -f $HOME/.local/state/tmux/current-theme.conf
             ${pkgs.coreutils}/bin/install -m 0644 "$THEME" $HOME/.local/state/tmux/current-theme.conf
 
@@ -278,10 +204,8 @@ in
       };
     };
 
-    # Seeds the file tmux sources at startup, for servers started before the
-    # first theme flip of the boot. Copied rather than symlinked on purpose:
-    # matugen owns this path afterwards and opens it with O_TRUNC, which
-    # follows a symlink straight into the read-only store and fails.
+    # Seeds the file tmux sources at startup. A copy, not a symlink: matugen
+    # later opens it with O_TRUNC, which would hit the read-only store.
     home.activation.initTmuxTheme = ''
       $DRY_RUN_CMD mkdir -p $HOME/.local/state/tmux
       if ${
@@ -295,16 +219,12 @@ in
         theme=${solarizedLightTheme}
       fi
       # Not behind $DRY_RUN_CMD: bash decides a word is an assignment before
-      # expanding it, so `$DRY_RUN_CMD theme=...` runs the assignment as a
-      # command name once DRY_RUN_CMD is empty.
+      # expanding it, so `$DRY_RUN_CMD theme=...` would run it as a command.
       $DRY_RUN_CMD rm -f $HOME/.local/state/tmux/current-theme.conf
       $DRY_RUN_CMD install -m 0644 "$theme" $HOME/.local/state/tmux/current-theme.conf
     '';
 
-    # foot.ini `include`s this, and a missing include stops foot starting at
-    # all, so it is seeded here as well as written by the theme hook — the
-    # generated file has to exist from the first activation, before any theme
-    # change has happened.
+    # foot.ini includes this, and a missing include stops foot starting.
     home.activation.initFootThemeInclude = mkIf isLinux ''
       $DRY_RUN_CMD mkdir -p $HOME/.config/foot
       if ${isDarkNow}; then
@@ -316,24 +236,16 @@ in
         > $HOME/.config/foot/mode.ini
     '';
 
-    # home-manager's `dconf load` runs on every activation, and its dconf-cleanup pass
-    # resets keys that a generation stopped managing back to their (light) schema
-    # defaults. Either one bumps the dconf shm invalidation flag, so live apps re-read
-    # the light value the next time they repaint — which is why a mid-afternoon rebuild
-    # used to knock Firefox/Slack back to light minutes after darkman had switched them.
-    # Re-assert the mode DMS actually wants, ordered after home-manager's own write.
-    # NOTE: the DAG entry is spelled out rather than built with `lib.hm.dag.entryAfter`.
-    # modules/common/default.nix `import`s these files with the NixOS `lib`, so the
-    # home-manager extensions (`lib.hm`) are not in scope here.
+    # Puts the DMS-owned dconf keys back after home-manager's `dconf load` and
+    # dconf-cleanup (docs/theme.md, "The activation guard"). Written out
+    # longhand because these files are imported with the NixOS `lib`, which has
+    # no `lib.hm.dag`.
     home.activation.reassertColorScheme = mkIf isLinux {
       after = [ "dconfSettings" ];
       before = [ ];
       data = ''
-        # `dconf write` needs a session bus. home-manager-<user>.service has none, so
-        # prefer the live user bus when the session is up — writing on the real bus lets
-        # xdg-desktop-portal-gtk emit SettingChanged and apps repaint immediately instead
-        # of waiting for their next dconf read. Fall back to a throwaway bus otherwise
-        # (the write still lands in the database, which is what matters at boot).
+        # Prefer the live session bus so apps repaint now; fall back to a
+        # throwaway one at boot, where only the database write matters.
         reassertBus=""
         if [ -z "''${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
           if [ -S "/run/user/$(${pkgs.coreutils}/bin/id -u)/bus" ]; then
@@ -344,9 +256,9 @@ in
         fi
 
         if ${isDarkNow}; then
-        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-dark" "adw-gtk3-dark"}
+        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-dark" "adw-gtk3-dark" "Papirus-Dark"}
         else
-        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-light" "adw-gtk3"}
+        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-light" "adw-gtk3" "Papirus-Light"}
         fi
       '';
     };
