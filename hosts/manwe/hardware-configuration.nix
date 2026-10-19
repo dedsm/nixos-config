@@ -57,6 +57,8 @@
     "ttm.page_pool_size=26214400"
   ];
 
+  boot.extraModprobeConfig = "options iwlwifi amsdu_size=3";
+
   boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
   boot.blacklistedKernelModules = [ "hid_sensor_hub" ];
