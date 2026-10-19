@@ -7,61 +7,6 @@
 with lib;
 let
   cfg = config.dedsm.dms;
-
-  # Seconds pam_fprintd waits for a finger before it gives up on one verify.
-  #
-  # Upstream's bundled stack (`assets/pam/fprint`, the one DMS's parallel
-  # fingerprint context runs) passes no `timeout=`, so pam_fprintd uses its own
-  # default of 30s and then returns PAM_AUTHINFO_UNAVAIL. DMS reads that as
-  # `PamResult.Error` and re-arms on an exponential backoff —
-  # `Math.min(1500 * 2^(errorTries - 1), 30000)` in Modules/Lock/Pam.qml — whose
-  # counter is only reset by `checkAvail()`, which runs when the lock *opens*
-  # and on a settings change, never on wake or on activity. So within about two
-  # minutes of a lock the backoff saturates and the reader settles into 30s
-  # armed, 30s dead, forever: touching the sensor is a coin flip, which is
-  # exactly what "the fingerprint is unreliable" looks like from the outside.
-  #
-  # The longer per-attempt timeout is the load-bearing half of the fix, because
-  # it removes the *error* rather than the response to one. 10 minutes takes the
-  # duty cycle from 50% to 95%. The timer restarts after each no-match, so with
-  # `max-tries=5` a context can live up to 50 minutes.
-  #
-  # What it costs: the polkit gate is checked on `VerifyStart`, so an attempt
-  # armed just before a fingerprint-policy window lapses stays valid until it
-  # ends — a tail of at most this long on windows measured in 48 and 156 hours.
-  # See docs/login-flow.md.
-  #
-  # Not `timeout=-1`, which pam_fprintd(8) documents as "always active while
-  # this module is loaded" and which would otherwise be the exact fit: with no
-  # timeout there is never a second `VerifyStart`, so on a machine nobody
-  # touches the gate would be consulted once at lock time and never again, and
-  # a laptop locked before the window lapsed would keep accepting fingerprints
-  # straight through it. A bounded tail is the whole point.
-  fprintTimeout = 600;
-
-  # Milliseconds the backoff above is allowed to reach, replacing upstream's
-  # 30000. The sequence becomes 1.5s, 3s, 3s, … between `fprintTimeout`-long
-  # armed windows: a 99.5% duty cycle rather than 95%, and no 30-second hole an
-  # hour into a lock.
-  #
-  # This is only safe *together* with the long timeout. On its own it would be a
-  # downgrade: the retry budget is 200 per lock cycle (`errorTries < 200`,
-  # Pam.qml), and at upstream's 30s timeout a 3s cap spends all 200 in under two
-  # hours, so a laptop locked over lunch comes back with the reader switched off
-  # entirely. At 600s per attempt the same 200 covers ~33 hours, past the point
-  # `dedsm.fingerprintPolicy.maxTimeSinceUnlock` demands a password anyway.
-  #
-  # The budget does burn faster in the one case that fails *instantly* — a gate
-  # denial, or a missing reader — where 200 retries now take ~10 minutes instead
-  # of ~1.7 hours. Nothing is lost by giving up sooner there: within a single
-  # lock cycle a denial is monotonic. Both clocks only move forward, and the
-  # failure counter is cleared only by a password authentication, which ends the
-  # lock. There is no state to wait around for.
-  #
-  # Anchored to an arithmetic expression in a QML file, so it is the fragile
-  # half of this override — `--replace-fail` turns an upstream edit into a build
-  # failure rather than a silent no-op, which is the intended outcome.
-  fprintRetryCapMs = 3000;
 in
 {
   options.dedsm.dms = {
@@ -79,36 +24,26 @@ in
   config = mkIf cfg.enable {
     programs.dms-shell = {
       enable = true;
-      # 26.05 ships 1.4.6; unstable is 1.6.2. Upstream's own flake runs ahead,
+      # 26.05 ships 1.4.6; unstable is 1.6.3. Upstream's own flake runs ahead,
       # but mixing its package with this module drops some dependency wiring,
       # so track nixpkgs on both.
       #
-      # Three patches on top. Two are aimed at the lock screen's fingerprint
-      # path: a `timeout=` on the bundled PAM stack, and a shorter cap on the
-      # retry backoff that timeout feeds. See the comments on `fprintTimeout`
-      # and `fprintRetryCapMs` above. The third drops a `pkill -HUP -f 'gtk'`
-      # that ends every icon-theme apply — see the comment at the patch. All
-      # three are explained in docs/dms.md.
+      # One patch on top: it drops a `pkill -HUP -f 'gtk'` that ends every
+      # icon-theme apply — see the comment at the patch and docs/dms.md. (Two
+      # fingerprint patches used to sit here too; 1.6.3 fixed the same bug
+      # upstream, see docs/dms.md.)
       #
-      # These patch the *source* tree and re-run `make sync-shell`, rather than
+      # This patches the *source* tree and re-runs `make sync-shell`, rather than
       # editing the installed tree. As of 1.6.x the QML shell is baked into the
       # Go binary — nixpkgs builds with the `withshell` tag, and `sync-shell`
       # copies `quickshell/` into `core/internal/shellembed/dist` for `go:embed`
       # — so `$out/share/quickshell` no longer exists and a postInstall
       # substitution has nothing to bite on. `sync-shell` is `rm -rf` plus a
-      # fresh copy, so re-running it after the edits is safe and, importantly,
+      # fresh copy, so re-running it after the edit is safe and, importantly,
       # recomputes the `.dankrev` content hash the shell keys its extracted
       # copy on; patching the embed dir in place would leave that stale.
       package = pkgs.unstable.dms-shell.overrideAttrs (old: {
         preBuild = (old.preBuild or "") + ''
-          substituteInPlace ../quickshell/assets/pam/fprint \
-            --replace-fail 'max-tries=' 'timeout=${toString fprintTimeout} max-tries='
-
-          substituteInPlace ../quickshell/Modules/Lock/Pam.qml \
-            --replace-fail \
-              'Math.min(1500 * Math.pow(2, Math.max(0, fprint.errorTries - 1)), 30000)' \
-              'Math.min(1500 * Math.pow(2, Math.max(0, fprint.errorTries - 1)), ${toString fprintRetryCapMs})'
-
           # Applying an icon theme ends by SIGHUPing every process whose
           # command line contains "gtk", meant to make GTK apps re-read
           # settings.ini. GTK doesn't handle SIGHUP, so it kills them instead —

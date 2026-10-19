@@ -189,15 +189,13 @@ So the window is re-evaluated at exactly the moments that matter, **without
 restarting the locker**: a locker that has been up since before the window
 lapsed simply stops accepting fingerprints.
 
-The granularity of that re-evaluation is one `VerifyStart`, and this repo
-lengthens the attempt behind it: DMS's bundled fingerprint stack carries a
-`timeout=600` patched in by `modules/nixos/dms` (along with a shorter retry
-backoff), because without it the reader spends half of every lock unclaimed
-(the whole story is in
+The granularity of that re-evaluation is one `VerifyStart`, i.e. one attempt
+on DMS's bundled fingerprint stack, which carries `timeout=90` and re-arms as
+soon as an attempt expires (since 1.6.3; before that the reader spent half of
+every lock unclaimed, see
 [`dms.md`](./dms.md#the-fingerprint-reader-was-dead-half-the-time)). So an
 attempt armed just before a window lapses stays usable until it ends — a tail
-of at most ten minutes on windows of 48 and 156 hours, which is the price of a
-reader that answers when it is touched.
+of at most 90 seconds on windows of 48 and 156 hours.
 
 Three things that are easy to get wrong here:
 
@@ -225,7 +223,7 @@ else records one — and the next section is why that matters.
 
 **Symptom.** After a resume the reader does nothing. `fingerprint-status -v`
 reports hours of window left, the journal shows no policy denial, the lock
-screen retries silently every three seconds, and only the password gets you in.
+screen retries silently, and only the password gets you in.
 Nothing short of a new fprintd process fixes it.
 
 Reconstructed from the journal of 2026-09-16:
@@ -243,7 +241,8 @@ Reconstructed from the journal of 2026-09-16:
 
 The chain:
 
-1. The lock screen always has a verify armed (`timeout=600`, see
+1. The lock screen always has a verify armed (it re-arms as each one
+   expires, see
    [`dms.md`](./dms.md#the-fingerprint-reader-was-dead-half-the-time)), so a
    suspend nearly always interrupts one.
 2. On `PrepareForSleep` libfprint cancels that action with
@@ -288,7 +287,7 @@ any useful sense: the wedge is already in place by then — it happens at
 `PrepareForSleep`, before the sleep targets start — so an early stop would have
 to beat the locker's next retry to be worth anything. The price of doing it on
 resume is one lost attempt for a claim in flight at that moment; the locker
-re-arms 3s later.
+re-arms 1.5s later.
 
 **Stopping the daemon under a live lock screen is safe**, which is not obvious
 — the lock survives the suspend, so something *is* holding the reader at the
@@ -298,11 +297,11 @@ lose: every attempt is a fresh `pam_fprintd` subprocess (`Starting pam session
 and the suspend has already cancelled the armed one — so the locker is sitting
 in its retry loop when the machine comes back, not waiting on a verify. And if
 a stop does land on a healthy armed verify, `pam_fprintd` does not sit out its
-ten-minute timeout: it matches `NameOwnerChanged` for `net.reactivated.Fprint`,
+90-second timeout: it matches `NameOwnerChanged` for `net.reactivated.Fprint`,
 and the name vanishing becomes `PAM_AUTHINFO_UNAVAIL` on the next
 `sd_bus_process`. DMS reads that as `PamResult.Error`, and `errorRetry` re-arms
-within 3s (`Modules/Lock/Pam.qml`). The only way nothing re-arms is the
-200-error budget being spent, which after a resume is single digits in.
+1.5s later (`Modules/Lock/Pam.qml`). The only way nothing re-arms is the
+200-error budget being spent, and DMS resets that counter on every resume.
 
 ### What the lock screen shows
 
@@ -315,7 +314,8 @@ as though the sensor were usable, and nothing on screen says why it is not.
 
 The lit icon means the same lack of feedback covers two further, unrelated
 states: the gaps between attempts, when nothing is claiming the reader at all —
-what made fingerprint unlock feel intermittent rather than merely gated, see
+what made fingerprint unlock feel intermittent rather than merely gated, until
+DMS 1.6.3 closed them, see
 [`dms.md`](./dms.md#the-fingerprint-reader-was-dead-half-the-time) — and a
 daemon wedged by a suspend (above). `fingerprint-status` narrows it to those
 two: it is silent when the policy is open, so a silent status plus a sensor

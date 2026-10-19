@@ -17,29 +17,28 @@ Two modules configure it:
 `programs.dms-shell` is a **nixpkgs** module; there is no home-manager module in nixpkgs, which is
 why the settings file is written with plain `xdg.configFile`. Upstream also ships its own flake
 with both, but mixing its package with the nixpkgs module drops some dependency wiring, so both
-come from nixpkgs here. The package is taken from `unstable` (1.6.2) because 26.05 is a release
+come from nixpkgs here. The package is taken from `unstable` (1.6.3) because 26.05 is a release
 behind (1.4.6); `quickshell` comes from stable, which satisfies DMS's ">= 0.3.0".
 
-One `overrideAttrs` sits on top, carrying three patches. Two are to the lock screen's fingerprint
-path — a `timeout=` on the bundled PAM stack and a lower cap on the retry backoff — for the reason in
-[the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time). The third removes the
+One `overrideAttrs` sits on top, carrying one patch: it removes the
 `pkill -HUP -f 'gtk'` that ends `updateGtkIconTheme` in `Common/SettingsData.qml`. It was meant to
 make GTK apps re-read `settings.ini`, but GTK does not handle SIGHUP, so it *kills* every process
 whose command line contains "gtk" — chiefly `xdg-desktop-portal-gtk`. With `iconThemePerMode` on
 (see [`theme.md`](./theme.md#the-icon-theme-is-a-third-dms-owned-key)) that ran on every light/dark
 transition, at the very moment the portal should have been broadcasting the new `color-scheme`, so
 Firefox missed each change and sat one mode behind — dark in light mode and vice versa. GTK apps
-already get the icon theme live through the portal. All three use `--replace-fail`, so an upstream
-change to any anchor is a build error rather than a silent no-op. Nothing else about the package is
-patched.
+already get the icon theme live through the portal. It uses `--replace-fail`, so an upstream
+change to the anchor is a build error rather than a silent no-op. Nothing else about the package is
+patched. (Up to 1.6.2 there were two more, on the fingerprint path; 1.6.3 fixed that bug upstream —
+see [the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time).)
 
-**All three patches run in `preBuild`, against the source tree, and then re-run `make sync-shell`.** As
+**The patch runs in `preBuild`, against the source tree, and then re-runs `make sync-shell`.** As
 of 1.6.x the QML shell is no longer installed as files: nixpkgs builds with upstream's `withshell`
 tag, and `sync-shell` copies `quickshell/` into `core/internal/shellembed/dist` to be `go:embed`ed
 into the `dms` binary. `$out/share/quickshell` does not exist any more, so the `postInstall`
 substitutions these started life as had nothing to bite on — which is exactly how the 1.5.3 → 1.6.2
 bump announced itself, as `substitute(): ERROR: file ... does not exist`. Re-running `sync-shell` is
-safe (it is an `rm -rf` plus a fresh copy) and is what keeps the edits honest: it recomputes the
+safe (it is an `rm -rf` plus a fresh copy) and is what keeps the edit honest: it recomputes the
 `.dankrev` content hash that names the directory the shell extracts itself into at runtime
 (`$XDG_RUNTIME_DIR/dms-shell/<dankrev>/`). Editing the embed dir in place would leave that hash
 stale and let a previously-extracted copy win. The re-run needs a `chmod -R u+w` first, because
@@ -162,10 +161,24 @@ time, where the gate is re-evaluated per attempt. See [`login-flow.md`](./login-
 
 ### The fingerprint reader was dead half the time
 
+**Fixed upstream in 1.6.3; this repo patched it locally until then.** Kept because the symptom is
+easy to mistake for the policy.
+
 Symptom: fingerprint unlock "works sometimes". `fingerprint-status -v` says the window is wide
 open, the journal shows no polkit denial, and yet touching the sensor often does nothing at all.
 
-It is not the policy. It is a duty cycle, and the log reads it out plainly — one lock cycle, a
+It was not the policy but a duty cycle. Up to 1.6.2, three upstream behaviours composed into it:
+
+1. `assets/pam/fprint` passed no `timeout=`, so pam_fprintd gave up on a verify after its default
+   30 seconds and returned `PAM_AUTHINFO_UNAVAIL`.
+2. DMS classified that as `PamResult.Error` — not "nobody touched it" — and re-armed on an
+   exponential backoff capped at 30 seconds (`Modules/Lock/Pam.qml`).
+3. `errorTries` was reset only when the lock opened and on a settings change — not on wake, on
+   activity, or on a keypress.
+
+So roughly two minutes into any lock the sensor settled into 30s armed, 30s unclaimed,
+indefinitely, with the fingerprint icon lit either way (see
+[`login-flow.md`](./login-flow.md#what-the-lock-screen-shows)). The journal showed it as a
 `Starting pam session ... with config "fprint"` every 60 seconds and a `Verification timed out`
 exactly 30 seconds after each:
 
@@ -173,69 +186,26 @@ exactly 30 seconds after each:
 journalctl -b -S "-2h" | grep -E 'Starting pam session|timed out|Failed to match|Screen lock active'
 ```
 
-Three upstream behaviours compose into it:
+This repo worked around it with `timeout=600` on the PAM stack and the backoff cap lowered to 3s,
+which got the duty cycle to ~99.5%, but neither knob touched the actual defect: a timeout with
+nobody present is not an error. 1.6.3 fixes exactly that, which is why both patches are gone:
 
-1. `assets/pam/fprint` passes no `timeout=`, so **pam_fprintd gives up on a verify after its
-   default 30 seconds** and returns `PAM_AUTHINFO_UNAVAIL`.
-2. DMS classifies that as `PamResult.Error` — not "nobody touched it" — and re-arms on an
-   exponential backoff, `Math.min(1500 * 2^(errorTries - 1), 30000)` (`Modules/Lock/Pam.qml`).
-3. `errorTries` is reset only by `checkAvail()`, which runs when the lock **opens** and on a
-   settings change. Nothing resets it on wake, on activity, or on a keypress.
+- The bundled stack now passes `max-tries=1 timeout=90`, and `Pam.qml` mirrors it in
+  `sessionTimeoutMs`.
+- An `Error` from a context that lived out (nearly) that timeout — measured from pam_fprintd's
+  first message, so a slow claim cannot pass for one — is treated as an expiry: `errorTries` is
+  reset and a new attempt starts at once. The reader is armed for the whole lock, minus the
+  re-claim.
+- Genuine faults retry on a fixed schedule — 1.5s, then 35s (past fprintd's 30s idle exit, so a
+  daemon wedged by a suspend has gone away), then every 60s, 200 times — and `recover()` resets the
+  counter on resume, lid open and lock-screen activity.
 
-So roughly two minutes into any lock the backoff saturates at its 30-second cap and stays there:
-the sensor is armed 30s, then unclaimed 30s, indefinitely. Walk up to the machine and it is a coin
-flip whether anything is listening. Nothing on screen distinguishes the two halves — the
-fingerprint icon is lit either way (see [`login-flow.md`](./login-flow.md#what-the-lock-screen-shows)).
-
-The `overrideAttrs` in `modules/nixos/dms` patches both halves: `timeout=600` on the PAM stack, and
-the backoff cap lowered from 30000 to 3000 ms.
-
-`timeout=600` is the load-bearing one, because it removes the *error* rather than the response to
-one. pam_fprintd restarts the timer after each no-match, so with `max-tries=5` one context can live
-up to 50 minutes. The cap then closes the gaps between contexts, and the sequence becomes 1.5s, 3s,
-3s, … between ten-minute armed windows.
-
-| | armed | gap (saturated) | duty | 200-retry budget |
-| --- | --- | --- | --- | --- |
-| upstream | 30s | 30s | 50% | 3.3h |
-| `timeout=600` only | 600s | 30s | 95% | 35h |
-| 3s cap only | 30s | 3s | 91% | **1.8h** |
-| both (here) | 600s | 3s | 99.5% | 33.5h |
-
-**The cap is only safe alongside the long timeout.** DMS allows 200 retries per lock cycle
-(`errorTries < 200`, `Pam.qml`), and at upstream's 30-second timeout a 3-second cap spends all 200
-in under two hours — a laptop locked over lunch would come back with the reader switched off
-entirely. At 600s per attempt the same budget covers ~33 hours, past the point
-`dedsm.fingerprintPolicy.maxTimeSinceUnlock` demands a password anyway.
-
-The budget does burn faster in the cases that fail **instantly** — a gate denial, a missing reader,
-or an fprintd wedged by a suspend
-([`login-flow.md`](./login-flow.md#when-it-is-not-the-policy-fprintd-wedged-by-a-suspend)) — where
-200 retries take ~10 minutes rather than ~1.7 hours. Nothing is lost by giving up sooner there:
-within a lock cycle a denial is monotonic. Both clocks only move forward, and the failure counter
-is cleared only by a password authentication, which ends the lock. There is no state to wait for.
-The wedge is the one that could have outlasted the budget, and does not: it is repaired at the
-moment of resume, before the lock screen is looked at.
-
-Two things belong on the record:
-
-- **The gate tail.** polkit is consulted on `VerifyStart`, so an attempt armed just before a policy
-  window lapses stays usable until it ends — at most ten minutes, on windows of 48 and 156 hours.
-  This is also why the stack does *not* use `timeout=-1`, which `pam_fprintd(8)` documents as
-  "always active while this module is loaded" and which otherwise fits exactly: with no timeout
-  there is never a second `VerifyStart`, so on an untouched machine the gate would be consulted
-  once at lock time and never again.
-- **The QML anchor is the fragile half.** `assets/pam/fprint` is six lines and nixpkgs already
-  patches it; the cap is anchored to an arithmetic expression inside a 560-line QML file upstream
-  refactors freely. `--replace-fail` makes that a build failure rather than a silent no-op, which
-  is the intended outcome — re-derive the expression and move on. The *paths* are the other moving
-  part: they follow upstream's build layout, which is why 1.6.x's move to an embedded shell turned
-  both into `preBuild` edits (see [Packaging](#packaging)).
-
-Neither knob addresses the actual defect, which is upstream's: a timeout with **nobody present** is
-not an error, and `Pam.qml:298` counts it as one. The principled fix is to record when a context
-started and reset `errorTries` in the `Error` branch when it lived long enough to have been a
-genuine timeout. That is a multi-line change and belongs upstream, not in a `substituteInPlace`.
+The policy gate's tail shrinks with it. polkit is consulted on `VerifyStart`, so an attempt armed
+just before a policy window lapses stays usable until it ends: now at most 90 seconds, against
+windows of 48 and 156 hours. (This is also why `timeout=-1`, which `pam_fprintd(8)` documents as
+"always active while this module is loaded", would be wrong here: with no timeout there is never a
+second `VerifyStart`, so on an untouched machine the gate would be consulted once at lock time and
+never again.)
 
 A no-match is a different thing and is not a bug: `Failed to match fingerprint` in the log means
 the sensor *did* read a finger and rejected it, and it counts against both `maxFprintTries` and the
@@ -248,8 +218,8 @@ Holding a verify open pins the reader out of USB runtime suspend — measured at
 itself is **below what this machine can resolve**: system noise over a two-minute run is ~640 mW
 with ~1 W of drift between baselines, so the delta comes out as noise. The real bound is the USB
 descriptor — `bMaxPower = 100mA` on a 5 V bus, so **500 mW, ceiling**. Ten minutes at that ceiling
-is 83 mWh against a ~48 Wh pack (`charge_full` 3.119 Ah at 15.39 V), or 0.17%; the change's actual
-delta is the extra ~45% of lock time, ≈0.47%/hour worst case and realistically far less. It is zero
+is 83 mWh against a ~48 Wh pack (`charge_full` 3.119 Ah at 15.39 V), or 0.17%; holding the reader
+for the whole lock rather than half of it costs ≈0.5%/hour worst case and realistically far less. It is zero
 while suspended: fprintd takes a sleep *delay* inhibitor and releases the device before sleep, so
 none of this touches the s2idle drain floor in [`hibernation.md`](./hibernation.md).
 

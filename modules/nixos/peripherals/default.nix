@@ -46,8 +46,8 @@ in
     security.pam.services.login.fprintAuth = false;
 
     # fprintd cannot recover a reader that a suspend interrupted mid-verify,
-    # and the lock screen always has a verify armed (`timeout=600`, see
-    # docs/dms.md). On `PrepareForSleep` libfprint cancels that verify with
+    # and the lock screen always has a verify armed (DMS re-arms one as each
+    # expires, see docs/dms.md). On `PrepareForSleep` libfprint cancels that verify with
     # "Cannot run while suspended", the cancellation never drains, and from
     # there everything fails in sequence: `Release` is refused as busy, the
     # device stays claimed by a pam_fprintd that has since exited, libfprint's
@@ -62,7 +62,7 @@ in
     # before the suspend, deliberately — it keeps a service stop off the
     # suspend path, where a slow one would delay the machine going to sleep.
     # The cost is that a claim already in flight at resume loses one attempt;
-    # the locker re-arms 3s later. See docs/login-flow.md.
+    # the locker re-arms 1.5s later. See docs/login-flow.md.
     systemd.services.fprintd-reset-on-resume =
       let
         # Each of these is reached *after* its sleep operation returns, so
