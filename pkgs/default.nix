@@ -21,7 +21,7 @@ let
     # let it use its own. Note this does not remove the google-chrome
     # dependency: the wrapper still sets CHROME_BIN, preferring a
     # system-installed google-chrome-stable and falling back to the store one.
-    useSystemChromeProfile = false;
+    useUserProfile = false;
   };
 in
 {
@@ -43,9 +43,9 @@ in
   granola = unstablePkgs.callPackage ./granola { electron = unstablePkgs.electron_44; };
 
   # Google Antigravity, from the `antigravity-nix` input rather than nixpkgs:
-  # nixpkgs has no hub package at all (open PR NixOS/nixpkgs#524225) and its
-  # antigravity-ide/antigravity-cli trail the upstream releases that input
-  # tracks. Built against `unstable`, which is both the nixpkgs the upstream
+  # nixpkgs' antigravity-hub (since NixOS/nixpkgs#524225) and antigravity-cli
+  # trail the upstream releases that input tracks; see docs/antigravity.md.
+  # Built against `unstable`, which is both the nixpkgs the upstream
   # flake is CI-tested against and the only package set here with allowUnfree —
   # every Antigravity artifact is an unfree binary and the GUI packages
   # reference google-chrome.

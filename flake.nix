@@ -15,9 +15,8 @@
     };
 
     # Google Antigravity (the 2.0 "hub" app, the legacy IDE and the `agy` CLI).
-    # None of the three is in nixpkgs in a usable shape: nixpkgs has no hub at
-    # all (still an open PR, NixOS/nixpkgs#524225) and its IDE/CLI lag this
-    # repo, which bumps its pinned tarballs ~3x/week. Taken as a plain source
+    # nixpkgs has all three (the hub since NixOS/nixpkgs#524225), but they lag
+    # this repo, which bumps its pinned tarballs ~3x/week. Taken as a plain source
     # tree rather than a flake: `pkgs/default.nix` calls its package files with
     # our own `unstable` nixpkgs, so its own nixpkgs/flake-utils inputs would
     # only bloat the lock. `nix flake update antigravity-nix` is the updater.
