@@ -73,6 +73,12 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
         systemd.enable = false;
         # Hyprland 0.55 deprecated hyprlang in favor of lua; generate hyprland.lua.
         configType = "lua";
+        # Part of the xdph ba31964 patch in modules/nixos/hyprland (window
+        # capture on AMD), and removed with it — the xdph version assertion
+        # there lists this line. Left at its default this would add the stock
+        # xdph to the user profile alongside the patched one. `config` here is
+        # the system config — see modules/common/default.nix.
+        portalPackage = config.programs.hyprland.portalPackage;
         #package = hyprland.packages.${pkgs.system}.hyprland-debug;
         #package = hyprland.packages.${pkgs.system}.hyprland;
 

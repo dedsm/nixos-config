@@ -332,6 +332,14 @@ with HEVC/AV1 on AMD. It was chosen over wl-screenrec for the window entry alone
   in the rectangle the window occupied when picked. Expect a hidden window to freeze on its last
   frame: many apps stop redrawing when they think nobody can see them.
 
+  This only works because `modules/nixos/hyprland` patches xdg-desktop-portal-hyprland with upstream
+  [`ba31964`](https://github.com/hyprwm/xdg-desktop-portal-hyprland/commit/ba31964ee42b56bcb0d3b78a64ead5d8a1c3c6f6).
+  Stock xdph, up to and including 1.4.1, hands PipeWire consumers only the first plane of each
+  dma-buf. This iGPU's compositor buffers use DCC modifiers, which carry extra metadata planes, so gsr
+  could not import a single frame: "failed to create egl image with modifier 0x2000000104abb04",
+  renegotiation through each DCC modifier in turn, then "no more input formats". The same patched
+  package is the home-manager `portalPackage` too, so no stock copy is left installed. An assertion
+  fires once nixpkgs ships a release newer than 1.4.1, which may already include the fix.
 - **Region** reuses DMS's own selector through `dms screenshot region -g`, which prints the geometry
   without capturing. Its `X,Y WxH` is reformatted into gsr's slurp-style `WxH+X+Y`. Both are logical
   coordinates; gsr applies the output scale itself (`main.cpp`, `monitor_scale_inverted`), so the
