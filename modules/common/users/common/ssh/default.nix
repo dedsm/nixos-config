@@ -61,8 +61,18 @@ mkIf (homeManagerConfig.ssh.enable or false) {
   #            default, compiled into the binary the agent is still executing.
   #            A reload re-reads nothing, so the process itself has to go. It
   #            comes back on demand via the zsh hook, at the cost of dropping
-  #            cached passphrases and unlocked ssh keys — cheap next to an agent
-  #            that is silently broken.
+  #            cached passphrases — and, with the keys on a YubiKey, the card's
+  #            PIN state: killing scdaemon resets the card, and the sign and
+  #            auth PINs are verified separately, so the next ssh and the next
+  #            signed commit each prompt again (more than once, if requests
+  #            queue up behind the first pinentry). So the kill only happens
+  #            when it fixes something: when the running agent's executable is
+  #            not this generation's gnupg. pinentry is a build input of gnupg,
+  #            so a pinentry bump changes that store path too, while a rebuild
+  #            that leaves gnupg alone leaves the agent and the card unlocked.
+  #            No agent running means nothing to do (`--no-autostart`, so the
+  #            check doesn't start one); an agent whose executable can't be
+  #            read is killed, as before.
   #
   # Both verbs already exit 0 with no agent running; the `|| true` is for the
   # genuinely broken cases (an unreadable homedir, say). It matters because
@@ -74,10 +84,20 @@ mkIf (homeManagerConfig.ssh.enable or false) {
     data =
       let
         gpgconf = "${pkgs.gnupg}/bin/gpgconf";
+        gpgConnectAgent = "${pkgs.gnupg}/bin/gpg-connect-agent";
       in
       if pkgs.stdenv.isDarwin then
         ''
-          $DRY_RUN_CMD ${gpgconf} --kill gpg-agent scdaemon || true
+          gpgAgentPid=$(${gpgConnectAgent} --no-autostart 'getinfo pid' /bye 2>/dev/null \
+            | ${pkgs.gnused}/bin/sed -n 's/^D //p' || true)
+          if [ -n "$gpgAgentPid" ]; then
+            # The first `txt` entry lsof reports for a process is its executable.
+            gpgAgentBin=$(/usr/sbin/lsof -a -p "$gpgAgentPid" -d txt -Fn 2>/dev/null \
+              | ${pkgs.gnused}/bin/sed -n 's/^n//p' | ${pkgs.coreutils}/bin/head -n 1 || true)
+            if [ "$gpgAgentBin" != "${pkgs.gnupg}/bin/gpg-agent" ]; then
+              $DRY_RUN_CMD ${gpgconf} --kill gpg-agent scdaemon || true
+            fi
+          fi
         ''
       else
         ''
