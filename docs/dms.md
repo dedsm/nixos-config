@@ -240,6 +240,7 @@ moved to `dms ipc call`:
 | `CTRL+ALT+SHIFT+L` | `systemctl --user restart dms.service`, the locked-session escape hatch |
 | `Print` | `dms screenshot region --no-file` — region to clipboard, no file |
 | `CTRL+Print` | the screenshot picker, via `spotlight openQuery "#"` — see below |
+| `CTRL+SHIFT+Print` | `dms-screencast menu` — the recording picker (`openQuery "!"`), or stop-and-save while recording — see below |
 
 `dms ipc` with no arguments lists every target; the live surface is wider than upstream's
 `docs/IPC.md`.
@@ -307,6 +308,65 @@ query and anything `Component.onCompleted` starts cannot land before that query 
 it occurs only in the bundled example plugins and the docs, with no listener anywhere in the shell.
 A plugin therefore has no way to say "I have more items now", which is why the picking belongs in a
 selector after the launcher closes rather than in the list.
+
+## Screen recording
+
+The same mechanism, for video: a second launcher plugin, `dedsmScreencast`
+(`modules/common/users/common/dms/screencast-plugin/`, trigger `!`), whose entries call
+`dms-screencast`, a script the dms home-manager module puts on PATH. There is one key,
+`CTRL+SHIFT+Print`: with nothing recording it opens the picker; while a recording runs it stops it
+and saves the file. Picking any entry while a recording runs also stops it.
+
+Six entries: region, window and monitor, each **silent** or **with audio**. Copy/save, the
+screenshot picker's second axis, has no useful meaning for video, so every recording is saved, to
+`~/Downloads/screencast_<date>.mp4` beside the screenshots. "With audio" is one mixed track of the
+default output (whatever is playing) and the default input (the microphone).
+
+The recorder is **gpu-screen-recorder**, encoding H.264 on the GPU. H.264 is set explicitly because
+`auto` may choose HEVC, which browsers and Slack do not play, and gsr's own man page lists black bars
+with HEVC/AV1 on AMD. It was chosen over wl-screenrec for the window entry alone:
+
+- **Window** is `-w portal`. xdg-desktop-portal-hyprland's share dialog picks the window, and the
+  capture is tied to that window, not to a rectangle, so it keeps recording it across workspaces
+  and moves. A geometry-based recorder, the only kind wl-screenrec is, would record whatever ended up
+  in the rectangle the window occupied when picked. Expect a hidden window to freeze on its last
+  frame: many apps stop redrawing when they think nobody can see them.
+
+- **Region** reuses DMS's own selector through `dms screenshot region -g`, which prints the geometry
+  without capturing. Its `X,Y WxH` is reformatted into gsr's slurp-style `WxH+X+Y`. Both are logical
+  coordinates; gsr applies the output scale itself (`main.cpp`, `monitor_scale_inverted`), so the
+  1.33 panel needs no conversion here.
+- **Monitor** is the screenshot picker's `slurp -o -r -f '%o'`. gsr's monitor names are the DRM
+  connector names, which match Hyprland's.
+
+Region and monitor are captured off **KMS**, which needs `CAP_SYS_ADMIN`.
+`programs.gpu-screen-recorder.enable` in `modules/nixos/dms` installs `gsr-kms-server` as a setcap
+wrapper; without it, each of those recordings stops at a pkexec prompt. The cost is that any local
+process can read the screen through that wrapper. On a single-user laptop that adds little to what
+Hyprland's screencopy already gives every Wayland client.
+
+The recorder runs as the transient user unit `dms-screencast.service`, not as a child of the
+launcher. `execDetached` would leave it in `dms.service`'s cgroup, and restarting the shell, which
+every rebuild does, would kill it mid-file. The unit's properties carry the rest:
+
+- `KillSignal=SIGINT` is gsr's "stop and save", so `systemctl --user stop` finalises the file.
+- `KillMode=mixed` sends that signal to gsr alone, letting gsr tear down its `gsr-kms-server`
+  child itself.
+- `ExecStopPost` runs `dms-screencast finish` however gsr ended — stopped, crashed, or the portal
+  dialog cancelled — so there is always a closing notification ("Recording saved", with DMS's
+  Open / Open Folder actions, or "Nothing was recorded" with the journal command). The file is also
+  put on the clipboard as a `text/uri-list` file reference. That `wl-copy` runs in a transient unit
+  of its own, because wl-copy *is* the clipboard until something replaces it, and everything left in
+  a stopped unit's cgroup is killed.
+
+**Do-not-disturb** is switched on for the duration and restored afterwards: turned off again only if
+it was off before. The hyprland module's `screencast-inhibit` listener cannot do this here, because
+KMS capture bypasses the compositor and Hyprland never reports it. Window recordings go through the
+compositor, so the listener fires for those too, and its unconditional `disableDoNotDisturb` at the
+end wins over a DND you had on before. The recorder's own notifications get through DND by the
+`Screencast` entry in `notificationRules` in `settings.json`. The "Recording" notification is sent
+just after capture starts, so it shows in the first two seconds of a video whose area covers the
+notification corner.
 
 **Qt's compiled-QML disk cache must be dropped whenever the plugin changes**, which is what the
 `onChange` hook on both plugin files does. Qt validates that cache against the source file's mtime;

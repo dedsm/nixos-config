@@ -285,6 +285,9 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
           hl.bind("XF86AudioNext", hl.dsp.exec_cmd("dms ipc call mpris next"))
           hl.bind("Print", hl.dsp.exec_cmd("uwsm app -- dms screenshot region --no-file"))
           hl.bind("CTRL + Print", hl.dsp.exec_cmd("${screenshot-picker}"))
+          -- Screen recording: opens the recording picker, or stops and saves
+          -- the recording in progress (the dms module's `dms-screencast`).
+          hl.bind("CTRL + SHIFT + Print", hl.dsp.exec_cmd("dms-screencast menu"))
           hl.bind("XF86AudioMute", hl.dsp.exec_cmd("dms ipc call audio mute"))
           hl.bind(mod .. " + SHIFT + RETURN", hl.dsp.exec_cmd("uwsm app -- " .. terminal))
           hl.bind(mod .. " + SHIFT + C", hl.dsp.window.close())

@@ -206,6 +206,17 @@ in
       message = "This system is managed by Nix — change modules/nixos/dms instead.";
     };
 
+    # The screen-recording picker (`dms-screencast` in the home-manager dms
+    # module) records regions and monitors off KMS, which takes CAP_SYS_ADMIN.
+    # This installs gsr-kms-server as a setcap wrapper in /run/wrappers/bin,
+    # where the nixpkgs gpu-screen-recorder looks for it first; without it every
+    # region or monitor recording would stop at a pkexec password prompt. The
+    # trade-off is that any local process — even one with no Wayland socket —
+    # can read the screen through it. On a single-user laptop that adds little
+    # to what Hyprland's screencopy already gives every Wayland client. Window
+    # recording goes through the portal and needs none of this.
+    programs.gpu-screen-recorder.enable = true;
+
     # DMS points the `gtk-theme` dconf key at adw-gtk3/adw-gtk3-dark, and
     # patches a copy of the theme into ~/.local/share/themes. Without the theme
     # installed that key names something that doesn't exist and GTK3 apps fall
