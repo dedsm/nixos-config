@@ -31,8 +31,10 @@
       "nix-command"
       "flakes"
     ];
-    max-jobs = 4;
-    cores = 4;
+    # Same as the NixOS defaults manwe runs on: one concurrent derivation per
+    # CPU ("auto"), and each derivation's NIX_BUILD_CORES set to all CPUs (0).
+    max-jobs = "auto";
+    cores = 0;
 
     substituters = [
       "https://cache.nixos.org"
