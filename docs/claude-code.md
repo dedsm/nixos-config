@@ -47,7 +47,7 @@ runs.
 
 ## Managed settings, not owned settings
 
-`~/.claude/settings.json` is user-editable (slash commands, project state, etc.), so this module never overwrites it wholesale. Instead `default.nix` defines a `managedSettings` attrset (hooks, status line, file-suggestion command, `alwaysThinkingEnabled`, attribution, and an `env` block — see [Task tools](#task-tools) and [Web search cap](#web-search-cap)) and a `home.activation.mergeClaudeSettings` step that JSON-merges it into the existing file (`jq -s '.[0] * .[1]'`) on every `home-manager switch`. Anything Claude Code itself writes into `settings.json` survives; anything under `managedSettings` gets reasserted every rebuild. Extend it via the `extraSettings` option instead of editing the merge logic. One key is special-cased: `hooks.SessionStart` is **array-merged** rather than replaced, because herdr's integration installs its own entry there (see [`herdr.md`](./herdr.md)) — user entries survive every switch, and the managed brain-health entry is appended (deduped by command path).
+`~/.claude/settings.json` is user-editable (slash commands, project state, etc.), so this module never overwrites it wholesale. Instead `default.nix` defines a `managedSettings` attrset (hooks, status line, file-suggestion command, `alwaysThinkingEnabled`, attribution, and an `env` block — see [Task tools](#task-tools), [Web search cap](#web-search-cap) and [Telemetry](#telemetry)) and a `home.activation.mergeClaudeSettings` step that JSON-merges it into the existing file (`jq -s '.[0] * .[1]'`) on every `home-manager switch`. Anything Claude Code itself writes into `settings.json` survives; anything under `managedSettings` gets reasserted every rebuild. Extend it via the `extraSettings` option instead of editing the merge logic. One key is special-cased: `hooks.SessionStart` is **array-merged** rather than replaced, because herdr's integration installs its own entry there (see [`herdr.md`](./herdr.md)) — user entries survive every switch, and the managed brain-health entry is appended (deduped by command path).
 
 ## Task tools
 
@@ -73,6 +73,16 @@ present either way; the four above are the ones that come and go.
 `managedSettings.env` also sets `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION = "10000"`, which
 raises the number of `WebSearch` calls allowed in a single session to effectively unlimited,
 so long research sessions aren't cut off partway through.
+
+## Telemetry
+
+`managedSettings.env` sets `DISABLE_TELEMETRY = "1"` and `DISABLE_ERROR_REPORTING = "1"`, which
+stop Claude Code sending usage metrics and error reports to Anthropic
+([data usage](https://code.claude.com/docs/en/data-usage)). `DISABLE_TELEMETRY` also disables the
+session-quality survey and feature-flag evaluation, so Remote Control (and anything that relies on
+it, such as mobile push) may be unavailable. Prompts and code still go to the model;
+whether Anthropic trains on them is the account toggle at
+<https://claude.ai/settings/data-privacy-controls>, not something this module controls.
 
 ## Hooks
 

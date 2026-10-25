@@ -233,6 +233,11 @@ let
       # Raises the per-session WebSearch cap so long research sessions don't
       # hit it. See docs/claude-code.md § Web search cap.
       CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION = "10000";
+      # Opts out of usage metrics and error reports to Anthropic. Also turns
+      # off feature-flag evaluation, which can make Remote Control
+      # unavailable. See docs/claude-code.md § Telemetry.
+      DISABLE_TELEMETRY = "1";
+      DISABLE_ERROR_REPORTING = "1";
     };
   }
   // (cfg.extraSettings or { });
