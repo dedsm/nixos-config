@@ -165,6 +165,19 @@ let
     hooks = {
       Stop = [ ];
 
+      # RTK (Rust Token Killer) transparent command rewrite hook.
+      PreToolUse = [
+        {
+          matcher = "Bash";
+          hooks = [
+            {
+              type = "command";
+              command = "rtk hook claude";
+            }
+          ];
+        }
+      ];
+
       # Desktop notifications are herdr's job now: it sees every recognised
       # agent rather than just Claude Code, and `prefix+o` jumps to the pane
       # that raised one, which a shell notification popup cannot do. Leaving these hooks
