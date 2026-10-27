@@ -1,6 +1,4 @@
 attrs@{
-  nixpkgs,
-  unstable,
   home-manager,
   lib,
   mkPkgs,
@@ -38,17 +36,12 @@ attrs@{
           ];
           users.users = systemConfig.systemUsers or { };
           networking.hostName = name;
-          nix.registry = {
-            nixpkgs.flake = nixpkgs;
-            unstable.flake = unstable;
-          };
           system.stateVersion = systemConfig.stateVersion;
         }
       ]
       ++ hardwareModules
       ++ [
         ../modules/common
-        ../modules/common/fonts.nix
       ];
     };
 }

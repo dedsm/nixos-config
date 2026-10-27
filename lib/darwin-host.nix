@@ -1,6 +1,4 @@
 attrs@{
-  nixpkgs,
-  unstable,
   home-manager,
   lib,
   mkPkgs,
@@ -34,10 +32,6 @@ attrs@{
           nixpkgs.pkgs = pkgs;
           networking.hostName = name;
           users.users.${user}.home = "/Users/${user}";
-          nix.registry = {
-            nixpkgs.flake = nixpkgs;
-            unstable.flake = unstable;
-          };
           system.stateVersion = 6; # Darwin state version
 
           home-manager.useGlobalPkgs = true;
@@ -47,7 +41,6 @@ attrs@{
         }
         ../modules/darwin
         ../modules/common
-        ../modules/common/fonts.nix
       ];
     };
 }

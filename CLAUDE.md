@@ -39,8 +39,8 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │       └── hardware-configuration.nix
 ├── modules/              # Modular configuration components
 │   ├── common/             # Shared modules (both platforms)
-│   │   ├── default.nix       # Home Manager user configuration bridge
-│   │   ├── fonts.nix          # System fonts, wired into both host builders
+│   │   ├── default.nix       # Shared by both builders: nix registry, fonts.nix, the Home Manager bridge
+│   │   ├── fonts.nix          # System fonts, imported by modules/common/default.nix
 │   │   └── users/common/      # Home Manager user modules — tmux, herdr, nvim, zsh, git, hyprland,
 │   │                            dms, ghostty, theme, claude-code, playwright, antigravity,
 │   │                            agent-harness (rtk/direnv/brain skill per coding agent), ...

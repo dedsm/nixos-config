@@ -1,8 +1,13 @@
+# Shared by both host builders: system fonts, the nix registry, and the
+# home-manager bridge that turns each user config in `hc` into a
+# home-manager.users entry.
 attrs@{
   config,
   pkgs,
   lib,
   hc,
+  nixpkgs,
+  unstable,
   hyprdynamicmonitors,
   ...
 }:
@@ -21,7 +26,6 @@ let
       commonModule = import ./users/common homeAttrs;
     in
     {
-      home-manager.backupFileExtension = "home_manager_bak";
       home-manager.users.${k} = lib.mkMerge [
         commonModule
         {
@@ -31,13 +35,22 @@ let
       ];
     };
 in
-lib.mkMerge (
-  [
-    {
-      home-manager.sharedModules = [
-        hyprdynamicmonitors.homeManagerModules.default
-      ];
-    }
-  ]
-  ++ lib.mapAttrsToList mkHomeManager hc
-)
+{
+  imports = [ ./fonts.nix ];
+
+  config = lib.mkMerge (
+    [
+      {
+        nix.registry = {
+          nixpkgs.flake = nixpkgs;
+          unstable.flake = unstable;
+        };
+        home-manager.backupFileExtension = "home_manager_bak";
+        home-manager.sharedModules = [
+          hyprdynamicmonitors.homeManagerModules.default
+        ];
+      }
+    ]
+    ++ lib.mapAttrsToList mkHomeManager hc
+  );
+}

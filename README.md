@@ -19,10 +19,10 @@ hosts/
     └── hardware-configuration.nix   # Per-host hardware/disk layout (nixos-generate-config output)
 
 modules/
-├── common/               # Home Manager modules, shared across platforms
-│   └── users/common/       # tmux, herdr, nvim, zsh, git, hyprland, ghostty, claude-code, ...
+├── common/               # Shared by both platforms: fonts, nix registry, the Home Manager bridge
+│   └── users/common/       # Home Manager modules: tmux, herdr, nvim, zsh, git, hyprland, ghostty, claude-code, ...
 ├── nixos/                 # NixOS system modules (dedsm.<name>.enable toggles)
-│   ├── core/                # Always-on baseline: networking, fonts, audio, xdg, base packages
+│   ├── core/                # Always-on baseline: networking, audio, xdg, base packages
 │   ├── laptop/               # Power management, lid/sleep behaviour
 │   ├── performance/          # sched_ext scheduler, ananicy, writeback sysctls
 │   ├── hyprland/ greetd/ bluetooth/ printing/ scanning/ fingerprint-policy/
