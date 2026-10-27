@@ -16,7 +16,7 @@ Two modules configure it:
 | Module | Owns |
 | --- | --- |
 | `modules/nixos/dms` (`dedsm.dms.enable`) | the package and its Quickshell, the systemd user service, `/etc/pam.d/dankshell`, the GeoClue app entry, the CLI policy, `adw-gtk3` |
-| `modules/common/users/common/dms` (`dms.enable`) | the declared settings (`config.d/10-nix.json`), the seeds for `settings.json` and `session.json`, the vendored theme, the screenshot and recording pickers |
+| `modules/common/users/common/dms` (`dms.enable`) | the declared settings (`config.d/10-nix.json`, in `settings.nix`), the seeds for `settings.json` and `session.json` (`default.nix`), the vendored theme, the screenshot and recording pickers (`screenshot.nix`, `screencast.nix`) |
 
 ## Packaging
 
