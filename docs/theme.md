@@ -119,7 +119,7 @@ error anywhere — GTK3 apps just fall back to raw defaults.
 
 `/org/gnome/desktop/interface/icon-theme` follows the mode as well: `Papirus-Light` in light,
 `Papirus-Dark` in dark, set by `iconThemePerMode`/`iconThemeLight`/`iconThemeDark` in the `dms`
-module's `settings.json`. A single Papirus variant cannot serve both modes, because its *panel*
+module's declared settings (`config.d/10-nix.json`). A single Papirus variant cannot serve both modes, because its *panel*
 icons — the ones tray items ask for by name, like KDE Connect's `kdeconnectindicatordark` and
 Solaar's `battery-good` — are drawn in one flat colour: `#dfdfdf` in Papirus and Papirus-Dark,
 `#444444` in Papirus-Light. With plain `Papirus` everywhere they all but vanished against the light
@@ -290,7 +290,7 @@ since the last transition that worked. Look for `Theme data not available for: c
 `journalctl --user -u dms` and check that `customThemeFile` still resolves —
 
 ```bash
-nix-store -q --references "$(readlink -f ~/.config/DankMaterialShell/settings.json)"
+nix-store -q --references "$(readlink -f ~/.config/dms/config.d/10-nix.json)"
 ```
 
 — empty output means the theme JSON was referenced as a bare string and has been garbage-collected;

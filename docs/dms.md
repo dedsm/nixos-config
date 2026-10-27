@@ -1,24 +1,46 @@
 # DankMaterialShell (manwe)
 
-[DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) is the desktop shell on the
-Linux side: bar, notification centre, control centre, launcher, clipboard history, lock screen and
-idle handling, all in one Quickshell process. It replaced five separately-maintained pieces —
-waybar, swaync, hyprlock, hypridle, darkman — plus the two tray applets, avizo and clipman.
+[DankMaterialShell](https://github.com/duxlabs-dev/dux-shell) is the desktop shell on the Linux
+side: bar, notification centre, control centre, launcher, clipboard history, lock screen and idle
+handling, all in one Quickshell process. It replaced five separately-maintained pieces — waybar,
+swaync, hyprlock, hypridle, darkman — plus the two tray applets, avizo and clipman.
+
+With 2.0 the project moved from AvengeMedia to Dux Labs and is now "Dux Shell": nixpkgs renamed the
+package `dux-shell` (and the greeter `dux-greeter`), and the shell moved its config, state and cache
+from `DankMaterialShell` to `dms` (`~/.config/dms`, `~/.local/state/dms`, `~/.cache/dms`), leaving
+the old names behind as symlinks. The binary is still `dms`, the unit still `dms.service`, and
+26.05's NixOS module is still `programs.dms-shell` — it becomes `programs.dux-shell` with 26.11.
 
 Two modules configure it:
 
 | Module | Owns |
 | --- | --- |
-| `modules/nixos/dms` (`dedsm.dms.enable`) | the package, the systemd user service, `/etc/pam.d/dankshell`, the GeoClue app entry, the CLI policy, `adw-gtk3` |
-| `modules/common/users/common/dms` (`dms.enable`) | `settings.json` and the vendored theme |
+| `modules/nixos/dms` (`dedsm.dms.enable`) | the package and its Quickshell, the systemd user service, `/etc/pam.d/dankshell`, the GeoClue app entry, the CLI policy, `adw-gtk3` |
+| `modules/common/users/common/dms` (`dms.enable`) | the declared settings (`config.d/10-nix.json`), the seeds for `settings.json` and `session.json`, the vendored theme, the screenshot and recording pickers |
 
 ## Packaging
 
 `programs.dms-shell` is a **nixpkgs** module; there is no home-manager module in nixpkgs, which is
 why the settings file is written with plain `xdg.configFile`. Upstream also ships its own flake
 with both, but mixing its package with the nixpkgs module drops some dependency wiring, so both
-come from nixpkgs here. The package is taken from `unstable` (1.6.3) because 26.05 is a release
-behind (1.4.6); `quickshell` comes from stable, which satisfies DMS's ">= 0.3.0".
+come from nixpkgs here. The package is taken from `unstable` (`dux-shell` 2.0.0) because 26.05 is
+a major release behind (1.4.6).
+
+**Quickshell has to come from `unstable` too** (`programs.dms-shell.quickshell.package`). The
+package wraps QML modules into the shell's environment — kirigami, sonnet, qtmultimedia,
+kimageformats — and those are unstable's, built on Qt 6.12. Stable's Quickshell 0.3.0 is built on
+Qt 6.11, and Qt refuses to load a plugin from a different build: the journal said
+`libquickmultimediaplugin.so uses incompatible Qt library. (6.12.0)` followed by
+`QtMultimedia not available`, and the shell ran without it. Nothing else complained, which is the
+trap — a Qt split shows up only as features that quietly are not there. With both on unstable the
+journal instead says `Using Qt multimedia with FFmpeg`, and `dms doctor` reports the Quickshell
+version. The greeter's Quickshell follows this option by default, so it is covered too; so is the
+`qtengine` platform theme the unit loads (see [`theme.md`](./theme.md)), which comes from unstable
+as well. If the two inputs are ever bumped separately, check the Qt versions match:
+
+```bash
+nix eval --raw .#nixosConfigurations.manwe.pkgs.unstable.qt6.qtbase.version
+```
 
 One `overrideAttrs` sits on top, carrying one patch: it removes the
 `pkill -HUP -f 'gtk'` that ends `updateGtkIconTheme` in `Common/SettingsData.qml`. It was meant to
@@ -28,9 +50,10 @@ whose command line contains "gtk" — chiefly `xdg-desktop-portal-gtk`. With `ic
 transition, at the very moment the portal should have been broadcasting the new `color-scheme`, so
 Firefox missed each change and sat one mode behind — dark in light mode and vice versa. GTK apps
 already get the icon theme live through the portal. It uses `--replace-fail`, so an upstream
-change to the anchor is a build error rather than a silent no-op. Nothing else about the package is
-patched. (Up to 1.6.2 there were two more, on the fingerprint path; 1.6.3 fixed that bug upstream —
-see [the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time).)
+change to the anchor is a build error rather than a silent no-op; the line is still there in 2.0.0.
+Nothing else about the package is patched. (Up to 1.6.2 there were two more, on the fingerprint
+path; 1.6.3 fixed that bug upstream — see
+[the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time).)
 
 **The patch runs in `preBuild`, against the source tree, and then re-runs `make sync-shell`.** As
 of 1.6.x the QML shell is no longer installed as files: nixpkgs builds with upstream's `withshell`
@@ -44,30 +67,75 @@ safe (it is an `rm -rf` plus a fresh copy) and is what keeps the edit honest: it
 stale and let a previously-extracted copy win. The re-run needs a `chmod -R u+w` first, because
 nixpkgs' own `sync-shell` has already left a copy carrying the store's read-only permissions.
 
-`dgop` (system monitoring), `matugen` (theming) and `khal` (calendar) are pulled in by the module's
-feature toggles. `enableCalendarEvents` is off — no khal here.
+26.05's module still has v1's feature toggles, each pulling in a helper. Two are built into the 2.0
+binary — unstable's module removed them for that reason — so `enableSystemMonitoring` (a stale
+`dgop` 0.2.2) and `enableClipboardPaste` (`wtype`) are off. `matugen` (theming) and `cava` stay;
+unstable's module installs both by default. `enableCalendarEvents` is off — no khal here. All of
+this goes away with the 26.11 module.
 
-## settings.json is declarative, session.json is not
+## Settings: a declared `config.d/` drop-in over a writable `settings.json`
 
-`settings.json` is a store symlink, so DMS cannot write it. That is a supported mode: the shell
-detects the read-only file, keeps a GUI change live for the session, and the settings modal grows a
-**copy settings.json** button that puts the full JSON on the clipboard to be folded back into the
-module. Mostly only the keys that differ from upstream defaults are declared — the file has ~540 of
-them — with a handful pinned at their default on purpose (`lockAtStartup`,
-`lockPamExternallyManaged`, `lockPamInlineFprint`, `runUserMatugenTemplates`, the two suspend
-timeouts), because each is load-bearing enough that a default flip upstream should not be silent.
+Since 2.0 DMS loads `settings.json` and then every `config.d/*.json` over it, in lexicographic
+order, later files winning — and saves a GUI change back to **whichever file the key came from**,
+writing a file only when its own keys changed. The user module uses that split:
 
-Because a GUI change is live-only, it is lost at the next shell restart — which every rebuild that
-touches `settings.json` performs, via the `onChange` hook below. To find what has drifted before
-that happens, diff the running shell against the file: `dms ipc settings dump` prints every key the
-shell holds, and upstream's defaults are the `def` fields in
-`Common/settings/SettingsSpec.js` — which, since the shell is embedded in the binary rather than
-installed, is read from the extracted copy under `$XDG_RUNTIME_DIR/dms-shell/<dankrev>/` (or from
-upstream's source tree) rather than from the package. Two caveats when reading that
-diff — a `property color` is dumped as a QColor object rather than the `"#rrggbb"` string it
-defaults to, so those always look changed; and `barConfigs` is rebuilt by the bar settings tab from
-only the fields that tab edits, so a dumped copy comes back with keys *missing*. Declare
-`barConfigs` from upstream's default with your overrides applied, never by pasting the dump.
+- `~/.config/dms/config.d/10-nix.json` is a store symlink holding everything declared. A GUI change
+  to one of those keys is live for the session only (its write fails, and is retried), and is gone
+  at the next shell restart.
+- `~/.config/dms/settings.json` is an ordinary file the shell owns. A GUI change to any key *not*
+  declared persists there, like on any other distro.
+
+Before 2.0 the whole of `settings.json` was the store symlink, so every GUI change was lost. To
+fold a GUI change into the declaration, read it from `settings.json` (or from
+`dms ipc call settings dump`, which prints the merged view) and move it into the module.
+
+Mostly only the keys that differ from upstream defaults are declared — upstream has ~540 of them —
+with a handful pinned at their default on purpose (`lockAtStartup`, `lockPamExternallyManaged`,
+`lockPamInlineFprint`, `runUserMatugenTemplates`, the two suspend timeouts), because each is
+load-bearing enough that a default flip upstream should not be silent. Upstream's defaults are the
+`def` fields in `Common/settings/SettingsSpec.js` — read from upstream's source tree, or from the
+copy the shell extracts to `$XDG_RUNTIME_DIR/dms-shell/<dankrev>/`, since nothing is installed.
+Two caveats when diffing against a dump: a `property color` is dumped as a QColor object rather
+than the `"#rrggbb"` string it defaults to, so those always look changed; and `barConfigs` is
+rebuilt by the bar settings tab from only the fields that tab edits, so a dumped copy comes back
+with keys *missing*. Declare `barConfigs` from upstream's default with your overrides applied,
+never by pasting the dump.
+
+### The declared file must be in the current schema
+
+The settings carry a `configVersion` (42 for 2.0.0), and a file below the shell's version is
+migrated **on every load**. Since 2.0 the migration's result is also saved straight away — which,
+for a read-only file, fails. Until the declaration was rewritten, the old pre-2.0 file had no
+`configVersion` at all, so every shell start ran all 42 migrations from v0 and logged
+`Write of .../settings.json failed: Permission denied`. The migrations were faithful, so nothing
+*looked* wrong; that log line was the only sign.
+
+2.0 also moved widget options from global keys onto each widget instance in `barConfigs` — the
+workspace pills' `showWorkspaceIndex`/`showWorkspaceApps`/`workspaceActiveAppHighlightEnabled` are
+options on the `workspaceSwitcher` entry, the mic percentage and idle-inhibitor indicator on
+`controlCenterButton` — gave the control centre a real grid (`w`/`h` cells instead of `width`),
+and replaced `cornerRadius` with `radiusStrength` (12 maps to 38). When upstream bumps
+`configVersion` again, look for `Migrating settings from version` in the journal, run the shell
+once, and regenerate the affected keys from `dms ipc call settings dump` — `barConfigs` excepted,
+as above.
+
+`controlCenterWidgets` is no longer declared. It used to be, only to add the "Keep Awake"
+(`idleInhibitor`) tile — waybar's `idle_inhibitor` — which upstream's default lacked before 2.0
+and now includes. Left undeclared, the control centre takes upstream's layout (which also has Do
+Not Disturb, battery and disk tiles), and an edit made in its GUI persists in `settings.json`.
+
+### Notification rules are seeded, not declared
+
+`notificationRules` is also where the notification context menu writes: "mute this app",
+"mute for 1 hour / 4 hours" (a rule with an expiry), and the per-app "allow during DND" toggle.
+Declared in the read-only file, all of those would be lost at the next restart. So the one rule
+this repo needs — `Screencast` bypassing DND, see [Screen recording](#screen-recording) — is
+instead merged into `settings.json` by an activation script (ordered after `linkGeneration`), which
+adds it when no rule matches the same field and pattern and leaves every other rule alone. It also
+creates `settings.json` if there is none, and removes a leftover store symlink in its place —
+otherwise merging into it would copy every old declared key into the live file.
+
+### `session.json`
 
 `session.json` is deliberately left mutable: it holds runtime state (the current wallpaper, DND,
 and `isLightMode` itself). Freezing it would stop the shell persisting the mode at all.
@@ -86,11 +154,23 @@ it has no schedule to share and the automation computes transitions from nothing
 next transition ten minutes away, dark in the middle of the afternoon, and light/dark flapping
 within seconds of each other.
 
-A change to the declared settings does not reach a running shell on its own. DMS watches
-`settings.json` (`watchChanges` on its FileView), but home-manager replaces the *symlink* rather
-than the file, so the inode being watched never changes and no inotify event fires. The file entry
-therefore carries an `onChange` hook that runs `systemctl --user try-restart dms.service` — safe
-only because nothing locks the screen on shell start (see below).
+### A rebuild restarts the shell
+
+A change to the declared settings does not reach a running shell on its own. DMS watches each
+settings file (`watchChanges` on its FileView, plus a folder model on `config.d`), but home-manager
+re-links with `ln -Tsf`, replacing the *symlink* rather than the file, so the inode being watched
+never changes and no event fires. This was tested on 2.0.0 by re-linking `10-nix.json` exactly that
+way: the running shell kept the old value. (An in-place edit of the real `settings.json`, by
+contrast, is picked up live.) The file entry therefore carries an `onChange` hook that runs
+`systemctl --user try-restart dms.service` — safe only because nothing locks the screen on shell
+start (see below).
+
+### Wellbeing is off
+
+Digital Wellbeing, new in 2.0 and **on by default**, records how long each app holds focus (into
+`~/.local/state/dms/wellbeing/db`) to back daily and per-app screen-time limits. It is declared off
+(`wellbeingEnabled = false`), and the data it gathered before that was deleted;
+`dms ipc call wellbeing status` should say "Screen time tracking: disabled".
 
 ## Theme
 
@@ -110,8 +190,8 @@ The setting is a *path in a JSON file*, and it has to be written as `"${theme}"`
 `toString theme`. `toString` on a relative path yields the file's location inside the flake source
 (`/nix/store/<hash>-source/modules/common/users/common/dms/solarized-osaka-night.json`) as a plain
 string, and a plain string buys no store reference: Nix registers a reference only for a hash that
-belongs to the derivation's own inputs, and the source tree is not an input of the `settings.json`
-derivation. The rendered file ends up with **no references at all**, so the next garbage collection
+belongs to the derivation's own inputs, and the source tree is not an input of the settings
+file's derivation (`config.d/10-nix.json` since 2.0, `settings.json` before). The rendered file ends up with **no references at all**, so the next garbage collection
 deletes the `-source` path out from under a config that is still live, leaving a dangling pointer.
 
 Interpolating instead copies the JSON into the store as
@@ -119,7 +199,7 @@ Interpolating instead copies the JSON into the store as
 Verify with:
 
 ```bash
-nix-store -q --references "$(readlink -f ~/.config/DankMaterialShell/settings.json)"
+nix-store -q --references "$(readlink -f ~/.config/dms/config.d/10-nix.json)"
 # must print the solarized-osaka-night.json store path; empty output is the bug
 ```
 
@@ -235,12 +315,13 @@ moved to `dms ipc call`:
 | `XF86Audio{Play,Prev,Next}`, `$mod+X/Z/C` | `mpris playPause/previous/next` |
 | `$mod+P` | `spotlight toggle` |
 | `$mod+V` / `$mod+N` / `$mod+O` | `clipboard` / `notifications` / `control-center` toggle |
+| `$mod+SHIFT+N` | `notifications invokeLast` — the newest notification's default action, as clicking it would |
 | `CTRL+ALT+L` | `loginctl lock-session` (unchanged — DMS listens on logind) |
 | `XF86PowerOff` | `powermenu toggle` — the power button's short press; see below |
 | `CTRL+ALT+SHIFT+L` | `systemctl --user restart dms.service`, the locked-session escape hatch |
 | `Print` | `dms screenshot region --no-file` — region to clipboard, no file |
-| `CTRL+Print` | the screenshot picker, via `spotlight openQuery "#"` — see below |
-| `CTRL+SHIFT+Print` | `dms-screencast menu` — the recording picker (`openQuery "!"`), or stop-and-save while recording — see below |
+| `CTRL+Print` | `dms-screenshot menu` — the screenshot picker, see below |
+| `CTRL+SHIFT+Print` | `dms-screencast menu` — the recording picker, or stop-and-save while recording — see below |
 
 `dms ipc` with no arguments lists every target; the live surface is wider than upstream's
 `docs/IPC.md`.
@@ -259,63 +340,59 @@ one argument it fails, and a bind's `exec_cmd` failure goes nowhere, so the key 
 `audio increment/decrement` really does take only the step; everything else above is a
 zero-argument toggle.
 
-## Screenshots, and the picker as a launcher plugin
+## Screenshots, and the picker
 
 `dms screenshot` replaced hyprshot. It is its own `wlr-screencopy` client, so it needs neither
-`grim` nor `slurp` (both stay installed as general-purpose tools, but nothing here calls them), and
-it adds several things hyprshot had no equivalent for: `scroll` mode, which stitches a scrolled
-region into one tall image; JPEG/PPM output with a quality knob; a remembered last region (`last`,
-`--reset`); `--json` metadata and `-g` to print a geometry without capturing; and — the one that
-silently mattered — HDR handling, reading `wp_color_management_v1` and writing H.273 CICP code
-points into the PNG, where `grim` has no concept of colour encoding at all. The frozen backdrop
-hyprshot made opt-in with `-z` is unconditional (`preCaptureAllOutputs`).
+`grim` nor `slurp` for its own modes, and it adds several things hyprshot had no equivalent for:
+`scroll` mode, which stitches a scrolled region into one tall image; JPEG/PPM output with a quality
+knob; a remembered last region (`last`, `--reset`); `--json` metadata and `-g` to print a geometry
+without capturing; and — the one that silently mattered — HDR handling, reading
+`wp_color_management_v1` and writing H.273 CICP code points into the PNG, where `grim` has no
+concept of colour encoding at all. The frozen backdrop hyprshot made opt-in with `-z` is
+unconditional (`preCaptureAllOutputs`). 2.0 added Ctrl+C in the region selector (copy without
+saving), snapping the region to DMS's own popouts and modals, and `--hud` to scale or hide the
+selector's readout.
 
-The picker on `CTRL+Print` is a **DMS launcher plugin**, declared at
-`modules/common/users/common/dms/screenshot-plugin/`. It is a plugin rather than an IPC call
-because spotlight has no stdin equivalent: its surface is `open`/`close`/`toggle`,
-`openWith(mode)` over *built-in* modes, and `openQuery(query)` which only prefills the search box —
-and nothing returns the chosen item to a caller, which is exactly what the anyrun stdin plugin it
-replaced did. A plugin is the supported way to put arbitrary entries in front of the user.
+The picker on `CTRL+Print` is `dms-screenshot menu`, a script the user module puts on PATH. It
+pipes six entries — region, window and monitor, each as copy and save — into **`dms dmenu`**,
+which shows them in the launcher and prints the chosen one (`--format i` returns its index, so
+the labels can change freely). `dms-screenshot <target> <copy|save>` captures directly, without
+the menu. After a pick it waits 0.35s before capturing: the launcher is still animating out, and
+`dms screenshot` pre-captures every output at once, so the picker would otherwise land in the image.
 
-It lists six entries — region, window and monitor, each as copy and save — and **window and
-monitor open a picker**, as `hyprshot -m window` and `-m output` did (`-m active` was the modifier
-meaning "the focused one"; these were never the active-only forms).
+`dms dmenu` is new in 2.0. Before it, spotlight had no stdin mode at all — its IPC surface could
+open, filter and prefill, but returned nothing to the caller — so the list was a DMS **launcher
+plugin**, which needed a `plugin_settings.json` seed to be enabled at all and a purge of Qt's
+compiled-QML cache on every change (Qt validates that cache by mtime, and every store file carries
+the same one, so an edited plugin kept running its previous version). Both plugins and all of that
+went with the switch; they were also reachable by typing `#` or `!` in the launcher, which nothing
+here uses.
 
-DMS has no picker to offer. `dms screenshot window` only ever captures the active window, `output`
-requires an explicit `-o <name>`, the region selector does not snap to anything, and no subcommand
-accepts a geometry — `-g` only *prints* one. `compositor.go` exposes `GetActiveWindow` and nothing
-that enumerates. So **slurp** provides the selection, its `-r` ("restrict to predefined boxes")
-mode snapping it to real rectangles:
+**Window and monitor open a picker**, as `hyprshot -m window` and `-m output` did (`-m active` was
+the modifier meaning "the focused one"; these were never the active-only forms). DMS has no picker
+to offer: `dms screenshot window` only ever captures the active window, `output` requires an
+explicit `-o <name>`, the region selector snaps only to DMS's own surfaces, and no subcommand
+accepts a geometry — `-g` only *prints* one. So **slurp** provides the selection, its `-r`
+("restrict to predefined boxes") mode snapping it to real rectangles:
 
 - **Monitors stay entirely on DMS.** `slurp -o` seeds one box per output and `-f '%o'` prints the
   chosen output's *name*, which is exactly what `dms screenshot output -o` takes.
 - **Windows cannot.** Nothing in `dms screenshot` accepts a geometry, so `grim -g` captures the
   rectangle and `wl-copy` puts it on the clipboard. That path alone loses DMS's
   `wp_color_management`/CICP handling — it matters on an HDR output and is moot on this machine's
-  SDR panel. It is also why `grim`, `slurp` and `wl-clipboard` are load-bearing again rather than
-  merely installed.
+  SDR panel. It is also why `grim`, `slurp` and `wl-clipboard` are load-bearing rather than merely
+  installed.
 
 Window rectangles are filtered to the **active workspace**. `hyprctl clients` spans every
 workspace, and windows on the others report the same geometry as the visible one, so feeding the
 unfiltered list to slurp offers invisible, overlapping boxes.
 
-**An earlier version enumerated outputs and windows into their own launcher entries instead. That
-cannot work, and the reasons are worth keeping.** `getItems()` is synchronous while any enumeration
-is not; `PluginService.ensureLauncherInstance()` is lazy and nothing calls
-`ensureLauncherInstances()` at startup, so the plugin's `Item` is built on the *first* launcher
-query and anything `Component.onCompleted` starts cannot land before that query returns; and
-`itemsChanged`, which the plugin guide documents as triggering a UI refresh, is wired to nothing —
-it occurs only in the bundled example plugins and the docs, with no listener anywhere in the shell.
-A plugin therefore has no way to say "I have more items now", which is why the picking belongs in a
-selector after the launcher closes rather than in the list.
-
 ## Screen recording
 
-The same mechanism, for video: a second launcher plugin, `dedsmScreencast`
-(`modules/common/users/common/dms/screencast-plugin/`, trigger `!`), whose entries call
-`dms-screencast`, a script the dms home-manager module puts on PATH. There is one key,
-`CTRL+SHIFT+Print`: with nothing recording it opens the picker; while a recording runs it stops it
-and saves the file. Picking any entry while a recording runs also stops it.
+The same mechanism, for video: `dms-screencast`, a script the dms home-manager module puts on
+PATH. There is one key, `CTRL+SHIFT+Print`, running `dms-screencast menu`: with nothing recording
+it shows the six choices through `dms dmenu` and hands the pick to `dms-screencast start`; while a
+recording runs it stops it and saves the file.
 
 Six entries: region, window and monitor, each **silent** or **with audio**. Copy/save, the
 screenshot picker's second axis, has no useful meaning for video, so every recording is saved, to
@@ -353,9 +430,10 @@ wrapper; without it, each of those recordings stops at a pkexec prompt. The cost
 process can read the screen through that wrapper. On a single-user laptop that adds little to what
 Hyprland's screencopy already gives every Wayland client.
 
-The recorder runs as the transient user unit `dms-screencast.service`, not as a child of the
-launcher. `execDetached` would leave it in `dms.service`'s cgroup, and restarting the shell, which
-every rebuild does, would kill it mid-file. The unit's properties carry the rest:
+The recorder runs as the transient user unit `dms-screencast.service`, not as a child of whatever
+started it. When the picker was a launcher plugin, `execDetached` left its children in
+`dms.service`'s cgroup, where restarting the shell — which every rebuild does — killed a recording
+mid-file; the unit keeps it independent of its caller either way. Its properties carry the rest:
 
 - `KillSignal=SIGINT` is gsr's "stop and save", so `systemctl --user stop` finalises the file.
 - `KillMode=mixed` sends that signal to gsr alone, letting gsr tear down its `gsr-kms-server`
@@ -372,31 +450,23 @@ it was off before. The hyprland module's `screencast-inhibit` listener cannot do
 KMS capture bypasses the compositor and Hyprland never reports it. Window recordings go through the
 compositor, so the listener fires for those too, and its unconditional `disableDoNotDisturb` at the
 end wins over a DND you had on before. The recorder's own notifications get through DND by the
-`Screencast` entry in `notificationRules` in `settings.json`. The "Recording" notification is sent
-just after capture starts, so it shows in the first two seconds of a video whose area covers the
+`Screencast` rule in `notificationRules`, seeded into `settings.json` (see
+[Notification rules are seeded](#notification-rules-are-seeded-not-declared)). The "Recording"
+notification is sent just after capture starts, so it shows in the first two seconds of a video whose area covers the
 notification corner.
-
-**Qt's compiled-QML disk cache must be dropped whenever the plugin changes**, which is what the
-`onChange` hook on both plugin files does. Qt validates that cache against the source file's mtime;
-every file in the Nix store carries the same epoch mtime and the plugin always lives at the same
-path, so a changed `Launcher.qml` is never noticed and the shell keeps running the *previously
-compiled* version — old entry text, old actions — across restarts and rebuilds alike, while the
-file on disk plainly holds the new code. This is not theoretical: it silently masked three
-successive versions of this plugin. The symptom is entries whose wording does not match the file,
-and the confirmation is that `~/.cache/quickshell/qmlcache/<hash>.qmlc` keeps its path-derived name
-and only changes size once the directory is removed by hand. The shell's own QML is immune, being
-extracted to `$XDG_RUNTIME_DIR/dms-shell/<dankrev>/`, a path that changes whenever its content
-does.
-
-Because plugin loading is QML evaluated by the running shell, none of this is visible to
-`nix flake check` or a `system.build.toplevel` build. A broken manifest or QML surfaces only as the
-plugin silently not appearing; `dms ipc call plugins list` is the quickest check.
 
 ## Things not to do
 
 - **`dms setup`, `dms setup binds`, `dms setup colors`, `dms greeter install`** write compositor
-  configs and system units directly. `/etc/dms/cli-policy.json` declares this system immutable and
-  DMS refuses them outright.
+  configs and system units directly, and **`dms update` / `dms switch`** (new in 2.0) replace the
+  installed packages in place. `/etc/dms/cli-policy.json` declares this system immutable and DMS
+  refuses them outright. The file's `blocked_commands` *replaces* upstream's default list rather
+  than extending it, so it repeats upstream's entries. (`dms update` already stops at
+  "Unsupported distribution: nixos"; the policy makes that the intended answer.) The settings
+  window's software-update page knows about Nix installs and stays out of the way on its own.
+- **Its Hyprland integrations** — the scratchpad, tiling-layout, focus-follows-mouse and
+  window-rule settings write Lua fragments under `~/.config/hypr/dms/`. This repo's `hyprland.lua`
+  includes none of them, so they are inert here, and Hyprland is configured in Nix.
 - **Its display settings panel** — `hyprdynamicmonitors` owns monitor profiles here.
 - **Its icon-theme picker** — `icon-theme` is declared statically as `Papirus` in the `defaults`
   module, and a runtime write would be reset on the next activation. Same failure mode as the two

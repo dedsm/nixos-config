@@ -15,8 +15,9 @@ let
   # registry browser so the palette is pinned and reproducible.
   theme = ./solarized-osaka-night.json;
 
-  # Where the launcher plugin's three "Save" entries write. Kept at ~/Downloads
-  # because that is where the hyprshot picker this replaced put them.
+  # Where the screenshot picker's three "Save" entries and every recording
+  # write. Kept at ~/Downloads because that is where the hyprshot picker this
+  # replaced put them.
   #
   # These modules are plain functions applied to `attrs`, not home-manager
   # modules, so `config` here is the *system* config and there is no
@@ -25,18 +26,26 @@ let
   # only when it declares one — so mirror that fallback rather than assuming.
   screenshotSaveDir = "${homeManagerConfig.home.homeDirectory or "/home/${username}"}/Downloads";
 
-  # Every launcher action goes through this.
+  # DMS 2.0 moved everything from `DankMaterialShell` to `dms`, leaving the old
+  # names behind as compatibility symlinks; these are the real paths.
+  configDir = "$HOME/.config/dms";
+  stateDir = "$HOME/.local/state/dms";
+
+  # The screenshot picker (CTRL+Print in the hyprland module): `menu` shows six
+  # entries — region, window and monitor, each as copy and save — through
+  # `dms dmenu`, which reads them from stdin and prints the chosen one. The
+  # other form, `dms-screenshot <target> <copy|save>`, captures directly.
   #
-  # It closes spotlight first and waits: `execDetached` fires while the launcher
-  # is still on screen and `dms screenshot` pre-captures every output
-  # immediately, so without it the picker itself lands in the image. There is no
-  # "closed" callback to hook, hence a sleep.
+  # `dms dmenu` is new in 2.0. Before it the launcher had no stdin mode at all,
+  # so this list was a launcher *plugin* — with a plugin_settings.json seed to
+  # enable it, and a QML disk-cache purge on every change, because Qt validates
+  # that cache by mtime and every store file has the same one.
   #
   # Window and monitor are *pickers*, as `hyprshot -m window` and `-m output`
   # were. DMS has no picker of its own — `screenshot window` only ever takes the
-  # active window and the region selector does not snap to anything — so slurp
-  # provides the selection and its `-r` ("restrict to predefined boxes") mode
-  # snaps it to real rectangles.
+  # active window and the region selector snaps only to DMS's own popouts — so
+  # slurp provides the selection and its `-r` ("restrict to predefined boxes")
+  # mode snaps it to real rectangles.
   #
   #  * Monitors stay entirely on DMS: `-o` seeds slurp with one box per output
   #    and `-f '%o'` prints the chosen output's *name*, which is exactly what
@@ -51,41 +60,35 @@ let
   # the visible one — feeding those to slurp would offer invisible, overlapping
   # boxes.
   #
-  # `dms` and `hyprctl` are left to PATH, as the CTRL+Print picker script does;
-  # pinning dms would drag a second, unpatched copy of dms-shell into the closure
-  # alongside the one the NixOS module builds. The rest are pinned, since they
-  # are ordinary tools and the shell's PATH is not this module's to assume.
-  # Qt validates its compiled-QML disk cache against the source file's mtime.
-  # Every file in the Nix store carries the same epoch mtime, and this plugin
-  # always lives at the same path, so a changed Launcher.qml is never noticed:
-  # the shell goes on running the previously compiled version — old entry text,
-  # old actions — across restarts and rebuilds alike, while the file on disk
-  # plainly holds the new code. Observed directly: the cache entry keeps its
-  # path-derived name and only changes size once the directory is deleted by
-  # hand.
-  #
-  # The shell's own QML is immune, because it is extracted to
-  # $XDG_RUNTIME_DIR/dms-shell/<dankrev>/ — a path that changes whenever the
-  # content does. A plugin declared at a fixed path has no such escape, so the
-  # cache is dropped whenever the plugin changes. It is only a cache; the cost
-  # is one recompile on the next start.
-  invalidateQmlCache = ''
-    rm -rf "''${XDG_CACHE_HOME:-$HOME/.cache}/quickshell/qmlcache"
-    ${pkgs.systemd}/bin/systemctl --user try-restart dms.service || true
-  '';
-
-  screenshotRun = pkgs.writeShellScript "dms-screenshot-run" ''
+  # `dms` and `hyprctl` are left to PATH; pinning dms would drag a second,
+  # unpatched copy of the shell into the closure alongside the one the NixOS
+  # module builds. The rest are pinned, since they are ordinary tools and the
+  # caller's PATH is not this module's to assume.
+  screenshot = pkgs.writeShellScriptBin "dms-screenshot" ''
     set -eu
-    target="''${1:?target required}"
-    mode="''${2:?copy or save required}"
-
     jq=${pkgs.jq}/bin/jq
     slurp=${pkgs.slurp}/bin/slurp
     grim=${pkgs.grim}/bin/grim
     wlcopy=${pkgs.wl-clipboard}/bin/wl-copy
 
-    dms ipc call spotlight close >/dev/null 2>&1 || true
-    sleep 0.35
+    if [ "''${1:-}" = menu ]; then
+      labels=("Copy Region" "Copy Window" "Copy Monitor" "Save Region" "Save Window" "Save Monitor")
+      targets=(region window monitor region window monitor)
+      modes=(copy copy copy save save save)
+      # Cancelling exits 1, an unreachable shell 2; neither is worth an error.
+      i=$(printf '%s\n' "''${labels[@]}" \
+        | dms dmenu -p Screenshot --icon screenshot_region --no-custom --format i \
+            --mesg "Copy → clipboard · Save → ${screenshotSaveDir}") || exit 0
+      [ -n "$i" ] || exit 0
+      set -- "''${targets[$i]}" "''${modes[$i]}"
+      # The launcher is still animating out when dmenu returns, and
+      # `dms screenshot` pre-captures every output immediately, so without this
+      # the picker itself lands in the image. There is no "closed" callback.
+      sleep 0.35
+    fi
+
+    target="''${1:?menu, or a target and copy/save, required}"
+    mode="''${2:?copy or save required}"
 
     dmsshot() {
       case "$mode" in
@@ -139,8 +142,8 @@ let
   '';
 
   # Screen recording, the screenshot picker's counterpart: `menu` (bound to
-  # CTRL+SHIFT+Print) opens the `dedsmScreencast` launcher plugin, or stops the
-  # recording when one is running; the plugin's entries call `start`.
+  # CTRL+SHIFT+Print) shows the six recording choices through `dms dmenu`, or
+  # stops the recording when one is running; the choice is handed to `start`.
   #
   # gpu-screen-recorder rather than wl-screenrec, for the window entry: a
   # geometry-based recorder can only take the rectangle a window occupied when
@@ -151,8 +154,7 @@ let
   # modules/nixos/dms installs; without it gsr falls back to a pkexec prompt.
   #
   # The recorder runs as a transient user unit, not a child of whatever started
-  # it: the launcher's `execDetached` would otherwise leave it in dms.service's
-  # cgroup, so restarting the shell (every rebuild does) would kill a recording
+  # it, so nothing that restarts or kills its caller takes a recording down
   # mid-file. KillSignal=SIGINT is gsr's "stop and save"; KillMode=mixed sends
   # it to gsr alone, so gsr-kms-server is torn down by gsr rather than shot
   # first. ExecStopPost runs `finish` however gsr ended — stopped, crashed, or
@@ -163,7 +165,7 @@ let
   # screencast listener, because KMS capture bypasses the compositor and
   # Hyprland never reports it. The prior state is handed to `finish` so a DND
   # that was already on stays on. The notifications themselves get through DND
-  # by the `Screencast` rule in settings.json below.
+  # by the `Screencast` rule seeded into settings.json below.
   screencastUnit = "dms-screencast";
   screencast = pkgs.writeShellScriptBin "dms-screencast" ''
     set -eu
@@ -182,18 +184,25 @@ let
         if recording; then
           exec "$systemctl" --user stop "$unit"
         fi
-        exec dms ipc call spotlight openQuery "!"
+        labels=("Record Region" "Record Window" "Record Monitor" \
+          "Record Region with Audio" "Record Window with Audio" "Record Monitor with Audio")
+        targets=(region window monitor region window monitor)
+        sounds=(silent silent silent audio audio audio)
+        i=$(printf '%s\n' "''${labels[@]}" \
+          | dms dmenu -p Record --icon videocam --no-custom --format i \
+              --mesg "Saved to ${screenshotSaveDir} · CTRL+SHIFT+Print stops") || exit 0
+        [ -n "$i" ] || exit 0
+        exec "$0" start "''${targets[$i]}" "''${sounds[$i]}"
         ;;
 
       start)
         target="''${2:?target required}"
         audio="''${3:?silent or audio required}"
 
-        dms ipc call spotlight close >/dev/null 2>&1 || true
         if recording; then
           exec "$systemctl" --user stop "$unit"
         fi
-        # Same reason as the screenshot runner: let the launcher get off screen.
+        # Same reason as the screenshot picker: let the launcher get off screen.
         sleep 0.35
 
         case "$target" in
@@ -293,129 +302,54 @@ let
     }
   );
 
-  # A discovered plugin is *not* enabled: PluginService reads
-  # `getPluginSetting(id, "enabled", false)`, and only a plugin whose sole
-  # surface is "desktop" is exempt — a launcher plugin is not. So without this
-  # the screenshot and screencast plugins below install, are found by the scan,
-  # and never appear, which is indistinguishable from a broken manifest.
+  # Recording turns do-not-disturb on so nothing pops up in the video; this
+  # lets the recorder's own "Recording" and "Recording saved" notifications
+  # through regardless. The saved one would otherwise land silently in history
+  # whenever DND had been on before the recording started.
   #
-  # It cannot be declared in settings.json: plugin enablement lives in its own
-  # file, `plugin_settings.json`, which the shell writes. So it is seeded the
-  # same way session.json's schedule keys are — defaults on the left, existing
-  # state on the right — which enables it on first activation while leaving a
-  # later manual disable alone.
-  pluginDefaults = pkgs.writeText "dms-plugin-defaults.json" (
+  # Seeded into the writable settings.json rather than declared in the Nix-owned
+  # file below, because `notificationRules` is also where the notification
+  # context menu writes — permanent and timed (1h/4h) per-app mutes, and the
+  # per-app "allow during DND" toggle. Declared here, the key would live in a
+  # read-only file and every one of those would be lost at the next restart.
+  screencastRule = pkgs.writeText "dms-screencast-rule.json" (
     builtins.toJSON {
-      dedsmScreenshot.enabled = true;
-      dedsmScreencast.enabled = true;
+      enabled = true;
+      field = "appName";
+      pattern = "Screencast";
+      matchType = "exact";
+      action = "default";
+      urgency = "default";
+      bypassDnd = true;
     }
   );
-in
-mkIf (homeManagerConfig.dms.enable or false) {
-  home.activation.dmsPluginDefaults = ''
-    plugins="$HOME/.config/DankMaterialShell/plugin_settings.json"
-    $DRY_RUN_CMD mkdir -p "$(dirname "$plugins")"
-    if [ -f "$plugins" ]; then
-      if ${pkgs.jq}/bin/jq -s '.[0] + .[1]' ${pluginDefaults} "$plugins" > "$plugins.new" 2>/dev/null; then
-        $DRY_RUN_CMD mv -f "$plugins.new" "$plugins"
-      else
-        $DRY_RUN_CMD rm -f "$plugins.new"
-      fi
-    else
-      $DRY_RUN_CMD install -m 0644 ${pluginDefaults} "$plugins"
-    fi
-  '';
 
-  home.activation.dmsSessionDefaults = ''
-    state="$HOME/.local/state/DankMaterialShell/session.json"
-    $DRY_RUN_CMD mkdir -p "$(dirname "$state")"
-    if [ -f "$state" ]; then
-      # Merge, existing values winning, via a temp file so a failed jq cannot
-      # truncate live state.
-      if ${pkgs.jq}/bin/jq -s '.[0] + .[1]' ${sessionDefaults} "$state" > "$state.new" 2>/dev/null; then
-        $DRY_RUN_CMD mv -f "$state.new" "$state"
-      else
-        $DRY_RUN_CMD rm -f "$state.new"
-      fi
-    else
-      $DRY_RUN_CMD install -m 0644 ${sessionDefaults} "$state"
-    fi
-  '';
-
-  # DMS writes settings.json itself on every UI toggle, so home-manager's
-  # store symlink makes it read-only. That is a supported mode: the shell
-  # detects it, keeps the change live for the session, and the settings modal
-  # offers a "copy settings.json" button that puts the full JSON on the
-  # clipboard to be folded back in here.
+  # The declared half of DMS's settings, as a `config.d` drop-in.
   #
-  # Mostly only what differs from upstream's defaults is declared — the file has
-  # ~540 keys and listing the ones that already agree would bury the ones that
-  # matter. The exceptions are pinned on purpose: `lockAtStartup`,
-  # `lockPamExternallyManaged`, `lockPamInlineFprint`, `runUserMatugenTemplates`
-  # and the two suspend timeouts currently *equal* upstream's default, and are
-  # stated anyway because each one is load-bearing for the login flow or the
-  # theme chain and a default flip upstream would be silent.
-  # DMS *does* watch this file (`watchChanges` on its FileView), but the watch
-  # never fires for a rebuild: home-manager replaces the symlink rather than the
-  # file it points at, so the inode being watched — a store path — never
-  # changes. Hence the explicit restart, which is safe now that nothing locks
-  # the screen on shell start (see `lockAtStartup` below).
-  # The screenshot picker, as a DMS launcher plugin — six entries behind the `#`
-  # trigger, replacing the anyrun stdin list that used to drive hyprshot. It is a
-  # plugin rather than an IPC call because spotlight has no stdin equivalent:
-  # its whole surface is open/close/toggle, `openWith(mode)` over *built-in*
-  # modes and `openQuery(query)` which only prefills the search box, and nothing
-  # returns the chosen item to a caller. A plugin is the supported way to put
-  # arbitrary entries in front of the user.
+  # DMS 2.0 loads settings.json and then every `config.d/*.json` over it in
+  # lexicographic order, later files winning, and saves a GUI change to
+  # whichever file the key came from. So the keys below live in a store symlink
+  # DMS cannot write, while settings.json itself is an ordinary file: a GUI
+  # change to any key declared here is live for the session only (and the shell
+  # logs a failed write), but a change to anything *else* persists. Before 2.0
+  # the whole settings.json was the store symlink, and every GUI change was lost.
   #
-  # PluginService scans two directories on an equal footing — this one and
-  # /etc/xdg/quickshell/dms-plugins — so a plugin can be declared rather than
-  # installed through the registry browser. The user directory is the one used
-  # here because the save entries need $HOME baked in, which a system-wide
-  # /etc entry has no way to know.
+  # Only what differs from upstream's defaults is declared — listing the ~540
+  # keys that already agree would bury the ones that matter. The exceptions are
+  # pinned on purpose: `lockAtStartup`, `lockPamExternallyManaged`,
+  # `lockPamInlineFprint`, `runUserMatugenTemplates` and the two suspend
+  # timeouts currently *equal* upstream's default, and are stated anyway because
+  # each one is load-bearing for the login flow or the theme chain and a default
+  # flip upstream would be silent.
   #
-  # Each plugin is a *directory* holding plugin.json; the scan lists directories
-  # under the base path and reads `<dir>/plugin.json`, skipping anything whose
-  # path does not start with the base. home-manager creates the directories for
-  # real and symlinks only the leaf files, so the paths it lists stay inside
-  # ~/.config and the prefix check passes.
-  xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/plugin.json".source =
-    ./screenshot-plugin/plugin.json;
-  xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/plugin.json".onChange =
-    invalidateQmlCache;
-  xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/Launcher.qml".onChange =
-    invalidateQmlCache;
+  # Written in the current schema (`configVersion` below). A file older than the
+  # shell is migrated on every load, and the migration's result then fails to
+  # save — which is what this file did for the whole of 2.0.0 until it was
+  # rewritten. When upstream bumps the version, regenerate the affected keys from
+  # `dms ipc call settings dump` (barConfigs excepted, see there).
+  declaredSettings = {
+    configVersion = 42;
 
-  # `builtins.replaceStrings` over the file rather than a derivation: it keeps
-  # the QML a real .qml file (so it reads as QML and needs no Nix-string
-  # escaping of its `${...}` template syntax) while still getting the save
-  # directory and the window helper's path substituted in.
-  xdg.configFile."DankMaterialShell/plugins/dedsmScreenshot/Launcher.qml".text =
-    builtins.replaceStrings [ "@saveDir@" "@shot@" ] [ screenshotSaveDir "${screenshotRun}" ]
-      (builtins.readFile ./screenshot-plugin/Launcher.qml);
-
-  # The screen-recording picker, declared the same way. Its trigger is `!`,
-  # which no built-in launcher mode claims.
-  xdg.configFile."DankMaterialShell/plugins/dedsmScreencast/plugin.json".source =
-    ./screencast-plugin/plugin.json;
-  xdg.configFile."DankMaterialShell/plugins/dedsmScreencast/plugin.json".onChange =
-    invalidateQmlCache;
-  xdg.configFile."DankMaterialShell/plugins/dedsmScreencast/Launcher.qml".onChange =
-    invalidateQmlCache;
-  xdg.configFile."DankMaterialShell/plugins/dedsmScreencast/Launcher.qml".text =
-    builtins.replaceStrings
-      [ "@saveDir@" "@rec@" ]
-      [ screenshotSaveDir "${screencast}/bin/dms-screencast" ]
-      (builtins.readFile ./screencast-plugin/Launcher.qml);
-
-  # On PATH for the CTRL+SHIFT+Print bind in the hyprland module.
-  home.packages = [ screencast ];
-
-  xdg.configFile."DankMaterialShell/settings.json".onChange = ''
-    ${pkgs.systemd}/bin/systemctl --user try-restart dms.service || true
-  '';
-
-  xdg.configFile."DankMaterialShell/settings.json".text = builtins.toJSON {
     # --- theme
     currentThemeName = "custom";
     currentThemeCategory = "custom";
@@ -423,12 +357,12 @@ mkIf (homeManagerConfig.dms.enable or false) {
     # flake source* ("/nix/store/<hash>-source/modules/.../solarized-osaka-night.json")
     # as a plain string, which adds no store reference: the scanner only registers
     # hashes belonging to the derivation's inputs, and the source tree is not one of
-    # this file's. The rendered settings.json therefore had zero references
-    # (`nix-store -q --references` on it printed nothing), so the next garbage
-    # collection deleted the `-source` path out from under a live config and left a
-    # dangling pointer. DMS then logs `Theme data not available for: custom` and its
-    # whole theme build stops — no dconf write, no matugen run, so the mode marker,
-    # foot and tmux all freeze at whatever the last successful transition wrote.
+    # this file's. The rendered settings had zero references (`nix-store -q
+    # --references` on it printed nothing), so the next garbage collection deleted
+    # the `-source` path out from under a live config and left a dangling pointer.
+    # DMS then logs `Theme data not available for: custom` and its whole theme
+    # build stops — no dconf write, no matugen run, so the mode marker, foot and
+    # tmux all freeze at whatever the last successful transition wrote.
     # Interpolating copies the JSON in as a store path of its own and registers it,
     # which is what makes GC respect it.
     customThemeFile = "${theme}";
@@ -442,23 +376,23 @@ mkIf (homeManagerConfig.dms.enable or false) {
     iconThemePerMode = true;
     iconThemeLight = "Papirus-Light";
     iconThemeDark = "Papirus-Dark";
+    # `cornerRadius = 12` before 2.0; the schema migration maps that radius onto
+    # the new strength scale as 38.
+    radiusStrength = 38;
 
     # --- lock screen authentication
     #
     # Point the password stack at /etc/pam.d/dankshell (declared by
     # modules/nixos/dms), which is what carries the gnome-keyring unlock and
-    # the pam_exec stamp dedsm.fingerprintPolicy needs. Fingerprint stays in
-    # the declared /etc/pam.d/dankshell stack, because externally-managed mode
-    # suppresses DMS's own parallel context; it still goes through fprintd, so
-    # the policy governs it. maxFprintTries mirrors the policy's failureLimit
-    # so the UI stops retrying at the same point the gate stops allowing.
+    # the pam_exec stamp dedsm.fingerprintPolicy needs. maxFprintTries mirrors
+    # the policy's failureLimit so the UI stops retrying at the same point the
+    # gate stops allowing.
+    #
     # Deliberately false, which reads backwards: "externally managed" makes DMS
     # authenticate against /etc/pam.d/**login** (Modules/Lock/Pam.qml), and this
-    # host keeps that stack password-only for tty logins. Left off, DMS takes
-    # the next branch — /etc/pam.d/dankshell, because the file exists — which is
-    # the stack modules/nixos/dms declares. It also stops DMS suppressing its
-    # own fingerprint context, so the sensor and the password field stay live at
-    # the same time instead of the sensor blocking the stack.
+    # host keeps that stack password-only for tty logins. It would also suppress
+    # DMS's own parallel fingerprint context, so the sensor and the password
+    # field stay live at the same time only with it off.
     #
     # DMS still writes an unused user-level PAM file under ~/.local/state; the
     # /etc one wins.
@@ -497,48 +431,21 @@ mkIf (homeManagerConfig.dms.enable or false) {
     # (services.geoclue2.appConfig.dms in modules/nixos/dms).
     useAutoLocation = true;
 
-    # --- bar
-    # The workspace pills show their Hyprland number, the way waybar's
-    # `{name}` did.
-    showWorkspaceIndex = true;
-    # waybar's `idle_inhibitor`, in two halves. The setting only lights an
-    # indicator on the bar while inhibition is *already* active
-    # (ControlCenterButton.qml checks `SessionService.idleInhibited`), so the
-    # thing you actually press is the "Keep Awake" tile — which has to be listed
-    # here, because declaring this key means owning the whole tile list. The
-    # rest of the list is DMS's default order.
-    controlCenterShowIdleInhibitorIcon = true;
-    controlCenterWidgets =
-      map
-        (id: {
-          inherit id;
-          enabled = true;
-          width = 50;
-        })
-        [
-          "volumeSlider"
-          "brightnessSlider"
-          "wifi"
-          "bluetooth"
-          "audioOutput"
-          "audioInput"
-          "nightMode"
-          "darkMode"
-          "idleInhibitor"
-        ];
+    # --- wellbeing
+    # Digital Wellbeing (new in 2.0, on by default) records how long each app
+    # holds focus, for screen-time limits. Not wanted here.
+    wellbeingEnabled = false;
 
-    # Workspace pills also carry the icons of the windows on each workspace, with
-    # the focused window's icon highlighted.
-    showWorkspaceApps = true;
-    workspaceActiveAppHighlightEnabled = true;
+    # --- bar
     # No drop shadow under the bar.
     barElevationEnabled = false;
-    # Bar geometry. Declaring `barConfigs` means owning the whole ~55-key bar
-    # object, so everything below except spacing/innerPadding/barInsetPadding is
-    # upstream's default verbatim. Do not paste `dms ipc settings dump` in here to
-    # refresh it: the bar settings tab rebuilds the entry from only the fields it
-    # edits, so a value that has been touched in the UI comes back with keys
-    # missing, and the missing ones would then read as their *property* defaults.
+    # Declaring `barConfigs` means owning the whole bar object, so everything
+    # below except spacing/innerPadding/barInsetPadding and the two widget
+    # entries is upstream's default verbatim (Common/settings/SettingsSpec.js).
+    # Do not paste `dms ipc call settings dump` in here to refresh it: the bar
+    # settings tab rebuilds the entry from only the fields it edits, so a value
+    # that has been touched in the UI comes back with keys missing, and the
+    # missing ones would then read as their *property* defaults.
     barConfigs = [
       {
         id = "default";
@@ -547,9 +454,20 @@ mkIf (homeManagerConfig.dms.enable or false) {
         position = 0;
         screenPreferences = [ "all" ];
         showOnLastDisplay = true;
+        # Widget options are per widget instance since 2.0 (they were global
+        # keys before), so a widget with any set becomes an object.
         leftWidgets = [
           "launcherButton"
-          "workspaceSwitcher"
+          {
+            id = "workspaceSwitcher";
+            enabled = true;
+            # The workspace pills show their Hyprland number, the way waybar's
+            # `{name}` did, and carry the icons of the windows on each
+            # workspace, the focused one highlighted.
+            showWorkspaceIndex = true;
+            showWorkspaceApps = true;
+            workspaceActiveAppHighlightEnabled = true;
+          }
           "focusedWindow"
         ];
         centerWidgets = [
@@ -564,20 +482,38 @@ mkIf (homeManagerConfig.dms.enable or false) {
           "memUsage"
           "notificationButton"
           "battery"
-          "controlCenterButton"
+          {
+            id = "controlCenterButton";
+            enabled = true;
+            showMicPercent = true;
+            # waybar's `idle_inhibitor`, in two halves: this only lights an
+            # indicator while inhibition is *already* active, and the thing you
+            # actually press is the control centre's "Keep Awake" tile
+            # (`idleInhibitor`), in upstream's default tile list since 2.0.
+            showIdleInhibitorIcon = true;
+          }
         ];
         spacing = 0;
         innerPadding = (-2);
         barInsetPadding = 4;
+        barLengthPadding = 0;
+        barLengthMode = "full";
+        barLengthPercent = 80;
         bottomGap = 0;
+        attachToScreenEdge = false;
+        followInterfaceStyle = true;
         transparency = 1.0;
+        surfaceColor = "default";
+        surfaceCustomColor = "#6750A4";
+        widgetFollowInterfaceStyle = true;
         widgetTransparency = 1.0;
         squareCorners = false;
         noBackground = false;
+        widgetStyle = "pills";
         maximizeWidgetIcons = false;
         maximizeWidgetText = false;
-        removeWidgetPadding = false;
         widgetPadding = 8;
+        batteryColorMode = "theme";
         gothCornersEnabled = false;
         gothCornerRadiusOverride = false;
         gothCornerRadiusValue = 12;
@@ -602,12 +538,17 @@ mkIf (homeManagerConfig.dms.enable or false) {
         maximizeDetection = true;
         useOverlayLayer = false;
         scrollEnabled = true;
-        scrollXBehavior = "column";
+        scrollXBehavior = "focusWindow";
         scrollYBehavior = "workspace";
+        middleClickAction = "none";
+        rightClickAction = "none";
+        clickActionFollowMouse = false;
         shadowIntensity = 0;
         shadowOpacity = 60;
         shadowColorMode = "default";
         shadowCustomColor = "#000000";
+        shadowDirectionMode = "inherit";
+        shadowDirection = "top";
         clickThrough = false;
         hoverPopouts = false;
         hoverPopoutDelay = 150;
@@ -625,25 +566,78 @@ mkIf (homeManagerConfig.dms.enable or false) {
     lockDateFormat = "dddd, MMMM d";
 
     # --- carried over from the trial
-    cornerRadius = 12;
-    controlCenterShowMicPercent = true;
     osdPowerProfileEnabled = true;
-
-    # --- notification rules
-    # Recording turns do-not-disturb on so nothing pops up in the video; this
-    # lets the recorder's own "Recording" and "Recording saved" notifications
-    # through regardless. The saved one would otherwise land silently in
-    # history whenever DND had been on before the recording started.
-    notificationRules = [
-      {
-        enabled = true;
-        field = "appName";
-        pattern = "Screencast";
-        matchType = "exact";
-        action = "default";
-        urgency = "default";
-        bypassDnd = true;
-      }
-    ];
   };
+in
+mkIf (homeManagerConfig.dms.enable or false) {
+  home.activation.dmsSessionDefaults = ''
+    state="${stateDir}/session.json"
+    $DRY_RUN_CMD mkdir -p "$(dirname "$state")"
+    if [ -f "$state" ]; then
+      # Merge, existing values winning, via a temp file so a failed jq cannot
+      # truncate live state.
+      if ${pkgs.jq}/bin/jq -s '.[0] + .[1]' ${sessionDefaults} "$state" > "$state.new" 2>/dev/null; then
+        $DRY_RUN_CMD mv -f "$state.new" "$state"
+      else
+        $DRY_RUN_CMD rm -f "$state.new"
+      fi
+    else
+      $DRY_RUN_CMD install -m 0644 ${sessionDefaults} "$state"
+    fi
+  '';
+
+  # Makes sure the Screencast rule is in the writable settings.json, leaving
+  # every other rule — the ones the notification menu adds — alone. Ordered
+  # after linkGeneration so that, on the switch from the old layout, it runs
+  # once home-manager has removed the store symlink settings.json used to be.
+  # Written out longhand because these files are imported with the NixOS `lib`,
+  # which has no `lib.hm.dag`.
+  home.activation.dmsSettingsDefaults = {
+    after = [ "linkGeneration" ];
+    before = [ ];
+    data = ''
+      settings="${configDir}/settings.json"
+      $DRY_RUN_CMD mkdir -p "$(dirname "$settings")"
+      # Only ever a leftover store symlink from before settings were split;
+      # merging into it would copy every old declared key into the live file.
+      if [ -L "$settings" ]; then
+        $DRY_RUN_CMD rm -f "$settings"
+      fi
+      if [ -f "$settings" ]; then
+        if ${pkgs.jq}/bin/jq --slurpfile rule ${screencastRule} '
+            .notificationRules = ((.notificationRules // [])
+              | if any(.[]; .field == $rule[0].field and .pattern == $rule[0].pattern)
+                then . else . + $rule end)
+          ' "$settings" > "$settings.new" 2>/dev/null; then
+          $DRY_RUN_CMD mv -f "$settings.new" "$settings"
+        else
+          $DRY_RUN_CMD rm -f "$settings.new"
+        fi
+      else
+        ${pkgs.jq}/bin/jq -n --slurpfile rule ${screencastRule} '{ notificationRules: $rule }' \
+          > "$settings.new" && $DRY_RUN_CMD mv -f "$settings.new" "$settings"
+      fi
+    '';
+  };
+
+  # On PATH for the CTRL+Print and CTRL+SHIFT+Print binds in the hyprland
+  # module.
+  home.packages = [
+    screenshot
+    screencast
+  ];
+
+  # DMS *does* watch its settings files (`watchChanges` on each FileView, plus
+  # a FolderListModel on config.d), but neither fires for a rebuild:
+  # home-manager re-links with `ln -Tsf`, replacing the symlink rather than the
+  # file it points at, so the inode being watched — a store path — never
+  # changes. Tested on 2.0.0 by re-linking this file exactly that way: the
+  # running shell kept the old value. (An in-place edit of the real
+  # settings.json, by contrast, is picked up live.) Hence the explicit restart,
+  # which is safe now that nothing locks the screen on shell start (see
+  # `lockAtStartup` above).
+  xdg.configFile."dms/config.d/10-nix.json".onChange = ''
+    ${pkgs.systemd}/bin/systemctl --user try-restart dms.service || true
+  '';
+  xdg.configFile."dms/config.d/10-nix.json".text = builtins.toJSON declaredSettings;
 }

@@ -18,14 +18,6 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
   hyprdynamicmonitors
   (
     let
-      # Opens the launcher already filtered to the `dedsmScreenshot` plugin's six
-      # entries (see the dms module). Wrapped in a script rather than inlined into
-      # the bind because the trigger is `#`, which is Hyprland's comment character
-      # — an `exec_cmd` carrying it would be truncated at the `#` in the generated
-      # config. The bind then references only a store path.
-      screenshot-picker = pkgs.writeShellScript "dms-screenshot-picker" ''
-        exec dms ipc call spotlight openQuery "#"
-      '';
       screencast-inhibit = pkgs.writeShellScript "screencast-inhibit" ''
         ${pkgs.socat}/bin/socat -U - "UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock" | while IFS= read -r line; do
           case "$line" in
@@ -280,6 +272,8 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
           -- The rest of the shell, on keys the layout had free.
           hl.bind(mod .. " + V", hl.dsp.exec_cmd("dms ipc call clipboard toggle"))
           hl.bind(mod .. " + N", hl.dsp.exec_cmd("dms ipc call notifications toggle"))
+          -- Runs the newest notification's default action, as clicking it would.
+          hl.bind(mod .. " + SHIFT + N", hl.dsp.exec_cmd("dms ipc call notifications invokeLast"))
           hl.bind(mod .. " + O", hl.dsp.exec_cmd("dms ipc call control-center toggle"))
           hl.bind(mod .. " + X", hl.dsp.exec_cmd("dms ipc call mpris playPause"))
           hl.bind(mod .. " + Z", hl.dsp.exec_cmd("dms ipc call mpris previous"))
@@ -290,7 +284,8 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
           hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("dms ipc call mpris previous"))
           hl.bind("XF86AudioNext", hl.dsp.exec_cmd("dms ipc call mpris next"))
           hl.bind("Print", hl.dsp.exec_cmd("uwsm app -- dms screenshot region --no-file"))
-          hl.bind("CTRL + Print", hl.dsp.exec_cmd("${screenshot-picker}"))
+          -- The screenshot picker (the dms module's `dms-screenshot`).
+          hl.bind("CTRL + Print", hl.dsp.exec_cmd("dms-screenshot menu"))
           -- Screen recording: opens the recording picker, or stops and saves
           -- the recording in progress (the dms module's `dms-screencast`).
           hl.bind("CTRL + SHIFT + Print", hl.dsp.exec_cmd("dms-screencast menu"))

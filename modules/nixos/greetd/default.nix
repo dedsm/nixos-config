@@ -77,20 +77,22 @@ in
     # 26.05's dms-greeter module builds its greetd command against the pre-1.6
     # layout: `sh ${package}/share/quickshell/dms/Modules/Greetd/assets/dms-greeter`
     # plus `-p ${package}/share/quickshell/dms`. Neither path exists any more.
-    # Upstream split the greeter into its own repo (AvengeMedia/dank-greeter),
-    # nixpkgs packages it separately as `dms-greeter` with the UI baked into the
-    # binary the same way dms-shell now bakes its own, and unstable's module was
-    # rewritten to exec `${package}/bin/dms-greeter` with no `-p` at all. 26.05
-    # has not caught up, and its `package` option defaults to
-    # `programs.dms-shell.package` — so our 1.6.2 shell flows straight into a
-    # path that is gone, and greetd is left with a command it cannot exec.
+    # Upstream split the greeter into its own repo (now duxlabs-dev/dux-greeter),
+    # nixpkgs packages it separately — `dux-greeter` since 2.0, `dms-greeter`
+    # before — with the UI baked into the binary the same way the shell bakes
+    # its own, and unstable's module was rewritten to exec
+    # `${package}/bin/dms-greeter` with no `-p` at all. 26.05 has not caught up,
+    # and its `package` option defaults to `programs.dms-shell.package` — so our
+    # unstable shell flows straight into a path that is gone, and greetd is left
+    # with a command it cannot exec.
     #
     # Nothing else in the 26.05 module is stale: its config block differs from
     # unstable's only in miracle-wm attribute pathing and `config.systemd.package`
     # vs `pkgs.systemd` in the autologin branch, neither of which applies here.
     # So the whole repair is this one command, and everything else — the
     # `dms-greeter` user, the cache dir, greetd's settings, the PAM stack — keeps
-    # coming from the module. Delete this block when 26.05 backports the rewrite.
+    # coming from the module. Delete this block on the move to 26.11, whose
+    # `services.displayManager.dux-greeter` module is unstable's rewrite.
     #
     # Reproduced from unstable's `greeterScript`, reading the module's own option
     # values rather than re-deriving them, so only the exec line is duplicated.
@@ -109,7 +111,7 @@ in
           ${
             escapeShellArgs (
               [
-                "${pkgs.unstable.dms-greeter}/bin/dms-greeter"
+                "${pkgs.unstable.dux-greeter}/bin/dms-greeter"
                 "--cache-dir"
                 "/var/lib/dms-greeter"
                 "--command"
