@@ -86,10 +86,9 @@ in
     #
     # The packaged unit is After=graphical-session.target, and uwsm only reaches
     # that once Hyprland signals readiness — measured at 1.4s after Hyprland's
-    # first frame on this machine. Every one of those milliseconds is unlocked
-    # desktop on an autologin boot, because DMS *is* the locker: `lockAtStartup`
-    # fires from Lock.qml's Component.onCompleted, and nothing can lock earlier
-    # than the shell that owns the lock surface.
+    # first frame on this machine, all of it spent on a desktop with no bar yet.
+    # (This once also guarded an unlocked desktop under autologin; the greeter
+    # now authenticates before the session exists, see docs/login-flow.md.)
     #
     # All the shell actually needs is the Wayland socket, which exists as soon
     # as Hyprland has created it. So: order after uwsm's env export (which is
@@ -173,9 +172,10 @@ in
     # /etc/pam.d/dankshell instead, so the factors and their ordering are
     # declared here like any other NixOS PAM service. Two things depend on it:
     #
-    #  * gnome-keyring. greetd autologs in, so no password ever reaches the
-    #    login stack; pam_gnome_keyring's auth handler forwards the one typed
-    #    at the lock gate to the already-running daemon.
+    #  * gnome-keyring. The greeter's login stack unlocks it at login; this one
+    #    lets a password typed at the lock screen unlock it again after the
+    #    daemon was relocked (a fingerprint unlock carries no secret to
+    #    forward). See docs/login-flow.md, "Keyring unlock".
     #  * dedsm.fingerprintPolicy's password clock, which is refreshed by the
     #    pam_exec stamp that module appends to every service in
     #    `passwordServices` — `dankshell` among them. Without this stack DMS
@@ -199,7 +199,9 @@ in
     # (core/internal/geolocation/client_geoclue.go). GeoClue denies desktop ids
     # it has no entry for, and DMS then falls back to IP geolocation with only
     # a log line — so this is what keeps the schedule as accurate as darkman's
-    # was. `dedsm.gnome-services` is what actually enables geoclue2.
+    # was. gnome-services enables geoclue2 too, with its providers; enabling it
+    # here as well keeps the entry from depending on that module.
+    services.geoclue2.enable = true;
     services.geoclue2.appConfig.dms = {
       isAllowed = true;
       isSystem = true;

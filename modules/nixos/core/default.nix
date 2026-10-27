@@ -12,13 +12,13 @@ in
   options.dedsm.core = {
     timeZone = mkOption {
       description = "Time zone";
-      type = with types; nullOr str;
+      type = with types; str;
       default = "Europe/Amsterdam";
     };
 
     defaultLocale = mkOption {
       description = "Default Locale";
-      type = with types; nullOr str;
+      type = with types; str;
       default = "en_US.UTF-8";
     };
   };
@@ -160,11 +160,6 @@ in
       options = "--delete-older-than 30d";
     };
     networking.firewall.enable = false;
-
-    # Environment variables
-    environment.variables = {
-      VDPAU_DRIVER = "radeonsi";
-    };
 
     services.accounts-daemon.enable = true;
 

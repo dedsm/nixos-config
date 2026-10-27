@@ -21,7 +21,6 @@ in
 
     systemd.packages = with pkgs; [ gnome-session ];
     services.gvfs.enable = true;
-    services.avahi.enable = true;
     services.geoclue2 = {
       enable = true;
       enableDemoAgent = true;
