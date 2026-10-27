@@ -295,7 +295,6 @@
         // {
           # Darwin specific settings
           ghostty.enable = true;
-          sketchybar.enable = false;
           stateVersion = "25.11";
           packages =
             pkgs:

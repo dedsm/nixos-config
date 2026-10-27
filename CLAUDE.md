@@ -42,7 +42,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │   │   ├── default.nix       # Home Manager user configuration bridge
 │   │   ├── fonts.nix          # System fonts, wired into both host builders
 │   │   └── users/common/      # Home Manager user modules — tmux, herdr, nvim, zsh, git, hyprland,
-│   │                            dms, ghostty, sketchybar, theme, claude-code, playwright, antigravity,
+│   │                            dms, ghostty, theme, claude-code, playwright, antigravity,
 │   │                            agent-harness (rtk/direnv/brain skill per coding agent), ...
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, xserver/xkb,

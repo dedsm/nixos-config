@@ -20,7 +20,7 @@ hosts/
 
 modules/
 ├── common/               # Home Manager modules, shared across platforms
-│   └── users/common/       # tmux, herdr, nvim, zsh, git, hyprland, ghostty, sketchybar, claude-code, ...
+│   └── users/common/       # tmux, herdr, nvim, zsh, git, hyprland, ghostty, claude-code, ...
 ├── nixos/                 # NixOS system modules (dedsm.<name>.enable toggles)
 │   ├── core/                # Always-on baseline: networking, fonts, audio, xdg, base packages
 │   ├── laptop/               # Power management, lid/sleep behaviour

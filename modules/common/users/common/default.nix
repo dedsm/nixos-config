@@ -20,7 +20,6 @@ let
   zoxide = import ./zoxide attrs;
   ssh = import ./ssh attrs;
   ghostty = import ./ghostty attrs;
-  sketchybar = import ./sketchybar attrs;
   theme = import ./theme attrs;
   claude-code = import ./claude-code attrs;
   playwright = import ./playwright attrs;
@@ -46,7 +45,6 @@ lib.mkMerge [
   zoxide
   ssh
   ghostty
-  sketchybar
   theme
   claude-code
   playwright

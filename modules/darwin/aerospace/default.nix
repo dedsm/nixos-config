@@ -25,15 +25,9 @@ in
         after-startup-command = [
         ];
 
-        # 2. Focus Follows Mouse (Your requirement) & SketchyBar Integration
+        # 2. Focus Follows Mouse
         on-focused-monitor-changed = [ "move-mouse monitor-lazy-center" ];
         on-focus-changed = [ "move-mouse window-lazy-center" ];
-
-        exec-on-workspace-change = [
-          "/bin/bash"
-          "-c"
-          "if command -v sketchybar >/dev/null; then sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE; fi"
-        ];
 
         # 3. Gaps
         gaps = {
