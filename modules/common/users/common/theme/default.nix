@@ -4,14 +4,14 @@
   lib,
   pkgs,
   homeManagerConfig,
-  username,
+  homeDirectory,
   ...
 }:
 with lib;
 let
   cfg = homeManagerConfig.theme or { enable = false; };
   isLinux = pkgs.stdenv.isLinux;
-  homeDir = if isLinux then "/home/${username}" else "/Users/${username}";
+  homeDir = homeDirectory;
 
   # Solarized Palette
   colors = {

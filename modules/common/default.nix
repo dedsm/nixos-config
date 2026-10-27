@@ -13,6 +13,10 @@ let
       homeAttrs = attrs // {
         homeManagerConfig = v;
         username = k;
+        # The plain-function modules get the system config as `config`, so
+        # they cannot read config.home.homeDirectory; hand them the same value
+        # home-manager derives it from.
+        homeDirectory = config.users.users.${k}.home;
       };
       commonModule = import ./users/common homeAttrs;
     in

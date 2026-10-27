@@ -1,6 +1,6 @@
 attrs@{
   lib,
-  username,
+  homeDirectory,
   homeManagerConfig,
   pkgs,
   ...
@@ -18,13 +18,7 @@ let
   # Where the screenshot picker's three "Save" entries and every recording
   # write. Kept at ~/Downloads because that is where the hyprshot picker this
   # replaced put them.
-  #
-  # These modules are plain functions applied to `attrs`, not home-manager
-  # modules, so `config` here is the *system* config and there is no
-  # `config.home.homeDirectory` to read. The bridge in modules/common passes
-  # `username` and the user config, and sets home.homeDirectory from the latter
-  # only when it declares one — so mirror that fallback rather than assuming.
-  screenshotSaveDir = "${homeManagerConfig.home.homeDirectory or "/home/${username}"}/Downloads";
+  screenshotSaveDir = "${homeDirectory}/Downloads";
 
   # DMS 2.0 moved everything from `DankMaterialShell` to `dms`, leaving the old
   # names behind as compatibility symlinks; these are the real paths.

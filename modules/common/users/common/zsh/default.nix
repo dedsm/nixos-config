@@ -2,7 +2,7 @@
   lib,
   pkgs,
   config,
-  username,
+  homeDirectory,
   homeManagerConfig,
   ...
 }:
@@ -13,7 +13,7 @@ mkIf (homeManagerConfig.zsh.enable or false) {
     enableCompletion = true;
     # 26.05 XDG default: move zsh config to ~/.config/zsh.
     # history.path defaults to "${dotDir}/.zsh_history", so it follows automatically.
-    dotDir = "${config.users.users.${username}.home}/.config/zsh";
+    dotDir = "${homeDirectory}/.config/zsh";
     autosuggestion = {
       enable = true;
     };

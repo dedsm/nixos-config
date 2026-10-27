@@ -2,13 +2,12 @@
   lib,
   pkgs,
   homeManagerConfig,
-  username,
+  homeDirectory,
   ...
 }:
 let
   isDarwin = pkgs.stdenv.isDarwin;
-  isLinux = pkgs.stdenv.isLinux;
-  homeDir = if isLinux then "/home/${username}" else "/Users/${username}";
+  homeDir = homeDirectory;
 
   # Base plugins for all systems
   basePlugins = with pkgs.tmuxPlugins; [
