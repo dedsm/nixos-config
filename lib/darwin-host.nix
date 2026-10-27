@@ -25,7 +25,6 @@ attrs@{
 
       specialArgs = attrs // {
         hc = userConfig;
-        hostSystemConfig = systemConfig;
         inherit user;
       };
 
@@ -35,8 +34,6 @@ attrs@{
           nixpkgs.pkgs = pkgs;
           networking.hostName = name;
           users.users.${user}.home = "/Users/${user}";
-          nix.settings = {
-          };
           nix.registry = {
             nixpkgs.flake = nixpkgs;
             unstable.flake = unstable;
@@ -46,7 +43,7 @@ attrs@{
           home-manager.useGlobalPkgs = true;
           home-manager.useUserPackages = true;
 
-          dedsm = builtins.removeAttrs systemConfig [ "stateVersion" ];
+          dedsm = systemConfig;
         }
         ../modules/darwin
         ../modules/common

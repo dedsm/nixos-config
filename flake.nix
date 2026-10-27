@@ -118,8 +118,6 @@
         ];
       };
 
-      inherit (util) host;
-
       # Define reusable common user settings
       davidShared = pkgs: {
         tmux.enable = true;
@@ -381,7 +379,6 @@
               (pkgs.unstable.vscode.override {
                 commandLineArgs = "--password-store=gnome-libsecret";
               })
-              # Cursor.ai
               pkgs.unstable.synology-drive-client
               pkgs.unstable.ledger-live-desktop
               pkgs.unstable.awscli2
@@ -391,15 +388,12 @@
       };
 
       morgothSystemConfig = {
-        # Darwin system config if any
-        stateVersion = "25.11";
         aerospace.enable = true;
       };
 
       morgothUserConfig = pkgs: {
         "david.de.sousa" = (davidDarwin pkgs) // {
           home.homeDirectory = "/Users/david.de.sousa";
-          home.stateVersion = "25.11";
 
           git = (davidDarwin pkgs).git // {
             includes = [
@@ -416,12 +410,6 @@
               eval "$(docker completion zsh)"
             '';
           };
-
-          packages =
-            pkgs:
-            (davidDarwin pkgs).packages pkgs
-            ++ (with pkgs; [
-            ]);
         };
       };
     in
@@ -437,18 +425,6 @@
             ./hosts/manwe/hardware-configuration.nix
           ];
         };
-        # Example for a future host:
-        # tower = host.mkHost {
-        #   name = "tower";
-        #   config = {
-        #     system = { laptop.enable = false; /* ... */ };
-        #     users = {
-        #       david = davidCommon // { hyprland.enable = true; /* ... */ };
-        #       anotherUser = { /* ... */ };
-        #     };
-        #     stateVersion = "24.05";
-        #   };
-        # };
       };
 
       darwinConfigurations = {
@@ -464,7 +440,7 @@
       # The `pkgs/` overlay, exposed so `nix build .#<name>` works and so
       # `nix-update --flake <name>` (see scripts/update-packages.sh) has an
       # attribute path to resolve. Packages that cannot evaluate for a system —
-      # cursor-appimage on Darwin, say — are dropped rather than breaking
+      # cli-notify on Linux, say — are dropped rather than breaking
       # `nix flake show` for everything else.
       packages = lib.genAttrs supportedSystems (
         system:

@@ -5,8 +5,6 @@
 }:
 self: super:
 let
-  pkgsPath = ./.;
-
   # Shared arguments for the two Antigravity GUI packages (the 2.0 "hub" app
   # and the legacy IDE), which are the same derivation with a different
   # `appType`.

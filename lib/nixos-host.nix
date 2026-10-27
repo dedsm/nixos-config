@@ -21,15 +21,12 @@ attrs@{
       userConfig = userConfigFn pkgs;
     in
     lib.nixosSystem {
-      # inherit system; # System is set via nixpkgs.pkgs
-
       specialArgs = attrs // {
         hc = userConfig;
-        hostSystemConfig = systemConfig;
       };
 
       modules = [
-        (import ../modules/nixos attrs)
+        ../modules/nixos
         home-manager.nixosModules.home-manager
         ({ modulesPath, ... }: {
           imports = [ (modulesPath + "/misc/nixpkgs/read-only.nix") ];
