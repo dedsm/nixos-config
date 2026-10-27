@@ -9,7 +9,15 @@ stdenv.mkDerivation {
   pname = "cli-notify";
   version = "1.0";
 
-  src = ./.;
+  # Only what the build reads: with the whole directory as src, editing this
+  # file would change the source hash and force a rebuild on the Mac.
+  src = lib.fileset.toSource {
+    root = ./.;
+    fileset = lib.fileset.unions [
+      ./Notify.swift
+      ./Info.plist
+    ];
+  };
 
   nativeBuildInputs = [
     swift
@@ -51,5 +59,6 @@ stdenv.mkDerivation {
   meta = {
     description = "Minimal macOS UNUserNotifications CLI with identifier-based replacement";
     platforms = lib.platforms.darwin;
+    mainProgram = "cli-notify";
   };
 }

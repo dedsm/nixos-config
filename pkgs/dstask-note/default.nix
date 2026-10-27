@@ -23,10 +23,10 @@
 writeShellApplication {
   name = "dstask-note";
 
-  runtimeInputs = [ dstask ] ++ lib.optionals stdenv.isLinux [ util-linux ];
+  runtimeInputs = [ dstask ] ++ lib.optionals stdenv.hostPlatform.isLinux [ util-linux ];
 
   text =
-    if stdenv.isLinux then
+    if stdenv.hostPlatform.isLinux then
       ''
         # util-linux script takes the command as a single string; %q-quote each
         # argument so note text with spaces/quotes survives the round trip.
@@ -40,14 +40,14 @@ writeShellApplication {
         exec script -q /dev/null dstask note "$@" </dev/null
       '';
 
-  meta = with lib; {
+  meta = {
     description = "TTY-wrapped `dstask note` that works from non-interactive shells";
     longDescription = ''
       dstask note silently does nothing when run without a controlling TTY.
       This wrapper runs it under a pty so notes can be written from scripts and
       agent sessions, papering over the BSD/util-linux script(1) syntax split.
     '';
-    platforms = platforms.unix;
+    platforms = lib.platforms.unix;
     mainProgram = "dstask-note";
   };
 }
