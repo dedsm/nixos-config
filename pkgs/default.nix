@@ -1,5 +1,4 @@
 {
-  hyprlandPkgs,
   unstablePkgs,
   antigravityNix,
 }:

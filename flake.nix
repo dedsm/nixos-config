@@ -4,8 +4,6 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-26.05";
     unstable.url = "nixpkgs/nixos-unstable";
-    hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&ref=stable_branch";
-    #hyprland.url = "git+https://github.com/dedsm/Hyprland?submodules=1&rev=0ac0f32671b949b7bde276f1175bed035fb09fd9";
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -40,7 +38,6 @@
     attrs@{
       nixpkgs,
       unstable,
-      hyprland,
       home-manager,
       nixos-hardware,
       hyprdynamicmonitors,
@@ -67,7 +64,6 @@
             };
           };
           localpkgs = import ./pkgs {
-            hyprlandPkgs = hyprland;
             unstablePkgs = unstablePkgs;
             antigravityNix = antigravity-nix;
           };
@@ -89,7 +85,6 @@
           home-manager
           nixos-hardware
           lib
-          hyprland
           hyprdynamicmonitors
           darwin
           ;

@@ -1,7 +1,6 @@
 attrs@{
   lib,
   config,
-  hyprland,
   homeManagerConfig,
   pkgs,
   ...
@@ -71,8 +70,6 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
         # xdph to the user profile alongside the patched one. `config` here is
         # the system config — see modules/common/default.nix.
         portalPackage = config.programs.hyprland.portalPackage;
-        #package = hyprland.packages.${pkgs.system}.hyprland-debug;
-        #package = hyprland.packages.${pkgs.system}.hyprland;
 
         # Declarative option sections render to a single hl.config({...}) call.
         settings = {
