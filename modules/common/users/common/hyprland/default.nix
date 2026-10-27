@@ -163,12 +163,6 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
 
           -- Autostart
           hl.on("hyprland.start", function()
-            -- The boot lock, only under greetd autologin: there the session
-            -- starts unattended and this is the actual auth gate. It is
-            -- password-only without being told to — the fingerprint window
-            -- lives in /run, so nothing has opened it yet this boot
-            -- (dedsm.fingerprintPolicy) — and that typed password is also what
-            -- unlocks gnome-keyring via PAM.
             hl.exec_cmd("uwsm app -- solaar -w hide")
             -- No polkit agent here: DMS registers one, and polkit allows a single
             -- agent per subject — whichever starts first wins, so autostarting
