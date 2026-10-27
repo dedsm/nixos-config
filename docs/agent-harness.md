@@ -2,7 +2,7 @@
 
 Module: [`modules/common/users/common/agent-harness/`](../modules/common/users/common/agent-harness/) · flags: `agent-harness.<plugin>.<harness>` (set in `davidShared`).
 
-Some tools plug into every coding agent the same way: rtk rewrites the commands an agent runs, and direnv loads the project's environment. Each agent ("harness") has its own config format for that. This module holds the list of plugins and the per-harness switches in one place, so adding a harness means writing one adapter rather than copying each plugin into its module.
+Some tools plug into every coding agent the same way: rtk rewrites the commands an agent runs, direnv loads the project's environment, and the personal `brain` skill tracks ongoing work. Each agent ("harness") has its own config format for that. This module holds the list of plugins and the per-harness switches in one place, so adding a harness means writing one adapter rather than copying each plugin into its module.
 
 ## Flags
 
@@ -14,6 +14,7 @@ agent-harness = {
   };
   direnv.antigravity = true;
   rtk-posthook.claude-code = true;
+  brain.antigravity = true;
 };
 ```
 
@@ -22,6 +23,7 @@ agent-harness = {
 | `rtk` | `claude-code`, `antigravity` | the rewrite hook, rtk's awareness text, and `rtk` on `PATH` |
 | `direnv` | `antigravity` | a `direnv export` prefix on every command the agent runs |
 | `rtk-posthook` | `claude-code` | rtk's `rtk:posthook` pipeline: a PostToolUse hook that compresses tool output after the tool ran — see [below](#rtk-posthook) |
+| `brain` | `claude-code`, `antigravity` | the personal `brain` skill and a SessionStart hook with `brain health`'s line, plus (once, whichever harness has it) the `brain` CLI, the `~/brain` bootstrap and commit hooks, and the weekly health notification — see [below](#brain) |
 
 - A harness name is the key of that harness's own module (`claude-code.enable`, `antigravity.enable`). A flag only takes effect where that module is enabled, so the shared `antigravity = true` is inert on morgoth, where Antigravity isn't installed.
 - Every flag defaults to `true`. The block in `flake.nix` only spells them out.
@@ -56,6 +58,16 @@ Two build-time guards: the pipeline file is checked with `rtk pipeline validate`
 
 The plugin owns `~/.config/rtk/pipeline.toml` outright; a hand-written pipeline belongs in `~/.config/rtk/pipelines/*.toml` or in this module. Upstream applies pipeline hook rules to Claude Code only, hence no Antigravity flag.
 
+## brain
+
+The skill's source sits in the module (`skills/brain/`: `SKILL.md`, `brain.py`, `templates/`) and its build products in `brain.nix`: the CLI, the two `~/brain/.git/hooks` shims, one SessionStart hook per harness, and the weekly notifier. What the skill and store do is in [`brain-skill.md`](./brain-skill.md). This section covers only how the module installs them.
+
+- **One `SKILL.md`, unmodified, in every harness.** Both harnesses read the same skill format (a directory with `SKILL.md` and its `name`/`description` frontmatter), so the file isn't adapted per harness. It refers to its own files relative to itself (`templates/` beside this file), not by a harness's install path, and `templates/` is linked next to it in each harness. Claude Code gets `~/.claude/skills/brain/`. Antigravity gets a plugin at `~/.gemini/config/plugins/brain/` (`plugin.json`, `skills/brain/`, `hooks.json`) rather than a loose `~/.gemini/config/skills/brain/`, so the skill and its hook switch on and off as a unit.
+- **The store machinery is per user, not per harness.** The CLI on `PATH`, the bootstrap and hook-refresh activation, and the systemd/launchd timer come in once whenever *any* harness has `brain` active, so Antigravity alone would still get a working store.
+- **SessionStart, Claude Code**: `lib.nix` exports `claudeCode.sessionStart`, which the claude-code module puts in `managedSettings.hooks.SessionStart`. That key is shared with herdr's own entry and therefore array-merged (see [`claude-code.md`](./claude-code.md)). The merge drops a stale managed entry by its command path, `~/.local/bin/claude-brain-health.sh`, which is why that path stays stable (this module links the script there) and is exported even when the flag is off.
+- **SessionStart, Antigravity**: the plugin's own `hooks.json`. Antigravity's contract is JSON on stdout with the text as an `injectSteps` `systemMessage`, and `{}` when the store is clean.
+- **The manual**: `~/brain/AGENTS.md`, which Antigravity loads natively while it works in the store. `~/brain/CLAUDE.md` is only an `@AGENTS.md` import for Claude Code. Both come from `templates/` via `brain sync`.
+
 ## Claude Code
 
 - **The hook**: `lib.nix` exports `claudeCode.preToolUse`, which the claude-code module splices into `managedSettings.hooks.PreToolUse`. The harness module does **not** write `~/.claude/settings.json` itself: the claude-code merge replaces arrays (see [`claude-code.md`](./claude-code.md) § Managed settings), so a second writer of `PreToolUse` would delete the other's entries on every switch. With the rtk flag off, the list is `[ ]`, which actively removes a previously merged entry. The command is the bare `rtk hook claude` that `rtk init` writes, so `rtk verify` and `rtk gain` still recognise it as rtk's own hook. That is also why the module puts rtk on `PATH`.
@@ -65,7 +77,7 @@ The plugin owns `~/.config/rtk/pipeline.toml` outright; a hand-written pipeline 
 
 ## Antigravity
 
-Antigravity loads every directory under `~/.gemini/config/plugins/`. The module installs one plugin whose `run_command` PreToolUse hook (`antigravity-hook.nix`) runs `rtk hook antigravity` first, then wraps the result in `eval "$(direnv export bash)" && …`. The two must be one hook, since the direnv wrap has to see rtk's rewrite. The plugin is named `rtk` (rtk's own name, as `rtk init --agent antigravity` would install it) whenever rtk is part of it, and `direnv` when only direnv is on. `rules/AGENTS.md` is the generated awareness text.
+Antigravity loads every directory under `~/.gemini/config/plugins/`. Apart from the `brain` plugin (above), the module installs one plugin whose `run_command` PreToolUse hook (`antigravity-hook.nix`) runs `rtk hook antigravity` first, then wraps the result in `eval "$(direnv export bash)" && …`. The two must be one hook, since the direnv wrap has to see rtk's rewrite. The plugin is named `rtk` (rtk's own name, as `rtk init --agent antigravity` would install it) whenever rtk is part of it, and `direnv` when only direnv is on. `rules/AGENTS.md` is the generated awareness text.
 
 Antigravity checks permissions after hooks rewrite a command, so a command allowlist has to permit the rewritten form (`command(rtk *)`).
 

@@ -4,7 +4,7 @@
 This is the single source of truth for the store's schema and the only thing
 that should ever write page frontmatter. It is Nix-managed and shipped from
 nixos-config alongside the brain skill; do NOT edit the deployed copy. See the
-governance note in ~/brain/CLAUDE.md before changing any rule here.
+governance note in ~/brain/AGENTS.md before changing any rule here.
 
 Subcommands:
   check     validate frontmatter + internal links + state readings (exits
@@ -52,11 +52,11 @@ from pathlib import Path
 
 # --------------------------------------------------------------------------
 # Schema — the machine-readable source of truth (Layer 1).
-# The prose mirror lives in ~/brain/CLAUDE.md; both change together, via the
+# The prose mirror lives in ~/brain/AGENTS.md; both change together, via the
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 14     # bump with templates/CLAUDE.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 15     # bump with templates/AGENTS.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 # `goal` is the quarterly outcomes layer: 3-5 live at a time, due = quarter
@@ -87,7 +87,7 @@ WORK_KINDS = {"goal", "initiative", "project", "area"}
 # Statuses that imply motion — the only ones staleness/verification apply to.
 LIVE_STATUSES = {"active", "blocked"}
 # Pages tagged this are cataloged by the people MOC, not by index.md — see the
-# People section of CLAUDE.md. They are still validated and still queryable.
+# People section of AGENTS.md. They are still validated and still queryable.
 PERSON_TAG = "person"
 # `summary` is a one-line catalog description; past this it has become a changelog.
 SUMMARY_MAX = 200
@@ -393,7 +393,7 @@ SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 # Sources the linter never reads: the manual and README carry intentional
 # example links ([[page]], [[hub]]); log*.md is append-only history whose links
 # may legitimately outlive their targets; raw/ is immutable by definition.
-_LINT_EXEMPT_FILES = {"CLAUDE.md", "README.md", "log.md"}
+_LINT_EXEMPT_FILES = {"AGENTS.md", "CLAUDE.md", "README.md", "log.md"}
 _LINT_EXEMPT_DIRS = ("raw", "log-archive")
 
 
@@ -1421,7 +1421,7 @@ _RESOURCE_BODY = """
 """
 
 # A person is a resource by kind (no bucket of their own) but wants a different
-# shape — see the People section of CLAUDE.md. Reached via `new resource --person`.
+# shape — see the People section of AGENTS.md. Reached via `new resource --person`.
 _PERSON_BODY = """
 <!-- Who they are, in one line, and how you know them. -->
 <!-- TODO: fill -->
@@ -1749,7 +1749,7 @@ def cmd_mv(args) -> int:
     rewritten, total = [], 0
     for f in _store_md_files():
         fr = rel(f)
-        if fr in ("CLAUDE.md", "README.md") or fr.startswith("raw/"):
+        if fr in ("AGENTS.md", "CLAUDE.md", "README.md") or fr.startswith("raw/"):
             continue
         try:
             text = f.read_text(encoding="utf-8")
@@ -2334,7 +2334,7 @@ def cmd_log(args) -> int:
 # moment `health`/`review` flags the log as oversized, without asking.
 # --------------------------------------------------------------------------
 
-LOG_MAX_LINES = 400       # log.md past this wants rotating (mirrored in CLAUDE.md)
+LOG_MAX_LINES = 400       # log.md past this wants rotating (mirrored in AGENTS.md)
 LOG_KEEP_ENTRIES = 150    # newest entries kept hot in log.md by rotate-log
 
 
@@ -2591,6 +2591,11 @@ def cmd_health(args) -> int:
 
 _TEMPLATE_DIR = "@brainTemplateDir@"  # substituted with the Nix store path at build
 
+# The operating manual: AGENTS.md is the text every harness reads; CLAUDE.md is
+# a one-line `@AGENTS.md` import, because Claude Code reads only CLAUDE.md.
+# Both are canonical, so sync replaces either whenever it differs.
+MANUAL_FILES = ("AGENTS.md", "CLAUDE.md")
+
 # Versions whose upgrade needs judgment — a model-executed, diff-and-ask
 # backfill per the skill's sync procedure. `sync` stops before stamping when
 # the store's gap crosses one of these. Purely additive bumps don't register.
@@ -2628,9 +2633,8 @@ def template_dir() -> Path | None:
         return Path(env)
     if not _TEMPLATE_DIR.startswith("@"):  # substituted by the Nix build
         return Path(_TEMPLATE_DIR)
-    # Running straight from the repo (uninstalled): fall back to the deployed
-    # skill copy, which tracks the last rebuild.
-    fallback = Path.home() / ".claude" / "skills" / "brain" / "templates"
+    # Running straight from the repo (uninstalled): the template beside it.
+    fallback = Path(__file__).resolve().parent / "templates"
     return fallback if fallback.is_dir() else None
 
 
@@ -2639,7 +2643,7 @@ def cmd_sync(args) -> int:
     if not (store / ".git").is_dir():
         die(f"{store} is not a git repository")
     tpl = template_dir()
-    if tpl is None or not (tpl / "CLAUDE.md").is_file():
+    if tpl is None or not all((tpl / m).is_file() for m in MANUAL_FILES):
         die("canonical template not found — rebuild this machine, or set BRAIN_TEMPLATE_DIR")
 
     def git(*a):
@@ -2651,7 +2655,7 @@ def cmd_sync(args) -> int:
         die(f"store is v{sv}, ahead of cli v{TEMPLATE_VERSION} — rebuild this machine first")
     gap = f"v{'?' if sv is None else sv} → v{TEMPLATE_VERSION}"
 
-    # Plan: the manual is canonical (always replaced when it differs);
+    # Plan: the manual files are canonical (always replaced when they differ);
     # everything else in the template is create-if-missing, never overwritten.
     plan = []
     for src in sorted(tpl.rglob("*")):
@@ -2660,9 +2664,9 @@ def cmd_sync(args) -> int:
         if src.is_dir():
             if not dst.is_dir():
                 plan.append(("mkdir", str(relp)))
-        elif str(relp) == "CLAUDE.md":
+        elif str(relp) in MANUAL_FILES:
             if not dst.exists() or dst.read_bytes() != src.read_bytes():
-                plan.append(("replace", "CLAUDE.md"))
+                plan.append(("replace", str(relp)))
         elif not dst.exists():
             plan.append(("create", str(relp)))
 

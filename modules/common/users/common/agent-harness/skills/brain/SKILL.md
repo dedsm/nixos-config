@@ -19,23 +19,23 @@ The store lives at `~/brain` (plain markdown + git). It is global: this skill wo
 session — inside a repo, another repo, or none. Always operate on the absolute `~/brain` path, not
 the current working directory.
 
-Store conventions — bucket structure, page schema, workflows — live in `~/brain/CLAUDE.md`, the
+Store conventions — bucket structure, page schema, workflows — live in `~/brain/AGENTS.md`, the
 working manual to follow for day-to-day operations. Frontmatter is written and validated by the
 Nix-managed **`brain` CLI** (on `PATH`), which owns the schema; prefer it over hand-editing YAML.
-The **canonical** copy of the manual, the CLI, and the store scaffold ship with this skill at
-`~/.claude/skills/brain/templates/` + `brain.py`; `--sync` reconciles a store toward it. How to
+The **canonical** copy of the manual, the CLI, and the store scaffold ship with this skill
+(`templates/` beside this file, and the CLI); `--sync` reconciles a store toward it. How to
 route work to an external/team tracker is defined by the **active workspace's own rules** (e.g. a
-repo's `.claude/` rules), not here. This skill is the generic mechanism.
+repo's `AGENTS.md` / `.claude/` rules), not here. This skill is the generic mechanism.
 
 ## Procedure
 
-1. **Read** `~/brain/CLAUDE.md` (the operating manual: structure, page schema, the `brain` CLI,
+1. **Read** `~/brain/AGENTS.md` (the operating manual: structure, page schema, the `brain` CLI,
    workflows, guardrails — the source of truth) then run **`brain review`** (the current picture:
    focus, what's live, blocked, overdue, gone quiet, open tasks, pending inbox). Read `index.md`
    when you need the full catalog. (A SessionStart hook already injects **`brain health`**'s
    one-line vitals into every session — if it flagged something, `review` is the detail behind it;
    if it said the store is behind the remote, `git -C ~/brain pull --rebase` **before** writing.)
-2. **Act** per the matching workflow in `CLAUDE.md`, using the `brain` CLI for all frontmatter:
+2. **Act** per the matching workflow in `AGENTS.md`, using the `brain` CLI for all frontmatter:
    - **Capture/ingest** new info → process `raw/inbox.md` first if it has entries, then
      `brain new <kind> <slug> --summary "…" [--status …]` (or `brain set` on an existing page)
      files it in the right bucket with schema-perfect frontmatter **and a body skeleton for its
@@ -78,7 +78,7 @@ repo's `.claude/` rules), not here. This skill is the generic mechanism.
      no approval needed; `brain reindex`; flag contradictions). Move `done`/`archived` pages with
      **`brain mv <page> archive/<slug>`** — it rewrites every `[[reference]]` (a hand `mv` breaks
      the path-qualified ones). For an oversized page work the
-     ladder in `CLAUDE.md` § LINT — delete what a tool now generates, what duplicates a system of
+     ladder in `AGENTS.md` § LINT — delete what a tool now generates, what duplicates a system of
      record, and superseded body sections; then collapse accumulated status; **only then** split
      into a hub + `kind: resource` children (pin the pre-split commit, move **verbatim by line
      range**, verify by diffing heading sets). Splitting is the last resort.
@@ -98,8 +98,8 @@ repo's `.claude/` rules), not here. This skill is the generic mechanism.
    - Cross-link: put `dstask:<id>` in the page's `links`; reference the page in the task note.
    - **Routing rule:** discrete personal next-action → dstask. Overall initiative state/narrative →
      a `~/brain` page (frontmatter + body). Work that belongs in an external/team tracker → that
-     tracker, per the active workspace's own rules (e.g. its `.claude/` rules); link to it, don't
-     duplicate.
+     tracker, per the active workspace's own rules (e.g. its `AGENTS.md` / `.claude/` rules); link
+     to it, don't duplicate.
 4. **Commit** after any change:
    `brain check` first, then `git -C ~/brain add -A && git -C ~/brain commit -m "<concise message>"`
    (no AI attribution). The pre-commit hook regenerates + stages `index.md` and re-runs
@@ -112,7 +112,7 @@ repo's `.claude/` rules), not here. This skill is the generic mechanism.
 
 `brain.py`, the schema it enforces, and the `~/brain` pre-commit hook are **canonical artifacts
 shipped from nixos-config** (`~/Develop/personal/nixos-config`, under
-`modules/common/users/common/claude-code/skills/brain/`); the on-machine copies are read-only Nix
+`modules/common/users/common/agent-harness/skills/brain/`); the on-machine copies are read-only Nix
 deployments. **If a check, the schema, or a hook needs to change** — a new `status`/`kind` value, a
 new field, a relaxed rule, a different hook — **STOP and ask David to update the skill in
 nixos-config**, then rebuild + `/brain --sync`. Never hand-edit the deployed CLI/hook, loosen a
@@ -132,8 +132,8 @@ Run when invoked with `--sync` (or `sync`) — brings this machine's existing `~
 latest conventions after a rebuild shipped a new template/CLI.
 
 1. **Run the verb.** `brain sync --dry-run` to show the plan, then **`brain sync`**. The CLI owns
-   the whole mechanical phase — replace `~/brain/CLAUDE.md` with the canonical manual, create
-   missing bucket dirs / scaffold files (**never overwriting an existing one**), `normalize`,
+   the whole mechanical phase — replace `~/brain/AGENTS.md` (and its `CLAUDE.md` import stub) with
+   the canonical manual, create missing bucket dirs / scaffold files (**never overwriting an existing one**), `normalize`,
    `reindex`, untrack newly-ignored files — as one tight commit, and then **stamps in a second
    commit if and only if** no version in the gap is registered in its `JUDGMENT_MIGRATIONS`
    table (it refuses on a dirty tree; commit or stash first). If it stamped: verify the hooks are

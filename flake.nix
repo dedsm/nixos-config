@@ -140,6 +140,7 @@
           };
           direnv.antigravity = true;
           rtk-posthook.claude-code = true;
+          brain.antigravity = true;
         };
 
         # Defaults for modules not enabled on all platforms

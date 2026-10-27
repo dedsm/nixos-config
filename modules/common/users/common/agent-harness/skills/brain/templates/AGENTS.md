@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v14 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v15 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -10,7 +10,8 @@ source of truth; this manual tells an agent how to maintain them.
 
 ## What this is
 
-A local, git-tracked markdown "second brain" that Claude Code maintains. It tracks the **status
+A local, git-tracked markdown "second brain" that your coding agents (Claude Code, Antigravity)
+maintain through the `brain` skill. It tracks the **status
 and narrative** of your goals, projects, initiatives, and other ongoing work — across
 every session, from any repo or none. Plain markdown: durable, diffable, hand-editable, and
 openable directly in Obsidian with zero changes.
@@ -309,7 +310,7 @@ brain today                        # today's date from the system clock — neve
   (version drift, overdue, stalled/orphaned goals, gone-quiet, never-verified, aged inbox, quiet
   or oversized log, broken links, `now.md` rot, ahead/behind the remote) into **one line**,
   printing nothing and exiting 0 when all is well.
-  It is surfaced without anyone asking: a Claude Code SessionStart hook injects the line into new
+  It is surfaced without anyone asking: each agent harness's SessionStart hook injects the line into new
   sessions, and a weekly timer raises a desktop notification — covering the weeks when no session
   happens at all. React
   to it: oversized log → `brain rotate-log` and commit (mechanical, no approval needed); behind the
@@ -319,7 +320,7 @@ brain today                        # today's date from the system clock — neve
 
 `brain.py`, the schema it enforces, and the pre-commit hook are **canonical artifacts shipped
 from nixos-config** (`~/Develop/personal/nixos-config`, at
-`modules/common/users/common/claude-code/skills/brain/`). The copies on this machine are
+`modules/common/users/common/agent-harness/skills/brain/`). The copies on this machine are
 Nix-store deployments.
 
 **If a check, the schema, or a hook needs to change** — a new `status`/`kind` value, a new field,
@@ -639,13 +640,14 @@ people with no Slack handle, no work email, and no job title.
 This manual, the `brain` CLI, and the store scaffold are the **canonical brain template**,
 version-controlled with the skill in the nixos-config repo (`~/Develop/personal/nixos-config`):
 
-- **Template (canonical):** `modules/common/users/common/claude-code/skills/brain/templates/`
-  — this manual + the empty scaffold. Deployed read-only to `~/.claude/skills/brain/templates/`.
-- **CLI + schema (mechanism):** `modules/common/users/common/claude-code/skills/brain/brain.py`
+- **Template (canonical):** `modules/common/users/common/agent-harness/skills/brain/templates/`
+  — this manual (`AGENTS.md`, plus the `CLAUDE.md` stub that imports it for Claude Code) + the
+  empty scaffold. Deployed read-only as the skill's `templates/` in each agent harness.
+- **CLI + schema (mechanism):** `modules/common/users/common/agent-harness/skills/brain/brain.py`
   — packaged to `PATH` as `brain`. The commit hooks (pre-commit gate + post-commit auto-push) are
-  defined and installed by the module's `default.nix` activation on rebuild — Nix is their sole
+  defined in the agent-harness module's `brain.nix` and installed by its activation on rebuild — Nix is their sole
   installer.
-- **Skill (mechanism):** `modules/common/users/common/claude-code/skills/brain/SKILL.md`
+- **Skill (mechanism):** `modules/common/users/common/agent-harness/skills/brain/SKILL.md`
 
 The store's **content** (pages, `index.md`, `log.md`) is never templated — only the
 scaffold/manual/CLI.

@@ -53,6 +53,9 @@ let
     rtk = antigravityRtk;
     direnv = antigravityDirenv;
   };
+
+  brain = import ./brain.nix { inherit pkgs; };
+  brainAnywhere = lib.any lib.id (lib.attrValues active.brain);
 in
 lib.mkMerge [
   (lib.mkIf (lib.any lib.id (lib.attrValues active.rtk)) {
@@ -117,5 +120,122 @@ lib.mkMerge [
   (lib.mkIf antigravityRtk {
     home.file.".gemini/config/plugins/rtk/rules/AGENTS.md".source =
       "${rtk.agentFiles}/antigravity/AGENTS.md";
+  })
+
+  # Personal "brain" tracking store. Whichever harness has the skill, we manage
+  # exactly three things:
+  #   1. the skill + its canonical template (the mechanism and the latest conventions),
+  #   2. the `brain` CLI (schema/gate/writers), and
+  #   3. a one-time bootstrap that seeds ~/brain from the template if it is missing,
+  #      plus idempotent (re)installation of the commit hooks (pre-commit gate +
+  #      post-commit auto-push) on every switch — Nix is their sole installer.
+  # The store's living content (pages, index, log) is mutable user data — never
+  # symlinked/managed here. The bootstrap is create-if-missing: it never touches an
+  # existing store's content. Existing stores catch up to template changes via
+  # `/brain --sync`. The hooks are refreshed unconditionally so their store paths
+  # always point at the current CLI.
+  (lib.mkIf brainAnywhere {
+    home.packages = [ brain.cli ];
+
+    home.activation.bootstrapBrain = {
+      after = [ "writeBoundary" ];
+      before = [ ];
+      data = ''
+        brain="$HOME/brain"
+        if [ ! -d "$brain" ]; then
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$brain"
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/cp -R ${brain.skillDir}/templates/. "$brain"/
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$brain"
+          $DRY_RUN_CMD ${pkgs.git}/bin/git -C "$brain" init -q
+          # Scaffold pages ship with a sentinel date (a static template cannot know
+          # the seeding date); normalize restamps them, then record the version so
+          # a fresh store isn't reported as behind.
+          $DRY_RUN_CMD env BRAIN_DIR="$brain" ${brain.cli}/bin/brain normalize >/dev/null || true
+          $DRY_RUN_CMD env BRAIN_DIR="$brain" ${brain.cli}/bin/brain version --stamp >/dev/null || true
+        fi
+        # Install/refresh the Nix-managed commit hooks: the pre-commit gate
+        # (reindex + validate) and the post-commit auto-push (backup + sync).
+        if [ -d "$brain/.git" ]; then
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/mkdir -p "$brain/.git/hooks"
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m755 ${brain.preCommitHook} "$brain/.git/hooks/pre-commit"
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m755 ${brain.postCommitHook} "$brain/.git/hooks/post-commit"
+        fi
+      '';
+    };
+  })
+
+  # Weekly `brain health` notification — the ambient half of the surfacing
+  # story: the SessionStart hooks cover sessions, this covers the days when
+  # none happen. optionalAttrs rather than mkIf: each platform lacks the
+  # other's option.
+  (lib.mkIf brainAnywhere (
+    lib.optionalAttrs (!pkgs.stdenv.isDarwin) {
+      systemd.user.services.brain-health = {
+        Unit.Description = "brain store health check";
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${brain.healthNotify}";
+        };
+      };
+      systemd.user.timers.brain-health = {
+        Unit.Description = "weekly brain store health notification";
+        Timer = {
+          OnCalendar = "Mon 10:00";
+          Persistent = true; # laptop: fire on next wake if the slot was missed
+        };
+        Install.WantedBy = [ "timers.target" ];
+      };
+    }
+    // lib.optionalAttrs pkgs.stdenv.isDarwin {
+      launchd.agents.brain-health = {
+        enable = true;
+        config = {
+          ProgramArguments = [ "${brain.healthNotify}" ];
+          StartCalendarInterval = [
+            {
+              Weekday = 1;
+              Hour = 10;
+              Minute = 0;
+            }
+          ];
+        };
+      };
+    }
+  ))
+
+  # Claude Code: the skill under ~/.claude/skills, and the health hook at the
+  # stable path the claude-code module's SessionStart merge keys on (lib.nix).
+  (lib.mkIf active.brain.claude-code {
+    home.file.".claude/skills/brain/SKILL.md".source = "${brain.skillDir}/SKILL.md";
+    home.file.".claude/skills/brain/templates".source = "${brain.skillDir}/templates";
+    home.file.".local/bin/claude-brain-health.sh".source = brain.claudeHealthHook;
+  })
+
+  # Antigravity: a plugin rather than a loose ~/.gemini/config/skills entry, so
+  # the skill and its health hook switch on and off together.
+  (lib.mkIf active.brain.antigravity {
+    home.file.".gemini/config/plugins/brain/plugin.json".text = builtins.toJSON {
+      name = "brain";
+      version = "1.0.0";
+      description = "Nix-managed agent-harness plugin: the ~/brain personal tracking store skill and its session-start health line";
+    };
+
+    home.file.".gemini/config/plugins/brain/skills/brain/SKILL.md".source =
+      "${brain.skillDir}/SKILL.md";
+    home.file.".gemini/config/plugins/brain/skills/brain/templates".source =
+      "${brain.skillDir}/templates";
+
+    home.file.".gemini/config/plugins/brain/hooks.json".text = builtins.toJSON {
+      brain-health = {
+        enabled = true;
+        SessionStart = [
+          {
+            type = "command";
+            command = "${brain.antigravityHealthHook}";
+            timeout = 15;
+          }
+        ];
+      };
+    };
   })
 ]
