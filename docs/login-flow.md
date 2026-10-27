@@ -43,7 +43,8 @@ security boundary; the greeter authenticates before a session exists.
    still come from the module. **Delete the override on the move to 26.11**, whose
    `services.displayManager.dux-greeter` module is unstable's rewrite. The
    greeter's Quickshell follows `programs.dms-shell.quickshell.package`, so it
-   gets the same Qt-matched build as the shell (see [`dms.md`](./dms.md#packaging)).
+   gets the same Qt-matched build as the shell (see [`dms.md`](./dms.md#packaging)),
+   which is why `dedsm.greetd` asserts that `dedsm.dms` is enabled too.
 3. **The session**: on a successful password the greeter hands over to
    `uwsm start hyprland-uwsm.desktop`, and DankMaterialShell starts unlocked —
    the authentication already happened.

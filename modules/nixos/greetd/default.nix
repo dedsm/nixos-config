@@ -34,6 +34,16 @@ in
   };
 
   config = mkIf cfg.enable {
+    # The greeter's Quickshell is programs.dms-shell.quickshell.package, which
+    # only dedsm.dms sets to the Qt-matched build (docs/dms.md, "Packaging");
+    # without it the greeter would load stable's, against the wrong Qt.
+    assertions = [
+      {
+        assertion = config.dedsm.dms.enable;
+        message = "dedsm.greetd runs DankMaterialShell's greeter and needs dedsm.dms.enable.";
+      }
+    ];
+
     # The greeter brings its own `default_session`; nothing else declares one.
     services.greetd.enable = true;
 
