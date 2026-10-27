@@ -113,9 +113,6 @@ in
       pulse.enable = true;
     };
 
-    # useGlobalPkgs stays at its default (false): the HM modules are handed the
-    # system pkgs, overlays included, by the bridge in modules/common instead.
-    home-manager.useGlobalPkgs = false;
     home-manager.useUserPackages = true;
 
     # Allowing compiled binaries to run if configured correctly

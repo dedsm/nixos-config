@@ -34,7 +34,6 @@ attrs@{
           users.users.${user}.home = "/Users/${user}";
           system.stateVersion = 6; # Darwin state version
 
-          home-manager.useGlobalPkgs = true;
           home-manager.useUserPackages = true;
 
           dedsm = systemConfig;

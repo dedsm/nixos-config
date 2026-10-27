@@ -45,6 +45,9 @@ in
           nixpkgs.flake = nixpkgs;
           unstable.flake = unstable;
         };
+        # Home Manager evaluates with the system's pkgs, overlays included
+        # (pkgs.local, .unstable, .unfree), instead of importing its own.
+        home-manager.useGlobalPkgs = true;
         home-manager.backupFileExtension = "home_manager_bak";
         home-manager.sharedModules = [
           hyprdynamicmonitors.homeManagerModules.default
