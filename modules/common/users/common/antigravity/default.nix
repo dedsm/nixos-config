@@ -1,20 +1,27 @@
 {
+  config,
   lib,
-  homeManagerConfig,
   pkgs,
   ...
 }:
 let
-  cfg = homeManagerConfig.antigravity or { };
-  enable = cfg.enable or false;
+  cfg = config.dedsm.antigravity;
 
-  ideEnable = cfg.ide.enable or true;
-  cliEnable = cfg.cli.enable or true;
-  hubEnable = cfg.hub.enable or true;
+  ideEnable = cfg.ide.enable;
+  cliEnable = cfg.cli.enable;
+  hubEnable = cfg.hub.enable;
+
+  component =
+    what:
+    lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Install ${what} (when antigravity is enabled).";
+    };
 
   # All three components come from the `antigravity-nix` input (see
   # pkgs/default.nix), not nixpkgs. Linux only: the toggle is set in
-  # `davidNixos`, and upstream's macOS derivations are experimental and unpack
+  # users/david/nixos.nix, and upstream's macOS derivations are experimental and unpack
   # the DMG into `$out/Applications` with nothing on PATH — so enabling this on
   # Darwin would need work first.
   #
@@ -29,12 +36,21 @@ let
   });
 
 in
-lib.mkIf enable {
-  home.packages =
-    lib.optional hubEnable pkgs.local.antigravity-hub
-    ++ lib.optional ideEnable idePkg
-    ++ lib.optional cliEnable pkgs.local.antigravity-cli;
+{
+  options.dedsm.antigravity = {
+    enable = lib.mkEnableOption "Google Antigravity";
+    hub.enable = component "the Antigravity 2.0 hub app";
+    ide.enable = component "the legacy Antigravity IDE";
+    cli.enable = component "the agy CLI";
+  };
 
-  # The rtk/direnv run_command hook plugin is installed by the agent-harness
-  # module, not here. See docs/agent-harness.md.
+  config = lib.mkIf cfg.enable {
+    home.packages =
+      lib.optional hubEnable pkgs.local.antigravity-hub
+      ++ lib.optional ideEnable idePkg
+      ++ lib.optional cliEnable pkgs.local.antigravity-cli;
+
+    # The rtk/direnv run_command hook plugin is installed by the agent-harness
+    # module, not here. See docs/agent-harness.md.
+  };
 }

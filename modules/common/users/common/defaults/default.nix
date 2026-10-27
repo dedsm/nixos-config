@@ -1,11 +1,6 @@
-attrs@{
-  lib,
-  homeManagerConfig,
-  pkgs,
-  ...
-}:
-let
-  common = import ./common attrs;
-in
-with lib;
-mkIf (homeManagerConfig.defaults.enable or false) (mkMerge [ common ])
+{ lib, ... }:
+{
+  imports = [ ./common ];
+
+  options.dedsm.defaults.enable = lib.mkEnableOption "the Linux desktop defaults (Firefox, foot, cursor theme)";
+}

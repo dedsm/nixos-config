@@ -12,17 +12,15 @@ attrs@{
       system,
       user,
       systemConfig,
-      userConfigFn,
+      users,
     }:
     let
       pkgs = mkPkgs system;
-      userConfig = userConfigFn pkgs;
     in
     darwin.lib.darwinSystem {
       inherit system;
 
       specialArgs = attrs // {
-        hc = userConfig;
         inherit user;
       };
 
@@ -31,6 +29,7 @@ attrs@{
         {
           nixpkgs.pkgs = pkgs;
           networking.hostName = name;
+          home-manager.users = users;
           users.users.${user}.home = "/Users/${user}";
           system.stateVersion = 6; # Darwin state version
 

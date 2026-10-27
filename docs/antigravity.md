@@ -1,6 +1,6 @@
 # Google Antigravity
 
-Module: [`modules/common/users/common/antigravity/`](../modules/common/users/common/antigravity/) · toggle: `antigravity.enable` (on in `davidNixos`, off in `davidShared` — this is Linux-only, see [Darwin](#darwin)), with per-component sub-toggles `antigravity.hub.enable`, `antigravity.ide.enable`, `antigravity.cli.enable`, all on when the module is.
+Module: [`modules/common/users/common/antigravity/`](../modules/common/users/common/antigravity/) · toggle: `dedsm.antigravity.enable` (on in `users/david/nixos.nix`, not in `shared.nix` — this is Linux-only, see [Darwin](#darwin)), with per-component sub-toggles `dedsm.antigravity.hub.enable`, `.ide.enable`, `.cli.enable`, all on by default.
 
 Antigravity 2.0 split the product into three separately-shipped artifacts, and this config installs all three:
 
@@ -41,6 +41,6 @@ On Linux the IDE stores credentials in the desktop keyring, and Electron's autod
 
 ## Darwin
 
-**Antigravity is not installed on macOS at all** — it isn't used there, so `antigravity.enable` is set in `davidNixos` rather than `davidShared`. morgoth previously carried the nixpkgs `antigravity-ide` and `antigravity-cli`; both are gone from its closure.
+**Antigravity is not installed on macOS at all** — it isn't used there, so `dedsm.antigravity.enable` is set in `users/david/nixos.nix` rather than `shared.nix`. morgoth previously carried the nixpkgs `antigravity-ide` and `antigravity-cli`; both are gone from its closure.
 
 If that ever changes, note that the input's macOS derivations are marked experimental and untested upstream, and unpack the DMG into `$out/Applications` only — no `antigravity-ide` or `antigravity` on `PATH` — so flipping the toggle on a Darwin host is not by itself enough.

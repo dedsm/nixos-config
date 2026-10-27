@@ -9,7 +9,7 @@ that differs per platform:**
 - **Darwin** — `dark-notify`, driven by `AppleInterfaceStyle`, exactly as before.
 
 The `theme` home-manager module (`modules/common/users/common/theme/default.nix`, opt-in via
-`theme.enable`) holds what is shared: the Solarized palette in its `colors` attrset (also dumped to
+`dedsm.theme.enable`) holds what is shared: the Solarized palette in its `colors` attrset (also dumped to
 `~/.colorscheme-palette` as JSON), the tmux theme files, the matugen templates and hooks that carry
 a transition to foot and tmux, and the activation guard below. It no longer runs a scheduler of its
 own on Linux — darkman is gone.

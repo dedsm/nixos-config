@@ -1,11 +1,11 @@
-attrs@{
+{
+  config,
   lib,
-  homeManagerConfig,
   pkgs,
   hyprdynamicmonitors,
   ...
 }:
-{
+lib.mkIf config.dedsm.hyprland.enable {
   home.hyprdynamicmonitors = {
     enable = true;
     package = hyprdynamicmonitors.packages.${pkgs.stdenv.hostPlatform.system}.default;

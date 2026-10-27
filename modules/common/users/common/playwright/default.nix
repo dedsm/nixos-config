@@ -1,12 +1,11 @@
 {
+  config,
   lib,
-  homeManagerConfig,
   pkgs,
   ...
 }:
 let
-  cfg = homeManagerConfig.playwright or { };
-  enable = cfg.enable or false;
+  cfg = config.dedsm.playwright;
   isLinux = pkgs.stdenv.isLinux;
 
   # Playwright MCP support - dynamically resolve chromium path (Linux only, works natively on Darwin)
@@ -26,19 +25,19 @@ let
 
   mkdir = "${pkgs.coreutils}/bin/mkdir";
 in
-lib.mkIf (enable && isLinux) {
-  home.sessionVariables = {
-    PLAYWRIGHT_BROWSERS_PATH = "${pw.browsers}";
-    PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
-    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
-    PLAYWRIGHT_MCP_USER_DATA_DIR = "${playwrightMcpCacheDir}";
-    PLAYWRIGHT_MCP_EXECUTABLE_PATH = "${playwrightChromium}";
-  };
+{
+  options.dedsm.playwright.enable = lib.mkEnableOption "Playwright MCP's Nix-provided Chromium (Linux)";
 
-  home.activation.ensurePlaywrightCacheDir = {
-    after = [ "writeBoundary" ];
-    before = [ ];
-    data = ''
+  config = lib.mkIf (cfg.enable && isLinux) {
+    home.sessionVariables = {
+      PLAYWRIGHT_BROWSERS_PATH = "${pw.browsers}";
+      PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
+      PLAYWRIGHT_MCP_USER_DATA_DIR = "${playwrightMcpCacheDir}";
+      PLAYWRIGHT_MCP_EXECUTABLE_PATH = "${playwrightChromium}";
+    };
+
+    home.activation.ensurePlaywrightCacheDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       $DRY_RUN_CMD ${mkdir} -p "${playwrightMcpCacheDir}"
     '';
   };

@@ -10,11 +10,11 @@ It is a standalone Rust binary with its own PTY handling and socket API. It does
 embed or wrap tmux, so nothing in `programs.tmux` carries over to it.
 
 Module: [`modules/common/users/common/herdr/default.nix`](../modules/common/users/common/herdr/default.nix).
-Toggle: `herdr.enable`, set in `davidShared` — both hosts or neither.
+Toggle: `dedsm.herdr.enable`, set in `users/david/shared.nix` — both hosts or neither.
 
 ## It coexists with tmux
 
-`tmux.enable` and `herdr.enable` are independent and both are on. Separate binaries,
+`dedsm.tmux.enable` and `dedsm.herdr.enable` are independent and both are on. Separate binaries,
 separate servers, separate sockets: a running Herdr server cannot disturb a running tmux
 session, and vice versa. Run one in each terminal window and compare them at leisure.
 
@@ -585,7 +585,7 @@ lands in `session.json`, and there is no id left to build `claude --resume <uuid
 
 Nothing else here puts a bare `python3` on `PATH` — `brain` and Neovim's `withPython3` both
 resolve an interpreter by store path — so it is listed explicitly in
-`davidShared`'s packages in `flake.nix` for this. The failure is silent on both ends (the
+`home.packages` in `users/david/shared.nix` for this. The failure is silent on both ends (the
 hook exits clean, Herdr simply never hears from the pane); `herdr agent list` is what shows
 it, as a pane with no `agent_session` field. Pane layout, cwd and focus restore regardless
 — that is Herdr's own state and never touches the hook.
@@ -698,7 +698,7 @@ carries a `passthru.updateScript` of `nix-update --flake --version=branch`, so t
 rev or hash to edit by hand. It does *not* move with `nix flake update`.
 
 The editor half is linked to `~/.config/nvim/after/plugin/herdr-nav.lua` by the *herdr*
-module, gated on `nvim.enable`. `after/plugin` is what lets it win over the
+module, gated on `dedsm.nvim.enable`. `after/plugin` is what lets it win over the
 `vim-tmux-navigator` mappings, and the file itself falls back to `TmuxNavigate*` when
 `$HERDR_PANE_ID` is unset — so it is a superset of the tmux setup rather than a conflict,
 and needs no `HERDR_ENV` guard. The nvim module links its `config/` recursively and has no
@@ -748,7 +748,7 @@ The two do coexist as installed: the Claude Code module's settings merge recurse
 and — since the managed brain-health hook joined `hooks.SessionStart` — **array-merges that key
 specifically**, so the integration's `SessionStart` entry survives every switch with the managed
 entry appended beside it (see [`claude-code.md`](./claude-code.md)). The one thing provided *for* the integration is the `python3`
-its hook needs on `PATH`, in `davidShared`'s packages — see "Restart behaviour" above. The
+its hook needs on `PATH`, in `users/david/shared.nix`'s packages — see "Restart behaviour" above. The
 alternative
 considered and rejected was replacing the hook with a Nix-authored one calling
 `herdr pane report-agent-session` (the same request, no interpreter needed): it takes

@@ -1,6 +1,6 @@
 # Playwright MCP
 
-Module: [`modules/common/users/common/playwright/`](../modules/common/users/common/playwright/) · toggle: `playwright.enable` (on by default in `davidShared`).
+Module: [`modules/common/users/common/playwright/`](../modules/common/users/common/playwright/) · toggle: `dedsm.playwright.enable` (on in `users/david/shared.nix`).
 
 The Playwright MCP server (used by Claude Code and other MCP clients to drive a real browser) normally downloads and manages its own Chromium build under `~/.cache/ms-playwright`. That duplicates a browser nixpkgs already builds reproducibly, and doesn't play well with a read-only-ish, Nix-managed `$HOME`.
 

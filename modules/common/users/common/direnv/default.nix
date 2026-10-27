@@ -1,19 +1,25 @@
 {
+  config,
   lib,
-  homeManagerConfig,
   pkgs,
   ...
 }:
 with lib;
-mkIf (homeManagerConfig.direnv.enable or false) {
-  programs.direnv = {
-    enable = true;
-    package = pkgs.unstable.direnv;
-    enableZshIntegration = true;
-    nix-direnv.enable = true;
-    config = {
-      global = {
-        warn_timeout = "3000h";
+{
+  options.dedsm.direnv = {
+    enable = lib.mkEnableOption "direnv with nix-direnv";
+  };
+
+  config = lib.mkIf config.dedsm.direnv.enable {
+    programs.direnv = {
+      enable = true;
+      package = pkgs.unstable.direnv;
+      enableZshIntegration = true;
+      nix-direnv.enable = true;
+      config = {
+        global = {
+          warn_timeout = "3000h";
+        };
       };
     };
   };

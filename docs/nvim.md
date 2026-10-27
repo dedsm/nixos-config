@@ -1,6 +1,6 @@
 # Neovim setup
 
-Module: [`modules/common/users/common/nvim/`](../modules/common/users/common/nvim/) · toggle: `nvim.enable` (on by default in `davidShared`).
+Module: [`modules/common/users/common/nvim/`](../modules/common/users/common/nvim/) · toggle: `dedsm.nvim.enable` (on in `users/david/shared.nix` and `users/root.nix`).
 
 ## Shape
 
@@ -23,7 +23,7 @@ Lua config lives under `config/` and is symlinked wholesale into `~/.config/nvim
 
 One file arrives from outside this module: the **herdr** module links
 `~/.config/nvim/after/plugin/herdr-nav.lua` (from `pkgs/vim-herdr-navigation`) whenever both
-`nvim.enable` and `herdr.enable` are set. It re-maps `<C-h/j/k/l>` so a split edge crosses
+`dedsm.nvim.enable` and `dedsm.herdr.enable` are set. It re-maps `<C-h/j/k/l>` so a split edge crosses
 into the neighbouring herdr pane, and defers to `vim-tmux-navigator` when `$HERDR_PANE_ID`
 is unset — `after/plugin` is what lets it win over the plugin's own mappings. This config's
 `config/` tree has no `after/` of its own. See [`herdr.md`](./herdr.md).

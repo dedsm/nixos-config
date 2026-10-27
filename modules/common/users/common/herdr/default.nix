@@ -1,6 +1,6 @@
 {
+  config,
   lib,
-  homeManagerConfig,
   pkgs,
   ...
 }:
@@ -299,46 +299,48 @@ let
   };
 in
 with lib;
-mkIf (homeManagerConfig.herdr.enable or false) {
-  # `ui.toast.delivery = "system"` shells out to `notify-send` by name on
-  # Linux, so libnotify has to be on PATH. Darwin needs nothing extra —
-  # herdr goes through osascript there.
-  home.packages = [ herdrPkg ] ++ optional pkgs.stdenv.isLinux pkgs.libnotify;
-
-  # Single-file link on purpose: `~/.config/herdr/` stays a real directory so
-  # herdr can still write its logs and session state next to the config.
-  xdg.configFile."herdr/config.toml" = {
-    source = tomlFormat.generate "herdr-config.toml" settings;
-
-    # Apply on rebuild instead of waiting for the next launch. Copied from
-    # the `programs.herdr` module on home-manager master, which this module
-    # replaces until that lands in a release — see docs/herdr.md. That one
-    # writes `|| true` for the (expected) case of no server running during
-    # activation; `herdrTry` keeps that quiet while still reporting a
-    # server that refused the reload.
-    onChange = "${herdrTry} server reload-config";
+{
+  options.dedsm.herdr = {
+    enable = lib.mkEnableOption "the herdr agent-aware multiplexer";
   };
 
-  # The editor half of the navigation plugin: `<C-h/j/k/l>` move between
-  # Neovim splits and cross into the neighbouring herdr pane at an edge. It
-  # lives in `after/plugin` so it wins over the `vim-tmux-navigator`
-  # mappings, and falls back to them when $HERDR_PANE_ID is unset, i.e. under
-  # tmux. The nvim module links `config/` recursively and has no `after/`,
-  # so this is the only thing there.
-  xdg.configFile."nvim/after/plugin/herdr-nav.lua" = mkIf (homeManagerConfig.nvim.enable or false) {
-    source = "${navRoot}/editor/nvim.lua";
-  };
+  config = lib.mkIf config.dedsm.herdr.enable {
+    # `ui.toast.delivery = "system"` shells out to `notify-send` by name on
+    # Linux, so libnotify has to be on PATH. Darwin needs nothing extra —
+    # herdr goes through osascript there.
+    home.packages = [ herdrPkg ] ++ optional pkgs.stdenv.isLinux pkgs.libnotify;
 
-  # `plugins.json` is deliberately *not* a store symlink: herdr rewrites it
-  # on every link/unlink/enable/disable, so managing it declaratively would
-  # reproduce the read-only failure the `onboarding` setting used to hit.
-  # `herdr plugin link` needs no running server, is idempotent, and replaces
-  # the entry for an id when its path changes — which it does on every
-  # rebuild that bumps a plugin's store path.
-  home.activation.herdrPlugins = {
-    after = [ "writeBoundary" ];
-    before = [ ];
-    data = ''
+    # Single-file link on purpose: `~/.config/herdr/` stays a real directory so
+    # herdr can still write its logs and session state next to the config.
+    xdg.configFile."herdr/config.toml" = {
+      source = tomlFormat.generate "herdr-config.toml" settings;
+
+      # Apply on rebuild instead of waiting for the next launch. Copied from
+      # the `programs.herdr` module on home-manager master, which this module
+      # replaces until that lands in a release — see docs/herdr.md. That one
+      # writes `|| true` for the (expected) case of no server running during
+      # activation; `herdrTry` keeps that quiet while still reporting a
+      # server that refused the reload.
+      onChange = "${herdrTry} server reload-config";
+    };
+
+    # The editor half of the navigation plugin: `<C-h/j/k/l>` move between
+    # Neovim splits and cross into the neighbouring herdr pane at an edge. It
+    # lives in `after/plugin` so it wins over the `vim-tmux-navigator`
+    # mappings, and falls back to them when $HERDR_PANE_ID is unset, i.e. under
+    # tmux. The nvim module links `config/` recursively and has no `after/`,
+    # so this is the only thing there.
+    xdg.configFile."nvim/after/plugin/herdr-nav.lua" = mkIf config.dedsm.nvim.enable {
+      source = "${navRoot}/editor/nvim.lua";
+    };
+
+    # `plugins.json` is deliberately *not* a store symlink: herdr rewrites it
+    # on every link/unlink/enable/disable, so managing it declaratively would
+    # reproduce the read-only failure the `onboarding` setting used to hit.
+    # `herdr plugin link` needs no running server, is idempotent, and replaces
+    # the entry for an id when its path changes — which it does on every
+    # rebuild that bumps a plugin's store path.
+    home.activation.herdrPlugins = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       herdrPluginIds="${concatMapStringsSep " " (p: p.id) plugins}"
 
       ${concatMapStringsSep "\n" (p: ''

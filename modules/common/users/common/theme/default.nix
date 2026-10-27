@@ -1,17 +1,16 @@
 # Light/dark switching for everything DMS does not theme itself: foot, tmux,
 # and the dconf keys after an activation. See docs/theme.md.
 {
+  config,
   lib,
   pkgs,
-  homeManagerConfig,
-  homeDirectory,
   ...
 }:
 with lib;
 let
-  cfg = homeManagerConfig.theme or { enable = false; };
+  cfg = config.dedsm.theme;
   isLinux = pkgs.stdenv.isLinux;
-  homeDir = homeDirectory;
+  homeDir = config.home.homeDirectory;
 
   # Solarized Palette
   colors = {
@@ -113,7 +112,7 @@ let
 
 in
 {
-  options.homeManagerConfig.theme = {
+  options.dedsm.theme = {
     enable = mkEnableOption "automatic dark/light mode toggling";
   };
 
@@ -237,13 +236,9 @@ in
     '';
 
     # Puts the DMS-owned dconf keys back after home-manager's `dconf load` and
-    # dconf-cleanup (docs/theme.md, "The activation guard"). Written out
-    # longhand because these files are imported with the NixOS `lib`, which has
-    # no `lib.hm.dag`.
-    home.activation.reassertColorScheme = mkIf isLinux {
-      after = [ "dconfSettings" ];
-      before = [ ];
-      data = ''
+    # dconf-cleanup (docs/theme.md, "The activation guard").
+    home.activation.reassertColorScheme = mkIf isLinux (
+      lib.hm.dag.entryAfter [ "dconfSettings" ] ''
         # Prefer the live session bus so apps repaint now; fall back to a
         # throwaway one at boot, where only the database write matters.
         reassertBus=""
@@ -260,7 +255,7 @@ in
         else
         ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-light" "adw-gtk3" "Papirus-Light"}
         fi
-      '';
-    };
+      ''
+    );
   };
 }

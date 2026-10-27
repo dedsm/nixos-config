@@ -29,7 +29,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 ## Architecture Overview
 
 ```
-flake.nix                # Inputs, host definitions, user-config composition (davidShared/davidNixos/davidDarwin)
+flake.nix                # Inputs, overlays (mkPkgs), each host's system config and Home Manager users
 ├── lib/                 # Utilities for host creation
 │   ├── default.nix        # Exports nixosHost and darwinHost
 │   ├── nixos-host.nix      # NixOS host builder (mkHost), takes hardwareModules per host
@@ -37,13 +37,20 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 ├── hosts/                # Per-host hardware configuration
 │   └── manwe/
 │       └── hardware-configuration.nix
+├── users/                # Home Manager modules for each user, layered with `imports`
+│   ├── david/
+│   │   ├── shared.nix       # every host: toggles, git, shell tools, common packages
+│   │   ├── nixos.nix        # imports shared.nix; Linux toggles and packages
+│   │   └── darwin.nix       # imports shared.nix; macOS toggles and packages
+│   └── root.nix           # root on NixOS: shell and editor only
 ├── modules/              # Modular configuration components
 │   ├── common/             # Shared modules (both platforms)
-│   │   ├── default.nix       # Shared by both builders: nix registry, fonts.nix, the Home Manager bridge
+│   │   ├── default.nix       # Shared by both builders: nix registry, fonts.nix, Home Manager settings
 │   │   ├── fonts.nix          # System fonts, imported by modules/common/default.nix
-│   │   └── users/common/      # Home Manager user modules — tmux, herdr, nvim, zsh, git, hyprland,
-│   │                            dms, ghostty, theme, claude-code, playwright, antigravity,
-│   │                            agent-harness (rtk/direnv/brain skill per coding agent), ...
+│   │   └── users/common/      # Home Manager modules, each declaring dedsm.<name>.enable — tmux,
+│   │                            herdr, nvim, zsh, hyprland, dms, ghostty, theme, claude-code,
+│   │                            playwright, antigravity, agent-harness (rtk/direnv/brain skill
+│   │                            per coding agent), ... Registered for every user, off by default
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, xserver/xkb,
 │   │   │                         dbus, xdg portals, audio, home-manager wiring, base packages
@@ -63,19 +70,20 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 
 ### Key Design Patterns
 
-1. **User Configuration Composition**: User configs are built by composing shared settings:
-   - `davidShared`: Base settings for all platforms (git, shell, common packages)
-   - `davidNixos`: Linux-specific settings extending `davidShared`
-   - `davidDarwin`: macOS-specific settings extending `davidShared`
-   - Host-specific overrides applied on top (e.g., `morgothUserConfig`)
+1. **Users are Home Manager modules, layered with `imports`**:
+   - `users/david/shared.nix`: settings for every host (toggles, `programs.git`, shell tools, common packages)
+   - `users/david/nixos.nix` / `darwin.nix`: import `shared.nix` and add the platform's toggles and packages
+   - Each host's users (`manweUsers`, `morgothUsers` in `flake.nix`) import a layer and add host-specific settings
+   - The module system merges the layers: lists such as `home.packages` and `programs.git.includes` concatenate, nested attrsets merge, so an override names only what it changes
 
 2. **Host Builder Pattern**: Hosts are created via builder functions:
-   - `nixosHost.mkHost { name, system, systemConfig, userConfigFn, hardwareModules ? [] }` — `hardwareModules` is a list (typically a `nixos-hardware` module + that host's `hosts/<name>/hardware-configuration.nix`), so hardware is never shared across hosts by accident.
-   - `darwinHost.mkDarwinHost { name, system, user, systemConfig, userConfigFn }`
+   - `nixosHost.mkHost { name, system, systemConfig, users, hardwareModules ? [] }` — `hardwareModules` is a list (typically a `nixos-hardware` module + that host's `hosts/<name>/hardware-configuration.nix`), so hardware is never shared across hosts by accident.
+   - `darwinHost.mkDarwinHost { name, system, user, systemConfig, users }`
+   - `users` is an attrset of Home Manager modules keyed by user name; the builders assign it to `home-manager.users`
 
-3. **Conditional Module Loading**: Both NixOS system modules and Home Manager modules are opt-in, enabled via config flags (`dedsm.<name>.enable` for NixOS/Darwin system modules, `<name>.enable` in the composed user config for Home Manager modules — e.g. `hyprland.enable`, `ghostty.enable`). Only `modules/nixos/core` is unconditional.
+3. **Conditional Module Loading**: Both NixOS system modules and Home Manager modules are opt-in through typed `dedsm.<name>.enable` options: in the host's `systemConfig` for system modules, in a user's Home Manager module for Home Manager modules (e.g. `dedsm.hyprland.enable`, `dedsm.ghostty.enable`). A misspelt toggle is an evaluation error, not a silent no-op. Only `modules/nixos/core` is unconditional.
 
-4. **Custom Namespace**: System modules use `dedsm.*` options to avoid conflicts with standard NixOS/Darwin options.
+4. **Custom Namespace**: System and Home Manager modules use `dedsm.*` options to avoid conflicts with standard NixOS/Darwin/Home Manager options.
 
 5. **Package Overlays**: Custom packages are exposed via `pkgs.local.*`, unstable packages via `pkgs.unstable.*`, unfree packages via `pkgs.unfree.*`.
 
@@ -161,53 +169,54 @@ nix build .#darwinConfigurations.morgoth.config.system.build.toplevel --dry-run
 - **Darwin system modules**: Located in `modules/darwin/`, use `dedsm.*` options namespace
 - **Home Manager modules**: Located in `modules/common/users/common/`
 - **Each module**: Should have a clear enable option and sensible defaults — the one exception is `modules/nixos/core`, which is the unconditional baseline every NixOS host gets
-- **Module imports**: Use `lib.mkMerge` for combining multiple configurations
+- **Combining configurations**: `imports` for whole modules, `lib.mkMerge` for several config blocks inside one
 
 ### Configuration Patterns
 ```nix
-# System module pattern (NixOS/Darwin)
-{ lib, config, pkgs, ... }:
-with lib;
-let cfg = config.dedsm.mymodule;
-in {
-  options.dedsm.mymodule = {
-    enable = mkOption {
-      description = "my module";
-      type = with types; bool;
-      default = false;
-    };
-  };
+# Module pattern: the same for NixOS, Darwin and Home Manager modules
+{ config, lib, pkgs, ... }:
+let
+  cfg = config.dedsm.mymodule;
+in
+{
+  options.dedsm.mymodule.enable = lib.mkEnableOption "my module";
 
-  config = mkIf cfg.enable {
+  config = lib.mkIf cfg.enable {
     # configuration here
   };
 }
 
-# Home Manager module pattern
-{ lib, homeManagerConfig, pkgs, ... }:
-with lib;
-mkIf (homeManagerConfig.mymodule.enable or false) {
-  # home-manager configuration here
-}
+# In a Home Manager module, `config` is the Home Manager config; the system
+# config is `osConfig`. `pkgs` is the system's (useGlobalPkgs), overlays
+# included. Attribute *names* under `config` must not depend on `pkgs` or
+# `config` (no `lib.optionalAttrs pkgs.stdenv.isDarwin { ... }`): use `mkIf`
+# on the value instead, or evaluation recurses.
 ```
 
 ### User Configuration Pattern
 ```nix
-# Composing user configs in flake.nix
-davidShared = pkgs: {
-  tmux.enable = true;
-  git = { enable = true; /* settings */ };
-  packages = pkgs: with pkgs; [ /* common packages */ ];
-};
+# users/david/shared.nix
+{ pkgs, ... }:
+{
+  dedsm.tmux.enable = true;
+  programs.git = { enable = true; /* settings */ };
+  home.packages = with pkgs; [ /* common packages */ ];
+}
 
-davidDarwin = pkgs: (davidShared pkgs) // {
-  ghostty.enable = true;
-  packages = pkgs: ((davidShared pkgs).packages pkgs) ++ [ /* darwin packages */ ];
-};
+# users/david/darwin.nix
+{ pkgs, ... }:
+{
+  imports = [ ./shared.nix ];
+  dedsm.ghostty.enable = true;
+  home.stateVersion = "25.11";
+  home.packages = with pkgs; [ /* darwin packages */ ];
+}
 
-morgothUserConfig = pkgs: {
-  "david.de.sousa" = (davidDarwin pkgs) // {
-    # Host-specific overrides
+# flake.nix
+morgothUsers = {
+  "david.de.sousa" = {
+    imports = [ ./users/david/darwin.nix ];
+    programs.git.includes = [ /* host-specific, merged with shared.nix's git */ ];
   };
 };
 ```
@@ -250,25 +259,25 @@ journalctl -b | grep -i error
 
 ### Adding a New NixOS Host
 1. Run `nixos-generate-config` on the target machine, copy the resulting `hardware-configuration.nix` into `hosts/<hostname>/`.
-2. Create new `<hostname>SystemConfig` and `<hostname>UserConfig` in `flake.nix`. Define system options (`laptop.enable`, and whichever `dedsm.*` modules the host needs — `hyprland`, `printing`, `bluetooth`, etc. are all opt-in) and `systemUsers`.
-3. Add to `nixosConfigurations` using `nixosHost.mkHost`, passing `hardwareModules = [ <matching nixos-hardware module if any> ./hosts/<hostname>/hardware-configuration.nix ]`.
+2. Create new `<hostname>SystemConfig` and `<hostname>Users` in `flake.nix`. Define system options (`laptop.enable`, and whichever `dedsm.*` modules the host needs — `hyprland`, `printing`, `bluetooth`, etc. are all opt-in) and `systemUsers`; each user imports a layer from `users/` and adds what is specific to this host.
+3. Add to `nixosConfigurations` using `nixosHost.mkHost` with `users = <hostname>Users`, passing `hardwareModules = [ <matching nixos-hardware module if any> ./hosts/<hostname>/hardware-configuration.nix ]`.
 4. Deploy: `sudo nixos-rebuild switch --flake .#<hostname>`.
 
 ### Adding a New Darwin Host
-1. Create new `<hostname>SystemConfig` and `<hostname>UserConfig` in `flake.nix`
+1. Create new `<hostname>SystemConfig` and `<hostname>Users` in `flake.nix`
 2. Define system options (`aerospace.enable`, etc.)
-3. Add to `darwinConfigurations` using `darwinHost.mkDarwinHost`
+3. Add to `darwinConfigurations` using `darwinHost.mkDarwinHost` with `users = <hostname>Users`
 4. Deploy: `darwin-rebuild switch --flake .#<hostname>`
 
 ### Adding a New User
 1. Add user to `systemUsers` in host's systemConfig (NixOS) or use `users.users` (Darwin)
-2. Create user-specific config function based on `davidShared`, `davidNixos`, or `davidDarwin`
-3. Add to host's `userConfigFn`
-4. Override/extend packages and module settings as needed
+2. Create the user's layers under `users/<name>/` (a `shared.nix` plus a platform layer that imports it, like `users/david/`), setting `home.stateVersion` and the `dedsm.<name>.enable` toggles they need
+3. Add the user to the host's `<hostname>Users` in `flake.nix`, importing the platform layer
+4. Override or extend settings there; the module system merges them with the layers
 
 ### Module Development
 - System modules go in `modules/nixos/` or `modules/darwin/`
-- Home Manager modules go in `modules/common/users/common/`
+- Home Manager modules go in `modules/common/users/common/` and must be added to the `imports` list in its `default.nix`
 - Use the existing module patterns (enable options, conditional config)
 - Test new modules on a single host before generalizing
 
@@ -368,8 +377,8 @@ input (`nix flake update antigravity-nix`).
 - Neovim: hand-rolled config (no plugin manager, all plugins declared in Nix), LSP/formatting/linting all Nix-provisioned — see [`docs/nvim.md`](./docs/nvim.md)
 - Claude Code: pinned version, managed-but-mergeable settings, hooks, status line — see [`docs/claude-code.md`](./docs/claude-code.md)
 - Playwright MCP: points at a Nix-managed Chromium instead of downloading its own — see [`docs/playwright-mcp.md`](./docs/playwright-mcp.md)
-- Agent harness plugins: rtk, rtk's `rtk:posthook` output-compression pipeline (Claude Code only), direnv and the personal `brain` skill (CLI, store bootstrap, commit hooks, health hooks) installed into Claude Code and Antigravity from one module, with an `agent-harness.<plugin>.<harness>` flag for each pair; rtk's awareness text (`~/.claude/RTK.md`) is generated from the pinned rtk at build time — see [`docs/agent-harness.md`](./docs/agent-harness.md)
-- Google Antigravity (hub + IDE + `agy` CLI): from the `antigravity-nix` input rather than nixpkgs, non-FHS build, Linux-only (enabled in `davidNixos`) — see [`docs/antigravity.md`](./docs/antigravity.md)
+- Agent harness plugins: rtk, rtk's `rtk:posthook` output-compression pipeline (Claude Code only), direnv and the personal `brain` skill (CLI, store bootstrap, commit hooks, health hooks) installed into Claude Code and Antigravity from one module, with a `dedsm.agent-harness.<plugin>.<harness>` flag for each pair; rtk's awareness text (`~/.claude/RTK.md`) is generated from the pinned rtk at build time — see [`docs/agent-harness.md`](./docs/agent-harness.md)
+- Google Antigravity (hub + IDE + `agy` CLI): from the `antigravity-nix` input rather than nixpkgs, non-FHS build, Linux-only (enabled in `users/david/nixos.nix`) — see [`docs/antigravity.md`](./docs/antigravity.md)
 
 ### Debugging
 ```bash

@@ -1,12 +1,11 @@
 {
+  config,
   lib,
-  homeManagerConfig,
   pkgs,
   ...
 }:
 let
-  cfg = homeManagerConfig.claude-code or { };
-  enable = cfg.enable or false;
+  cfg = config.dedsm.claude-code;
   isDarwin = pkgs.stdenv.isDarwin;
 
   # Claude Code package, pinned to an exact release.
@@ -44,10 +43,9 @@ let
 
   # Hook entries contributed by the shared agent-harness plugins. This module
   # stays the only writer of settings.json, so it splices them in itself.
-  agentHarness = import ../agent-harness/lib.nix { inherit lib pkgs homeManagerConfig; };
+  agentHarness = import ../agent-harness/lib.nix { inherit lib pkgs config; };
 
-  notifyScript = cfg.notifyScript or notifyScriptDefault;
-  dismissScript = cfg.dismissScript or dismissScriptDefault;
+  inherit (cfg) notifyScript dismissScript;
 
   # === Managed Settings ===
   managedSettings = {
@@ -116,7 +114,7 @@ let
       DISABLE_ERROR_REPORTING = "1";
     };
   }
-  // (cfg.extraSettings or { });
+  // cfg.extraSettings;
 
   managedSettingsFile = pkgs.writeText "claude-managed-settings.json" (
     builtins.toJSON managedSettings
@@ -148,37 +146,56 @@ let
   '';
 
 in
-lib.mkIf enable ({
-  home.packages = [
-    claudeCodePkg
-  ]
-  ++ lib.optionals (!isDarwin) [ pkgs.libnotify ];
-
-  home.file.".local/bin/claude-file-suggestion.sh" = {
-    executable = true;
-    text = fileSuggestionScript;
+{
+  options.dedsm.claude-code = {
+    enable = lib.mkEnableOption "Claude Code";
+    extraSettings = lib.mkOption {
+      type = lib.types.attrs;
+      default = { };
+      description = "Top-level keys merged over the managed settings (see docs/claude-code.md).";
+    };
+    notifyScript = lib.mkOption {
+      type = lib.types.str;
+      default = notifyScriptDefault;
+      defaultText = lib.literalMD "the platform notifier from ./notify.nix";
+      description = "Script text installed as ~/.local/bin/claude-notify.sh, run by the Stop and Notification hooks.";
+    };
+    dismissScript = lib.mkOption {
+      type = lib.types.str;
+      default = dismissScriptDefault;
+      defaultText = lib.literalMD "the platform dismisser from ./dismiss.nix";
+      description = "Script text installed as ~/.local/bin/claude-dismiss.sh, which clears the notification when work resumes.";
+    };
   };
 
-  home.file.".local/bin/claude-notify.sh" = {
-    executable = true;
-    text = notifyScript;
-  };
+  config = lib.mkIf cfg.enable ({
+    home.packages = [
+      claudeCodePkg
+    ]
+    ++ lib.optionals (!isDarwin) [ pkgs.libnotify ];
 
-  home.file.".local/bin/claude-statusline.sh" = {
-    executable = true;
-    text = statusLineScript;
-  };
+    home.file.".local/bin/claude-file-suggestion.sh" = {
+      executable = true;
+      text = fileSuggestionScript;
+    };
 
-  home.file.".local/bin/claude-dismiss-notification.sh" = {
-    executable = true;
-    text = dismissScript;
-  };
+    home.file.".local/bin/claude-notify.sh" = {
+      executable = true;
+      text = notifyScript;
+    };
 
-  home.activation.mergeClaudeSettings = {
-    after = [ "writeBoundary" ];
-    before = [ ];
-    data = ''
+    home.file.".local/bin/claude-statusline.sh" = {
+      executable = true;
+      text = statusLineScript;
+    };
+
+    home.file.".local/bin/claude-dismiss-notification.sh" = {
+      executable = true;
+      text = dismissScript;
+    };
+
+    home.activation.mergeClaudeSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       $DRY_RUN_CMD ${mergeScript}
     '';
-  };
-})
+  });
+}

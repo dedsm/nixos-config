@@ -8,19 +8,23 @@ David's personal system configuration, as a single Nix flake covering both **Nix
 ## Structure
 
 ```
-flake.nix               # Inputs, host definitions, user-config composition
+flake.nix               # Inputs, overlays, each host's system config and Home Manager users
 lib/
 ├── default.nix          # Exports nixosHost / darwinHost builders
-├── nixos-host.nix        # mkHost: assembles a NixOS system from systemConfig + userConfigFn + hardwareModules
+├── nixos-host.nix        # mkHost: assembles a NixOS system from systemConfig + users + hardwareModules
 └── darwin-host.nix       # mkDarwinHost: same, for nix-darwin
 
 hosts/
 └── manwe/
     └── hardware-configuration.nix   # Per-host hardware/disk layout (nixos-generate-config output)
 
+users/                  # Each user's Home Manager config, as modules layered with `imports`
+├── david/                # shared.nix (every host), nixos.nix and darwin.nix (per platform)
+└── root.nix
+
 modules/
-├── common/               # Shared by both platforms: fonts, nix registry, the Home Manager bridge
-│   └── users/common/       # Home Manager modules: tmux, herdr, nvim, zsh, git, hyprland, ghostty, claude-code, ...
+├── common/               # Shared by both platforms: fonts, nix registry, Home Manager settings
+│   └── users/common/       # Home Manager modules: tmux, herdr, nvim, zsh, hyprland, ghostty, claude-code, ...
 ├── nixos/                 # NixOS system modules (dedsm.<name>.enable toggles)
 │   ├── core/                # Always-on baseline: networking, audio, xdg, base packages
 │   ├── laptop/               # Power management, lid/sleep behaviour
@@ -46,19 +50,18 @@ scripts/                 # Maintenance scripts
 └── power-summary.sh, sleep-drain-test.sh   # Diagnostics
 ```
 
-Every system module lives under the `dedsm.*` option namespace and follows the same shape:
+Every module, system or Home Manager, lives under the `dedsm.*` option namespace and follows the same shape:
 
 ```nix
-{ lib, config, pkgs, ... }:
-with lib;
+{ config, lib, pkgs, ... }:
 let cfg = config.dedsm.mymodule;
 in {
-  options.dedsm.mymodule.enable = mkOption { type = types.bool; default = false; };
-  config = mkIf cfg.enable { /* ... */ };
+  options.dedsm.mymodule.enable = lib.mkEnableOption "my module";
+  config = lib.mkIf cfg.enable { /* ... */ };
 }
 ```
 
-Host-level composition happens in `flake.nix`: `davidShared` holds settings common to every platform, `davidNixos`/`davidDarwin` extend it per-platform, and each host's `<name>UserConfig`/`<name>SystemConfig` extends/overrides on top of that.
+A host is composed in `flake.nix` from its `<name>SystemConfig` (the system modules' `dedsm.*` toggles) and `<name>Users`, where each user is a Home Manager module that imports a layer from `users/` (`users/david/shared.nix` for every host, `nixos.nix`/`darwin.nix` per platform) and adds what is specific to the host. The module system merges the layers, so an override names only what it changes.
 
 ## Setup
 
@@ -101,8 +104,8 @@ nix flake update                              # Bump input pins
 ## Adding a new host
 
 1. Run `nixos-generate-config` on the target machine and copy the resulting `hardware-configuration.nix` into `hosts/<name>/`.
-2. Add a `<name>SystemConfig` / `<name>UserConfig` pair in `flake.nix`, composing from `davidShared`/`davidNixos` and turning on whichever `dedsm.*` modules the host needs (`hyprland`, `printing`, `bluetooth`, etc. are all opt-in).
-3. Register it under `nixosConfigurations` via `nixosHost.mkHost`, passing `hardwareModules` for that host's disk layout and any matching `nixos-hardware` module — see the `manwe` entry for reference.
+2. Add a `<name>SystemConfig` / `<name>Users` pair in `flake.nix`: turn on whichever `dedsm.*` system modules the host needs (`hyprland`, `printing`, `bluetooth`, etc. are all opt-in), and have each user import a layer from `users/` (e.g. `users/david/nixos.nix`).
+3. Register it under `nixosConfigurations` via `nixosHost.mkHost` with `users = <name>Users`, passing `hardwareModules` for that host's disk layout and any matching `nixos-hardware` module — see the `manwe` entry for reference.
 4. `sudo nixos-rebuild switch --flake .#<name>`.
 
 ## Documentation

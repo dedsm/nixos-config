@@ -10,17 +10,14 @@ attrs@{
       name,
       system,
       systemConfig,
-      userConfigFn,
+      users,
       hardwareModules ? [ ],
     }:
     let
       pkgs = mkPkgs system;
-      userConfig = userConfigFn pkgs;
     in
     lib.nixosSystem {
-      specialArgs = attrs // {
-        hc = userConfig;
-      };
+      specialArgs = attrs;
 
       modules = [
         ../modules/nixos
@@ -36,6 +33,7 @@ attrs@{
           ];
           users.users = systemConfig.systemUsers or { };
           networking.hostName = name;
+          home-manager.users = users;
           system.stateVersion = systemConfig.stateVersion;
         }
       ]

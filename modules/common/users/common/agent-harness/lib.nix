@@ -6,61 +6,17 @@
 {
   lib,
   pkgs,
-  homeManagerConfig,
+  config,
 }:
 let
-  cfg = homeManagerConfig.agent-harness or { };
+  cfg = config.dedsm.agent-harness;
 
-  # plugin -> the harnesses it can be installed into. A harness name is the key
-  # of that harness's own module in the user config (`claude-code.enable`, ...).
-  supported = {
-    rtk = [
-      "claude-code"
-      "antigravity"
-    ];
-    # Claude Code doesn't need it: its Bash tool inherits the environment of
-    # the shell it was started from, which direnv has already loaded for the
-    # project. Antigravity's commands don't, hence the export prefix.
-    direnv = [ "antigravity" ];
-    # rtk's `rtk:posthook` pipeline: compresses tool output after the tool ran
-    # (PostToolUse). Upstream applies pipeline hook rules to Claude Code only.
-    # It extends rtk's PreToolUse rewrite, so it is inert where `rtk` is off.
-    rtk-posthook = [ "claude-code" ];
-    # The personal `brain` skill and its SessionStart health line. The store
-    # machinery it relies on (the CLI on PATH, the ~/brain bootstrap and
-    # commit hooks, the weekly health timer) comes with it in either harness.
-    brain = [
-      "claude-code"
-      "antigravity"
-    ];
-  };
-
-  # Reject typos and unsupported pairs instead of silently ignoring them: a
-  # misspelt `false` would otherwise leave the plugin on.
-  checked = lib.mapAttrs (
-    plugin: flags:
-    if !(supported ? ${plugin}) then
-      throw "agent-harness: unknown plugin `${plugin}` (known: ${lib.concatStringsSep ", " (lib.attrNames supported)})"
-    else
-      lib.mapAttrs (
-        harness: value:
-        if !(builtins.elem harness supported.${plugin}) then
-          throw "agent-harness: `${plugin}` is not supported in `${harness}` (supported: ${
-            lib.concatStringsSep ", " supported.${plugin}
-          })"
-        else if !builtins.isBool value then
-          throw "agent-harness: `${plugin}.${harness}` must be a boolean"
-        else
-          value
-      ) flags
-  ) cfg;
+  supported = import ./supported.nix;
 
   # A plugin is active in a harness when that harness's module is enabled and
   # the plugin's flag for it isn't turned off. Flags default to on.
-  flagOn =
-    plugin: harness:
-    (homeManagerConfig.${harness}.enable or false) && ((checked.${plugin} or { }).${harness} or true);
-  active = builtins.deepSeq checked (
+  flagOn = plugin: harness: config.dedsm.${harness}.enable && cfg.${plugin}.${harness};
+  active = (
     lib.mapAttrs (plugin: harnesses: lib.genAttrs harnesses (flagOn plugin)) supported
     // {
       rtk-posthook.claude-code = flagOn "rtk-posthook" "claude-code" && flagOn "rtk" "claude-code";
@@ -121,7 +77,7 @@ let
       '';
 in
 {
-  inherit active;
+  inherit active supported;
 
   rtk = {
     package = rtkPkg;

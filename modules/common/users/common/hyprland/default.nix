@@ -1,21 +1,20 @@
-attrs@{
-  lib,
+{
   config,
-  homeManagerConfig,
+  osConfig,
+  lib,
   pkgs,
   ...
 }:
 with lib;
-let
+{
   # Hyprland-specific, and the last thing the `wayland` grouping held once sway
   # went: it generates monitors.lua for this compositor and nothing else, so it
-  # lives here rather than behind a second enable flag that had to be kept in
-  # sync with this one.
-  hyprdynamicmonitors = import ./hyprdynamicmonitors attrs;
-in
-mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
-  hyprdynamicmonitors
-  (
+  # lives here, gated on this module's flag rather than a second one.
+  imports = [ ./hyprdynamicmonitors ];
+
+  options.dedsm.hyprland.enable = mkEnableOption "the Hyprland user config";
+
+  config = mkIf config.dedsm.hyprland.enable (
     let
       screencast-inhibit = pkgs.writeShellScript "screencast-inhibit" ''
         ${pkgs.socat}/bin/socat -U - "UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock" | while IFS= read -r line; do
@@ -67,9 +66,8 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
         # Part of the xdph ba31964 patch in modules/nixos/hyprland (window
         # capture on AMD), and removed with it — the xdph version assertion
         # there lists this line. Left at its default this would add the stock
-        # xdph to the user profile alongside the patched one. `config` here is
-        # the system config — see modules/common/default.nix.
-        portalPackage = config.programs.hyprland.portalPackage;
+        # xdph to the user profile alongside the patched one.
+        portalPackage = osConfig.programs.hyprland.portalPackage;
 
         # Declarative option sections render to a single hl.config({...}) call.
         settings = {
@@ -307,5 +305,5 @@ mkIf (homeManagerConfig.hyprland.enable or false) (mkMerge [
         '';
       };
     }
-  )
-])
+  );
+}

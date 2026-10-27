@@ -1,13 +1,12 @@
 {
+  config,
   lib,
   pkgs,
-  homeManagerConfig,
-  homeDirectory,
   ...
 }:
 let
   isDarwin = pkgs.stdenv.isDarwin;
-  homeDir = homeDirectory;
+  homeDir = config.home.homeDirectory;
 
   # Base plugins for all systems
   basePlugins = with pkgs.tmuxPlugins; [
@@ -47,18 +46,24 @@ let
   '';
 in
 with lib;
-mkIf (homeManagerConfig.tmux.enable or false) {
-  programs.tmux = {
-    enable = true;
-    baseIndex = 1;
-    clock24 = true;
-    escapeTime = 0;
-    extraConfig = terminalConfig + builtins.readFile ./tmux.conf + themeConfig;
-    historyLimit = 30000;
-    prefix = "C-f";
-    resizeAmount = 5;
-    terminal = "screen-256color";
-    tmuxinator.enable = true;
-    plugins = basePlugins ++ darwinPlugins;
+{
+  options.dedsm.tmux = {
+    enable = lib.mkEnableOption "tmux";
+  };
+
+  config = lib.mkIf config.dedsm.tmux.enable {
+    programs.tmux = {
+      enable = true;
+      baseIndex = 1;
+      clock24 = true;
+      escapeTime = 0;
+      extraConfig = terminalConfig + builtins.readFile ./tmux.conf + themeConfig;
+      historyLimit = 30000;
+      prefix = "C-f";
+      resizeAmount = 5;
+      terminal = "screen-256color";
+      tmuxinator.enable = true;
+      plugins = basePlugins ++ darwinPlugins;
+    };
   };
 }

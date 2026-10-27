@@ -1,19 +1,17 @@
-attrs@{
-  lib,
+{
   config,
-  homeManagerConfig,
+  lib,
   pkgs,
-  homeDirectory,
   ...
 }:
-{
+lib.mkIf config.dedsm.defaults.enable {
   programs = {
     firefox = {
       enable = true;
       package = pkgs.firefox-devedition;
       # Adopt Firefox 147+ XDG layout (~/.config/mozilla/firefox). Fresh machines
       # use XDG automatically; existing ~/.mozilla profiles stay legacy (no auto-migration).
-      configPath = "${homeDirectory}/.config/mozilla/firefox";
+      configPath = "${config.home.homeDirectory}/.config/mozilla/firefox";
     };
 
     nix-index = {

@@ -1,163 +1,174 @@
 {
+  config,
   lib,
   pkgs,
-  config,
-  homeDirectory,
-  homeManagerConfig,
   ...
 }:
 with lib;
-mkIf (homeManagerConfig.zsh.enable or false) {
-  programs.zsh = {
-    enable = true;
-    enableCompletion = true;
-    # 26.05 XDG default: move zsh config to ~/.config/zsh.
-    # history.path defaults to "${dotDir}/.zsh_history", so it follows automatically.
-    dotDir = "${homeDirectory}/.config/zsh";
-    autosuggestion = {
-      enable = true;
+{
+  options.dedsm.zsh = {
+    enable = lib.mkEnableOption "zsh";
+    extraInit = lib.mkOption {
+      type = lib.types.lines;
+      default = "";
+      description = "Host-specific lines spliced into initContent, after the tmux/herdr hooks.";
     };
-    enableVteIntegration = true;
-    plugins = [
-      {
-        name = "zsh-completion-sync";
-        src = pkgs.zsh-completion-sync;
-        file = "share/zsh-completion-sync/zsh-completion-sync.plugin.zsh";
-      }
-    ];
-    oh-my-zsh = {
+  };
+
+  config = lib.mkIf config.dedsm.zsh.enable {
+    programs.zsh = {
       enable = true;
+      enableCompletion = true;
+      # 26.05 XDG default: move zsh config to ~/.config/zsh.
+      # history.path defaults to "${dotDir}/.zsh_history", so it follows automatically.
+      dotDir = "${config.home.homeDirectory}/.config/zsh";
+      autosuggestion = {
+        enable = true;
+      };
+      enableVteIntegration = true;
       plugins = [
-        "git"
-        "sudo"
-        "docker-compose"
-        "helm"
-        "pip"
-        "python"
-        "systemd"
-        "tmux"
+        {
+          name = "zsh-completion-sync";
+          src = pkgs.zsh-completion-sync;
+          file = "share/zsh-completion-sync/zsh-completion-sync.plugin.zsh";
+        }
       ];
-    };
-    history = {
-      extended = true;
-      ignoreDups = true;
-      ignoreSpace = true;
-      save = 1000000;
-      share = true;
-      size = 100000;
-    };
-    initContent = ''
-      # If running in foot, ensure the correct theme is applied on startup (interactive only)
-      if [[ -o interactive ]] && [[ "$TERM" == "foot" ]]; then
-        if [[ "$(ps -p $PPID -o comm= 2>/dev/null | tr -d ' ')" == "foot" ]]; then
-          # foot 1.27: SIGUSR1 = dark ([colors-dark]), SIGUSR2 = light ([colors-light])
-          if [[ "$(theme-get)" == "dark" ]]; then
-            kill -USR1 $PPID
+      oh-my-zsh = {
+        enable = true;
+        plugins = [
+          "git"
+          "sudo"
+          "docker-compose"
+          "helm"
+          "pip"
+          "python"
+          "systemd"
+          "tmux"
+        ];
+      };
+      history = {
+        extended = true;
+        ignoreDups = true;
+        ignoreSpace = true;
+        save = 1000000;
+        share = true;
+        size = 100000;
+      };
+      # 1050: between Home Manager's integrations and its aliases, as in
+      # ssh/default.nix.
+      initContent = lib.mkOrder 1050 ''
+        # If running in foot, ensure the correct theme is applied on startup (interactive only)
+        if [[ -o interactive ]] && [[ "$TERM" == "foot" ]]; then
+          if [[ "$(ps -p $PPID -o comm= 2>/dev/null | tr -d ' ')" == "foot" ]]; then
+            # foot 1.27: SIGUSR1 = dark ([colors-dark]), SIGUSR2 = light ([colors-light])
+            if [[ "$(theme-get)" == "dark" ]]; then
+              kill -USR1 $PPID
+            else
+              kill -USR2 $PPID
+            fi
+          fi
+        fi
+
+        # Enable PATH-based discovery for nix-shell compatibility
+        zstyle ':completion-sync:path' enabled true
+
+        # Display name for $PWD: "repo:dir" for a git checkout whose directory
+        # differs from the repo name (worktrees), otherwise the bare basename.
+        # Shared by the tmux and herdr renamers below.
+        function _workspace_display_name() {
+          local dir_name repo_name git_dir
+          dir_name=$(basename "$PWD")
+
+          # Detect git repo name (use common dir for worktrees and bare repos)
+          git_dir=$(realpath "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
+          if [[ -n "$git_dir" ]]; then
+            if [[ "$(basename "$git_dir")" == ".git" ]]; then
+              # Normal repo: .git dir lives inside the repo root
+              repo_name=$(basename "$(dirname "$git_dir")")
+            else
+              # Bare repo: the git dir IS the repo
+              repo_name=$(basename "$git_dir")
+            fi
+            if [[ "$repo_name" != "$dir_name" ]]; then
+              print -r -- "''${repo_name}:''${dir_name}"
+              return
+            fi
+          fi
+          print -r -- "$dir_name"
+        }
+
+        # Auto-rename the herdr workspace. No dedup pass: tmux's " 2" suffix exists
+        # because windows are a flat namespace, whereas a second view of one
+        # worktree in herdr is a tab inside the workspace, so names don't collide.
+        function _herdr_rename_workspace() {
+          [[ -z "$HERDR_ENV" || -z "$HERDR_WORKSPACE_ID" ]] && return
+          herdr workspace rename "$HERDR_WORKSPACE_ID" \
+            "$(_workspace_display_name)" >/dev/null 2>&1
+        }
+
+        # Auto-rename tmux window to directory basename (with dedup)
+        function _tmux_rename_window() {
+          [[ -z "$TMUX" || -z "$TMUX_PANE" ]] && return
+
+          local name current_window
+          name=$(_workspace_display_name)
+
+          current_window=$(tmux display-message -p -t "$TMUX_PANE" '#{window_index}')
+
+          # collect names from OTHER windows
+          local taken
+          taken=$(tmux list-windows -F '#{window_index} #{window_name}' \
+            | awk -v cur="$current_window" '$1 != cur { $1=""; print substr($0,2) }' \
+            | grep -E "^''${name}( [0-9]+)?$" || true)
+
+          if [[ -z "$taken" ]]; then
+            tmux rename-window -t "$TMUX_PANE" "$name"
+          elif ! echo "$taken" | grep -qE "^''${name}$"; then
+            tmux rename-window -t "$TMUX_PANE" "$name"
           else
-            kill -USR2 $PPID
+            local n=2
+            while echo "$taken" | grep -qE "^''${name} ''${n}$"; do
+              ((n++))
+            done
+            tmux rename-window -t "$TMUX_PANE" "$name $n"
           fi
-        fi
-      fi
+        }
+        autoload -Uz add-zsh-hook
+        add-zsh-hook chpwd _tmux_rename_window
+        add-zsh-hook chpwd _herdr_rename_workspace
+        _tmux_rename_window       # run once on shell init
+        _herdr_rename_workspace   # no-op unless $HERDR_ENV is set
 
-      # Enable PATH-based discovery for nix-shell compatibility
-      zstyle ':completion-sync:path' enabled true
+        ${config.dedsm.zsh.extraInit}
+        any-nix-shell zsh --info-right | source /dev/stdin
+        ${
+          if config.programs.zoxide.enable then
+            ''
+              export _ZO_FZF_OPTS="--scheme=path --tiebreak=end,chunk,index --bind=ctrl-z:ignore,btab:up,tab:down --cycle --keep-right --border=sharp --height=45% --info=inline --layout=reverse --tabstop=1 --exit-0 --select-1"
+              eval "$(zoxide init zsh --cmd j)"
 
-      # Display name for $PWD: "repo:dir" for a git checkout whose directory
-      # differs from the repo name (worktrees), otherwise the bare basename.
-      # Shared by the tmux and herdr renamers below.
-      function _workspace_display_name() {
-        local dir_name repo_name git_dir
-        dir_name=$(basename "$PWD")
-
-        # Detect git repo name (use common dir for worktrees and bare repos)
-        git_dir=$(realpath "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null)
-        if [[ -n "$git_dir" ]]; then
-          if [[ "$(basename "$git_dir")" == ".git" ]]; then
-            # Normal repo: .git dir lives inside the repo root
-            repo_name=$(basename "$(dirname "$git_dir")")
-          else
-            # Bare repo: the git dir IS the repo
-            repo_name=$(basename "$git_dir")
-          fi
-          if [[ "$repo_name" != "$dir_name" ]]; then
-            print -r -- "''${repo_name}:''${dir_name}"
-            return
-          fi
-        fi
-        print -r -- "$dir_name"
-      }
-
-      # Auto-rename the herdr workspace. No dedup pass: tmux's " 2" suffix exists
-      # because windows are a flat namespace, whereas a second view of one
-      # worktree in herdr is a tab inside the workspace, so names don't collide.
-      function _herdr_rename_workspace() {
-        [[ -z "$HERDR_ENV" || -z "$HERDR_WORKSPACE_ID" ]] && return
-        herdr workspace rename "$HERDR_WORKSPACE_ID" \
-          "$(_workspace_display_name)" >/dev/null 2>&1
-      }
-
-      # Auto-rename tmux window to directory basename (with dedup)
-      function _tmux_rename_window() {
-        [[ -z "$TMUX" || -z "$TMUX_PANE" ]] && return
-
-        local name current_window
-        name=$(_workspace_display_name)
-
-        current_window=$(tmux display-message -p -t "$TMUX_PANE" '#{window_index}')
-
-        # collect names from OTHER windows
-        local taken
-        taken=$(tmux list-windows -F '#{window_index} #{window_name}' \
-          | awk -v cur="$current_window" '$1 != cur { $1=""; print substr($0,2) }' \
-          | grep -E "^''${name}( [0-9]+)?$" || true)
-
-        if [[ -z "$taken" ]]; then
-          tmux rename-window -t "$TMUX_PANE" "$name"
-        elif ! echo "$taken" | grep -qE "^''${name}$"; then
-          tmux rename-window -t "$TMUX_PANE" "$name"
-        else
-          local n=2
-          while echo "$taken" | grep -qE "^''${name} ''${n}$"; do
-            ((n++))
-          done
-          tmux rename-window -t "$TMUX_PANE" "$name $n"
-        fi
-      }
-      autoload -Uz add-zsh-hook
-      add-zsh-hook chpwd _tmux_rename_window
-      add-zsh-hook chpwd _herdr_rename_workspace
-      _tmux_rename_window       # run once on shell init
-      _herdr_rename_workspace   # no-op unless $HERDR_ENV is set
-
-      ${homeManagerConfig.zsh.initContent or ""}
-      any-nix-shell zsh --info-right | source /dev/stdin
-      ${
-        if (homeManagerConfig.zoxide.enable or false) then
-          ''
-            export _ZO_FZF_OPTS="--scheme=path --tiebreak=end,chunk,index --bind=ctrl-z:ignore,btab:up,tab:down --cycle --keep-right --border=sharp --height=45% --info=inline --layout=reverse --tabstop=1 --exit-0 --select-1"
-            eval "$(zoxide init zsh --cmd j)"
-
-            # Override the default z function to use fzf for fuzzy matching
-            function __zoxide_z() {
-              __zoxide_doctor
-              if [[ "$#" -eq 0 ]]; then
-                __zoxide_cd ~
-              elif [[ "$#" -eq 1 ]] && { [[ -d "$1" ]] || [[ "$1" = '-' ]] || [[ "$1" =~ ^[-+][0-9]$ ]]; }; then
-                __zoxide_cd "$1"
-              elif [[ "$#" -eq 2 ]] && [[ "$1" = "--" ]]; then
-                __zoxide_cd "$2"
-              else
-                \builtin local result
-                result="$(\command zoxide query --list --exclude "$(__zoxide_pwd)" | fzf --filter="$*" --no-sort | head -n1)"
-                if [[ -n "$result" ]]; then
-                  __zoxide_cd "$result"
+              # Override the default z function to use fzf for fuzzy matching
+              function __zoxide_z() {
+                __zoxide_doctor
+                if [[ "$#" -eq 0 ]]; then
+                  __zoxide_cd ~
+                elif [[ "$#" -eq 1 ]] && { [[ -d "$1" ]] || [[ "$1" = '-' ]] || [[ "$1" =~ ^[-+][0-9]$ ]]; }; then
+                  __zoxide_cd "$1"
+                elif [[ "$#" -eq 2 ]] && [[ "$1" = "--" ]]; then
+                  __zoxide_cd "$2"
+                else
+                  \builtin local result
+                  result="$(\command zoxide query --list --exclude "$(__zoxide_pwd)" | fzf --filter="$*" --no-sort | head -n1)"
+                  if [[ -n "$result" ]]; then
+                    __zoxide_cd "$result"
+                  fi
                 fi
-              fi
-            }
-          ''
-        else
-          ""
-      }
-    '';
+              }
+            ''
+          else
+            ""
+        }
+      '';
+    };
   };
 }

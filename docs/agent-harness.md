@@ -1,6 +1,6 @@
 # Agent harness plugins
 
-Module: [`modules/common/users/common/agent-harness/`](../modules/common/users/common/agent-harness/) · flags: `agent-harness.<plugin>.<harness>` (set in `davidShared`).
+Module: [`modules/common/users/common/agent-harness/`](../modules/common/users/common/agent-harness/) · flags: `dedsm.agent-harness.<plugin>.<harness>` (set in `users/david/shared.nix`).
 
 Some tools plug into every coding agent the same way: rtk rewrites the commands an agent runs, direnv loads the project's environment, and the personal `brain` skill tracks ongoing work. Each agent ("harness") has its own config format for that. This module holds the list of plugins and the per-harness switches in one place, so adding a harness means writing one adapter rather than copying each plugin into its module.
 
@@ -25,11 +25,11 @@ agent-harness = {
 | `rtk-posthook` | `claude-code` | rtk's `rtk:posthook` pipeline: a PostToolUse hook that compresses tool output after the tool ran — see [below](#rtk-posthook) |
 | `brain` | `claude-code`, `antigravity` | the personal `brain` skill and a SessionStart hook with `brain health`'s line, plus (once, whichever harness has it) the `brain` CLI, the `~/brain` bootstrap and commit hooks, and the weekly health notification — see [below](#brain) |
 
-- A harness name is the key of that harness's own module (`claude-code.enable`, `antigravity.enable`). A flag only takes effect where that module is enabled, so the shared `antigravity = true` is inert on morgoth, where Antigravity isn't installed.
-- Every flag defaults to `true`. The block in `flake.nix` only spells them out.
+- A harness name is the name of that harness's own module (`dedsm.claude-code.enable`, `dedsm.antigravity.enable`). A flag only takes effect where that module is enabled, so the shared `antigravity = true` is inert on morgoth, where Antigravity isn't installed.
+- Every flag defaults to `true`. The block in `users/david/shared.nix` only spells them out.
 - `rtk-posthook` builds on `rtk`, so it is inert in a harness where the `rtk` flag is off.
-- Unknown plugins, unsupported pairs (e.g. `direnv.claude-code`) and non-boolean values are evaluation errors, not ignored: a misspelt `false` would otherwise leave a plugin on.
-- `davidNixos`/`davidDarwin` extend `davidShared` with `//`, which is shallow. A host override must restate the whole `agent-harness` attrset, not just one flag.
+- Each supported pair is a declared boolean option, generated from `supported.nix`, so unknown plugins, unsupported pairs (e.g. `direnv.claude-code`) and non-boolean values are evaluation errors rather than ignored: a misspelt `false` would otherwise leave a plugin on.
+- Layers merge per option, so a host can flip one flag (`dedsm.agent-harness.rtk.antigravity = false;`) without restating the rest.
 
 direnv isn't offered for Claude Code because it doesn't need it: its Bash tool inherits the environment of the shell it was started from, which direnv has already loaded for the project.
 
@@ -85,7 +85,7 @@ Antigravity checks permissions after hooks rewrite a command, so a command allow
 
 Taking Codex as the example (`rtk init -g --codex` writes `~/.codex/{AGENTS.md,RTK.md,hooks.json}`):
 
-1. Add the harness name to the plugin's list in `supported` (`lib.nix`).
+1. Add the harness name to the plugin's list in `supported.nix`; that also declares its flag.
 2. Generate its files in `rtkAgentFiles`. `--codex` refuses `--auto-patch`, so feed it `</dev/null` instead. Its `AGENTS.md` imports `RTK.md` by absolute path (`@/build/.codex/RTK.md` in the sandbox), so that line has to be rewritten to the installed path.
 3. Write the hook, through the harness's own module if it owns the config file (as with Claude Code), or directly from `default.nix` if the plugin directory is entirely ours (as with Antigravity).
-4. Add the flag to the block in `flake.nix` and to the table above.
+4. Add the flag to the block in `users/david/shared.nix` and to the table above.

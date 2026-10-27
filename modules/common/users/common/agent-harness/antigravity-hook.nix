@@ -9,6 +9,7 @@
   rtkPkg,
   rtk,
   direnv,
+  direnvPkg,
 }:
 let
   pyStr = s: builtins.toJSON s;
@@ -18,7 +19,7 @@ pkgs.writeScript "antigravity-pre-tool-use" ''
   import sys, json, subprocess
 
   RTK = ${if rtk then pyStr "${rtkPkg}/bin/rtk" else "None"}
-  DIRENV = ${if direnv then pyStr "${pkgs.unstable.direnv}/bin/direnv" else "None"}
+  DIRENV = ${if direnv then pyStr "${direnvPkg}/bin/direnv" else "None"}
 
   raw = sys.stdin.read()
   if not raw.strip():
