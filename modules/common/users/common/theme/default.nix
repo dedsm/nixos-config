@@ -38,7 +38,7 @@ let
   solarizedBaseLightTheme = "${solarizedPlugin}/share/tmux-plugins/tmuxcolors/tmuxcolors-light.conf";
   solarizedBaseDarkTheme = "${solarizedPlugin}/share/tmux-plugins/tmuxcolors/tmuxcolors-dark.conf";
 
-  # Custom tmux overlays (mirrored from tmux/default.nix)
+  # Custom tmux overlays, written for both palettes
   tmuxLightCustom = pkgs.writeText "solarized-light-custom.conf" ''
     set -g window-style 'bg=${colors.base2}'
     set -g window-active-style 'bg=${colors.base3}'
