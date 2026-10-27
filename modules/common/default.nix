@@ -28,9 +28,6 @@ let
           home.stateVersion = v.stateVersion;
           home.packages = v.packages pkgs;
         }
-        (lib.mkIf (v ? home && v.home ? homeDirectory) {
-          home.homeDirectory = v.home.homeDirectory;
-        })
       ];
     };
 in

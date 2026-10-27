@@ -384,7 +384,6 @@
 
       morgothUserConfig = pkgs: {
         "david.de.sousa" = (davidDarwin pkgs) // {
-          home.homeDirectory = "/Users/david.de.sousa";
 
           git = (davidDarwin pkgs).git // {
             includes = [
