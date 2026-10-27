@@ -12,6 +12,8 @@ Antigravity 2.0 split the product into three separately-shipped artifacts, and t
 
 The three binaries don't collide, so all of them can be on `PATH` at once.
 
+The rtk + direnv `run_command` hook plugin under `~/.gemini/config/plugins/` isn't installed by this module but by the agent-harness one, switchable via `agent-harness.rtk.antigravity` and `agent-harness.direnv.antigravity` — see [`agent-harness.md`](./agent-harness.md).
+
 ## Why not nixpkgs
 
 nixpkgs has all three now — `antigravity-hub` landed in [NixOS/nixpkgs#524225](https://github.com/NixOS/nixpkgs/pull/524225) (merged 2026-09-20, at 2.12.2) — but they **trail upstream**, because Google ships new tarballs faster than the nixpkgs update bots pick them up. As of 2026-10-15, `unstable` has hub 2.12.2 against upstream's 2.21.0 and CLI 1.2.16 against 1.3.1; only the IDE (2.5.5) is level. The hub, the main reason to have this at all, is the furthest behind.

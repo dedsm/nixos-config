@@ -172,7 +172,7 @@ latest conventions after a rebuild shipped a new template/CLI.
    - **v14 specifically:** *pages hold the design, the tracker holds the standings.* Two backfills,
      and only the first gates the stamp.
      **(a) `progress` — required before stamping.** It is now an error on any page whose `links:`
-     name a tracker. `brain q --json` (or `rtk proxy grep -rn '^progress:' ~/brain`) lists them;
+     name a tracker. `brain q --json` (or `rtk bypass grep -rn '^progress:' ~/brain`) lists them;
      for each, **show David the value and ask**. Most are pure readings and simply go; a few carry
      one sentence of judgment ("none started", "blocked on the Ruby ruling") that belongs in the
      body or in `next` — lift it first, then `brain unset <page> progress`. A page with no tracker

@@ -25,6 +25,7 @@ let
   claude-code = import ./claude-code attrs;
   playwright = import ./playwright attrs;
   antigravity = import ./antigravity attrs;
+  agent-harness = import ./agent-harness attrs;
   cli-notify = import ./cli-notify attrs;
 
   defaults = import ./defaults attrs;
@@ -50,6 +51,7 @@ lib.mkMerge [
   claude-code
   playwright
   antigravity
+  agent-harness
   cli-notify
 
   defaults

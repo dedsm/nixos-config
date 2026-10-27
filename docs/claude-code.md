@@ -88,6 +88,7 @@ whether Anthropic trains on them is the account toggle at
 
 All hook scripts are generated Nix strings (`home.file.".local/bin/claude-*.sh"`), so they're reproducible and platform-aware (`isDarwin` branches inside `notify.nix`/`dismiss.nix`):
 
+- **`PreToolUse` / `PostToolUse` → `rtk hook claude`**: owned by the agent-harness module (`agent-harness.rtk.claude-code` for the command rewrite, `agent-harness.rtk-posthook.claude-code` for compressing tool output after it ran), which this module splices in from `agent-harness/lib.nix` so that it stays the only writer of `settings.json`. Each is `[ ]` when its flag is off. See [`agent-harness.md`](./agent-harness.md), which also covers `~/.claude/RTK.md` and the `@RTK.md` line in `~/.claude/CLAUDE.md`.
 - **`Notification` and `UserPromptSubmit`**: **disabled** — `[ ]` in `managedSettings`. Desktop notifications are delivered by herdr instead (`ui.toast.delivery = "system"`), which covers every recognised agent rather than only Claude Code and can jump to the pane that raised one. See "Notifications" in [`herdr.md`](./herdr.md) for the trade-off, including what the hooks did better.
 
   They are empty *lists* rather than deleted keys on purpose: the merge is `jq -s '.[0] * .[1]'`, so a key dropped from `managedSettings` leaves whatever is already in `~/.claude/settings.json` untouched — the hooks would keep firing. Assigning `[ ]` actively overwrites them.

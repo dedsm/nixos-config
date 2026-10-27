@@ -130,6 +130,18 @@
         claude-code.enable = true;
         playwright.enable = true;
 
+        # Plugins shared by the coding-agent harnesses, per harness. Each flag
+        # only takes effect where that harness's own module is enabled (all
+        # default to true). See docs/agent-harness.md.
+        agent-harness = {
+          rtk = {
+            claude-code = true;
+            antigravity = true;
+          };
+          direnv.antigravity = true;
+          rtk-posthook.claude-code = true;
+        };
+
         # Defaults for modules not enabled on all platforms
         antigravity.enable = false;
         kdeconnect.enable = false;
@@ -226,12 +238,6 @@
             # "Restart behaviour" in docs/herdr.md. Same store path `brain`
             # already pins via patchShebangs, so this costs no extra build.
             python3
-
-            # rtk (Rust Token Killer) — token-optimizing CLI proxy. From
-            # unstable: it moves faster than stable. It was briefly pinned to
-            # stable while unstable's 0.43.0 failed its test build under
-            # `-D warnings`; 0.49.0 builds cleanly.
-            pkgs.unstable.rtk
           ];
       };
 

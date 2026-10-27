@@ -42,6 +42,10 @@ let
   dismissScriptDefault = import ./dismiss.nix { inherit pkgs isDarwin; };
   statusLineScript = import ./statusline.nix { inherit pkgs; };
 
+  # Hook entries contributed by the shared agent-harness plugins. This module
+  # stays the only writer of settings.json, so it splices them in itself.
+  agentHarness = import ../agent-harness/lib.nix { inherit lib pkgs homeManagerConfig; };
+
   notifyScript = cfg.notifyScript or notifyScriptDefault;
   dismissScript = cfg.dismissScript or dismissScriptDefault;
 
@@ -165,18 +169,13 @@ let
     hooks = {
       Stop = [ ];
 
-      # RTK (Rust Token Killer) transparent command rewrite hook.
-      PreToolUse = [
-        {
-          matcher = "Bash";
-          hooks = [
-            {
-              type = "command";
-              command = "rtk hook claude";
-            }
-          ];
-        }
-      ];
+      # Owned by the agent-harness module (the rtk rewrite hook, when its
+      # `agent-harness.rtk.claude-code` flag is on). An empty list when off,
+      # which clears the entry: see the note on Notification below.
+      PreToolUse = agentHarness.claudeCode.preToolUse;
+      # Likewise, from `agent-harness.rtk-posthook.claude-code`. Owned outright
+      # like the keys below, so an entry something else adds here is replaced.
+      PostToolUse = agentHarness.claudeCode.postToolUse;
 
       # Desktop notifications are herdr's job now: it sees every recognised
       # agent rather than just Claude Code, and `prefix+o` jumps to the pane
