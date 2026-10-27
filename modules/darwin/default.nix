@@ -130,10 +130,6 @@
   };
 
   # this is broken now so manually installing for now
-  # services.karabiner-elements = {
-  #   enable = true;
-  # };
-
   services.jankyborders = {
     enable = true;
     inactive_color = "0xffab387";
