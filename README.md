@@ -40,7 +40,6 @@ pkgs/                    # Custom package overlays (pkgs.local.*)
 └── default.nix            # ...and antigravity-hub/-ide/-cli, built from the
                            #    `antigravity-nix` input (no directory of their own)
 
-custom/                  # One-off scripts referenced by modules (e.g. i3xmonadhelper.py)
 scripts/                 # Maintenance scripts
 ├── update-packages.sh     # Bump every hand-pinned source (`--list` to see them)
 ├── updaters/              # Per-thing updaters run by the above (update-<name>.sh)

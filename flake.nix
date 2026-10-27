@@ -260,9 +260,6 @@
               nautilus
               eog
               evince
-              (pkgs.writers.writePython3Bin "i3xmonadhelper" {
-                libraries = [ pkgs.python3Packages.i3ipc ];
-              } (builtins.readFile ./custom/david/i3xmonadhelper.py))
               wl-clipboard
               moonlight-qt
               playerctl

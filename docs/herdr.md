@@ -583,8 +583,8 @@ agents the way it assumes node for the `.ts`/`.js` ones. Without it the hook exi
 `command -v python3 >/dev/null 2>&1 || exit 0`, so nothing is reported, no `agent_session`
 lands in `session.json`, and there is no id left to build `claude --resume <uuid>` from.
 
-Nothing else here puts a bare `python3` on `PATH` — `brain`, Neovim's `withPython3`, and
-`i3xmonadhelper` all resolve an interpreter by store path — so it is listed explicitly in
+Nothing else here puts a bare `python3` on `PATH` — `brain` and Neovim's `withPython3` both
+resolve an interpreter by store path — so it is listed explicitly in
 `davidShared`'s packages in `flake.nix` for this. The failure is silent on both ends (the
 hook exits clean, Herdr simply never hears from the pane); `herdr agent list` is what shows
 it, as a pane with no `agent_session` field. Pane layout, cwd and focus restore regardless

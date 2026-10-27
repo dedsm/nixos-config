@@ -58,10 +58,7 @@ flake.nix                # Inputs, host definitions, user-config composition (da
 │   ├── slack/ cli-notify/ dstask-note/ vim-herdr-navigation/ granola/
 │   └── default.nix          # ...plus antigravity-hub/-ide/-cli, built straight from the
 │                              `antigravity-nix` input (no directory of their own)
-├── docs/                  # Deeper docs for specific subsystems — see "Further documentation"
-└── custom/                # Custom scripts and utilities
-    └── david/
-        └── i3xmonadhelper.py
+└── docs/                  # Deeper docs for specific subsystems — see "Further documentation"
 ```
 
 ### Key Design Patterns
