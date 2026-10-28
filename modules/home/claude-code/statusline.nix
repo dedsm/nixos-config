@@ -78,8 +78,10 @@ in
     fi
     local hours=$(( diff / 3600 ))
     local mins=$(( (diff % 3600) / 60 ))
-    if (( hours > 0 )); then
-      printf "%dh%dm" "$hours" "$mins"
+    if (( hours >= 24 )); then
+      printf "%dd" "$(( hours / 24 ))"
+    elif (( hours > 0 )); then
+      printf "%dh%02dm" "$hours" "$mins"
     else
       printf "%dm" "$mins"
     fi
@@ -104,14 +106,14 @@ in
       rl_5h_fmt=$(printf "%.0f" "$rl_5h_pct")
       rl_5h_color=$(rl_color "$rl_5h_pct")
       rl_5h_cd=""
-      [[ -n "$rl_5h_resets" ]] && rl_5h_cd=" ''${DIM}↻$(fmt_countdown "$rl_5h_resets")''${RESET}"
+      [[ -n "$rl_5h_resets" ]] && rl_5h_cd=" ''${DIM}↻ $(fmt_countdown "$rl_5h_resets")''${RESET}"
       rate_section="''${rate_section} ''${DIM}5h:''${RESET}''${rl_5h_color}''${rl_5h_fmt}%''${RESET}''${rl_5h_cd}"
     fi
     if [[ -n "$rl_7d_pct" ]]; then
       rl_7d_fmt=$(printf "%.0f" "$rl_7d_pct")
       rl_7d_color=$(rl_color "$rl_7d_pct")
       rl_7d_cd=""
-      [[ -n "$rl_7d_resets" ]] && rl_7d_cd=" ''${DIM}↻$(fmt_countdown "$rl_7d_resets")''${RESET}"
+      [[ -n "$rl_7d_resets" ]] && rl_7d_cd=" ''${DIM}↻ $(fmt_countdown "$rl_7d_resets")''${RESET}"
       rate_section="''${rate_section} ''${DIM}7d:''${RESET}''${rl_7d_color}''${rl_7d_fmt}%''${RESET}''${rl_7d_cd}"
     fi
   fi
