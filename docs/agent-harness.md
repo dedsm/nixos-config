@@ -39,7 +39,7 @@ The awareness text rtk wants agents to read (`~/.claude/RTK.md`, Antigravity's `
 
 Only prose comes from there. The hook entries are written in Nix, because reading rtk's generated JSON back into the evaluation would be import-from-derivation.
 
-rtk is BUSL-1.1 since 1.0 (nixpkgs lists `asl20` + `bsl11`), so it only evaluates because `pkgs.unstable` is imported with `allowUnfree`. Upstream's Apache-only `rtk-oss` edition isn't in nixpkgs. rtk comes from unstable because it moves faster than stable, and nixpkgs carries no updater of our own for it: `nix flake update unstable` bumps it.
+rtk is BUSL-1.1 since 1.0 (nixpkgs lists `asl20` + `bsl11`), so it only evaluates because it is named on `pkgs.unstable`'s unfree allowlist in `lib/pkgs.nix`. Upstream's Apache-only `rtk-oss` edition isn't in nixpkgs. rtk comes from unstable because it moves faster than stable, and nixpkgs carries no updater of our own for it: `nix flake update unstable` bumps it.
 
 ## rtk-posthook
 

@@ -29,6 +29,7 @@ let
   # autodetection doesn't reliably find it outside a GNOME session. The local
   # package takes no `commandLineArgs` argument the way nixpkgs' Electron
   # packages do, so add the flag by wrapping the wrapper it installs.
+  # unfree (lib/pkgs.nix)
   idePkg = pkgs.local.antigravity-ide.overrideAttrs (old: {
     postFixup = (old.postFixup or "") + ''
       wrapProgram $out/bin/antigravity-ide --add-flags "--password-store=gnome-libsecret"
@@ -46,9 +47,9 @@ in
 
   config = lib.mkIf cfg.enable {
     home.packages =
-      lib.optional hubEnable pkgs.local.antigravity-hub
+      lib.optional hubEnable pkgs.local.antigravity-hub # unfree (lib/pkgs.nix)
       ++ lib.optional ideEnable idePkg
-      ++ lib.optional cliEnable pkgs.local.antigravity-cli;
+      ++ lib.optional cliEnable pkgs.local.antigravity-cli; # unfree (lib/pkgs.nix)
 
     # The rtk/direnv run_command hook plugin is installed by the agent-harness
     # module, not here. See docs/agent-harness.md.

@@ -27,12 +27,12 @@ in
 
     programs._1password = {
       enable = true;
-      package = pkgs.unfree._1password-cli;
+      package = pkgs.unfree._1password-cli; # unfree (lib/pkgs.nix)
     };
     programs._1password-gui = {
       enable = true;
       polkitPolicyOwners = [ "david" ];
-      package = pkgs.unfree._1password-gui;
+      package = pkgs.unfree._1password-gui; # unfree (lib/pkgs.nix)
     };
   };
 }

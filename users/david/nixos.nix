@@ -47,6 +47,6 @@
     slurp
     grim
     pkgs.unstable.restream
-    pkgs.unfree._1password-cli
+    pkgs.unfree._1password-cli # unfree (lib/pkgs.nix)
   ];
 }

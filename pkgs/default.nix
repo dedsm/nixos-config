@@ -22,7 +22,7 @@ let
   };
 in
 {
-  slack = super.callPackage ./slack { slack = unstablePkgs.slack; };
+  slack = super.callPackage ./slack { slack = unstablePkgs.slack; }; # unfree (lib/pkgs.nix)
 
   cli-notify = super.callPackage ./cli-notify { };
 
@@ -34,23 +34,24 @@ in
     herdr = unstablePkgs.herdr;
   };
 
-  # Granola's macOS build on nixpkgs' Electron. From unstable for allowUnfree
-  # (Granola is proprietary). The Electron major must match the one Granola
-  # ships, which the build checks; see docs/granola.md.
-  granola = unstablePkgs.callPackage ./granola { electron = unstablePkgs.electron_44; };
+  # Granola's macOS build on nixpkgs' Electron, built with unstable's
+  # callPackage. Granola is proprietary, so it is on unstable's unfree allowlist
+  # in lib/pkgs.nix. The Electron major must match the one Granola ships, which
+  # the build checks; see docs/granola.md.
+  granola = unstablePkgs.callPackage ./granola { electron = unstablePkgs.electron_44; }; # unfree (lib/pkgs.nix)
 
   # Google Antigravity, from the `antigravity-nix` input rather than nixpkgs:
   # nixpkgs' antigravity-hub (since NixOS/nixpkgs#524225) and antigravity-cli
   # trail the upstream releases that input tracks; see docs/antigravity.md.
-  # Built against `unstable`, which is both the nixpkgs the upstream
-  # flake is CI-tested against and the only package set here with allowUnfree —
-  # every Antigravity artifact is an unfree binary and the GUI packages
-  # reference google-chrome.
+  # Built against `unstable`, the nixpkgs the upstream flake is CI-tested
+  # against. Every Antigravity artifact is an unfree binary and the GUI packages
+  # reference google-chrome, so all four are on unstable's unfree allowlist in
+  # lib/pkgs.nix.
   #
   # These carry no `passthru.updateScript`: the version pin lives in the
   # input's artifacts/versions.json, so `nix flake update antigravity-nix` is
   # the updater (same as pkgs.local.slack tracking `unstable`).
-  antigravity-hub = unstablePkgs.callPackage "${antigravityNix}/pkgs/google-antigravity2.nix" antigravityGuiArgs;
-  antigravity-ide = unstablePkgs.callPackage "${antigravityNix}/pkgs/google-antigravity-ide.nix" antigravityGuiArgs;
-  antigravity-cli = unstablePkgs.callPackage "${antigravityNix}/pkgs/cli.nix" { };
+  antigravity-hub = unstablePkgs.callPackage "${antigravityNix}/pkgs/google-antigravity2.nix" antigravityGuiArgs; # unfree (lib/pkgs.nix)
+  antigravity-ide = unstablePkgs.callPackage "${antigravityNix}/pkgs/google-antigravity-ide.nix" antigravityGuiArgs; # unfree (lib/pkgs.nix)
+  antigravity-cli = unstablePkgs.callPackage "${antigravityNix}/pkgs/cli.nix" { }; # unfree (lib/pkgs.nix)
 }

@@ -89,7 +89,9 @@ flake.nix                # Inputs, each host's system config and Home Manager us
 
 4. **Custom Namespace**: System and Home Manager modules use `dedsm.*` options to avoid conflicts with standard NixOS/Darwin/Home Manager options.
 
-5. **Package Overlays**: `lib/pkgs.nix` (`mkPkgs`) builds the one package set every host and output uses. Custom packages are exposed via `pkgs.local.*`, unstable packages via `pkgs.unstable.*`, unfree packages via `pkgs.unfree.*`.
+5. **Package Overlays**: `lib/pkgs.nix` (`mkPkgs`) builds the one package set every host and output uses. Custom packages are exposed via `pkgs.local.*`, unstable packages via `pkgs.unstable.*`, unfree packages from this nixpkgs via `pkgs.unfree.*`.
+
+6. **Unfree licences are allowed by name, never wholesale**: `pkgs.unstable` and `pkgs.unfree` each carry an `allowUnfreePredicate` listing the exact unfree packages in use (with a comment naming the user), and the base set allows none. A new unfree package fails evaluation ("Refusing to evaluate package … because it has an unfree license") until it is added to the right list in `lib/pkgs.nix`; mark the place that uses it with `# unfree (lib/pkgs.nix)`.
 
 ## Setup Commands
 
@@ -349,7 +351,7 @@ input (`nix flake update antigravity-nix`).
 ### Package Access
 - Custom packages: `pkgs.local.slack`, `pkgs.local.vim-herdr-navigation`, `pkgs.local.antigravity-hub`
 - Unstable packages: `pkgs.unstable.spotify`, `pkgs.unstable.vscode`
-- Unfree packages: `pkgs.unfree.dropbox`
+- Unfree packages: `pkgs.unfree._1password-cli` (stable) or `pkgs.unstable.spotify` (unstable), each also named on that set's allowlist in `lib/pkgs.nix`
 
 ### Adding New Packages
 1. Create package directory in `pkgs/`
@@ -441,7 +443,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 ### Common Issues
 - **Flake evaluation errors**: Check syntax with `nix flake check`
 - **Module conflicts**: Verify option namespacing in custom modules
-- **Build failures**: Check unfree packages are properly handled
+- **"Refusing to evaluate package … because it has an unfree license"**: add the package's name to the allowlist of the set it comes from in `lib/pkgs.nix`, and mark its use site `# unfree (lib/pkgs.nix)`
 - **Home Manager activation**: Verify user has write access to config directories
 - **Darwin rebuild fails**: Ensure nix-daemon is running, try `sudo launchctl kickstart -k system/org.nixos.nix-daemon`
 

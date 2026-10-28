@@ -61,13 +61,14 @@
         imports = [ ../../users/david/nixos.nix ];
         dedsm.hyprland.enable = true;
         home.packages = [
-          pkgs.local.slack
-          pkgs.local.granola
-          pkgs.unstable.spotify
+          pkgs.local.slack # unfree (lib/pkgs.nix)
+          pkgs.local.granola # unfree (lib/pkgs.nix)
+          pkgs.unstable.spotify # unfree (lib/pkgs.nix)
+          # unfree (lib/pkgs.nix)
           (pkgs.unstable.vscode.override {
             commandLineArgs = "--password-store=gnome-libsecret";
           })
-          pkgs.unstable.synology-drive-client
+          pkgs.unstable.synology-drive-client # unfree (lib/pkgs.nix)
           pkgs.unstable.ledger-live-desktop
           pkgs.unstable.awscli2
         ];

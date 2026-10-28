@@ -25,10 +25,10 @@ let
 
   # rtk (Rust Token Killer) — token-optimizing CLI proxy. From unstable: it
   # moves faster than stable. Since 1.0 the default binary is BUSL-1.1 (nixpkgs
-  # lists it as asl20 + bsl11), so it only evaluates because `unstable` is
-  # imported with allowUnfree; upstream's Apache-only `rtk-oss` edition isn't
-  # packaged in nixpkgs.
-  rtkPkg = pkgs.unstable.rtk;
+  # lists it as asl20 + bsl11), so it only evaluates because it is on
+  # pkgs.unstable's unfree allowlist in lib/pkgs.nix; upstream's Apache-only
+  # `rtk-oss` edition isn't packaged in nixpkgs.
+  rtkPkg = pkgs.unstable.rtk; # unfree (lib/pkgs.nix)
 
   brainHealthCommand = "~/.local/bin/claude-brain-health.sh";
 

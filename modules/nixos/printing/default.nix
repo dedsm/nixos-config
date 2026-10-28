@@ -23,7 +23,7 @@ in
       browsing = true;
       startWhenNeeded = true;
       drivers = [
-        pkgs.unfree.epson_201207w
+        pkgs.unfree.epson_201207w # unfree (lib/pkgs.nix)
         pkgs.gutenprint
       ];
     };

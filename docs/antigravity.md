@@ -20,7 +20,7 @@ nixpkgs has all three now — `antigravity-hub` landed in [NixOS/nixpkgs#524225]
 
 So all three come from the [`jacopone/antigravity-nix`](https://github.com/jacopone/antigravity-nix) flake input, which pins the upstream tarballs in `artifacts/versions.json` and bumps them from CI roughly three times a week. It is taken as a **plain source tree** (`flake = false`): [`pkgs/default.nix`](../pkgs/default.nix) `callPackage`s its package files directly with this repo's own `unstable` nixpkgs, so its nixpkgs and flake-utils inputs would only bloat `flake.lock` without being used.
 
-That input is built against `unstable` for two reasons: it's the nixpkgs upstream develops and CI-tests against, and it's the only package set here with `allowUnfree` — every Antigravity artifact is an unfree binary, and the GUI packages reference `google-chrome`.
+That input is built against `unstable`, the nixpkgs upstream develops and CI-tests against. Every Antigravity artifact is an unfree binary and the GUI packages reference `google-chrome`, so all four are named on `pkgs.unstable`'s unfree allowlist in `lib/pkgs.nix`.
 
 **Updating is `nix flake update antigravity-nix`.** These packages deliberately carry no `passthru.updateScript`, so `scripts/update-packages.sh` does not (and should not) list them — the version pin lives in the input, exactly like `pkgs.local.slack` tracking `unstable`.
 

@@ -22,6 +22,7 @@ let
   #
   # Bump with `scripts/update-packages.sh claude-code`, which runs
   # scripts/updaters/update-claude-code.sh to refetch the manifest.
+  # unfree (lib/pkgs.nix)
   claudeCodePkg = pkgs.unstable.claude-code.override {
     manifest = lib.importJSON ./manifest.zst.json;
   };
