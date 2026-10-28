@@ -1,5 +1,6 @@
-# Light/dark switching for everything DMS does not theme itself: foot, tmux,
-# and the dconf keys after an activation. See docs/theme.md.
+# The desktop's look: light/dark switching for everything DMS does not theme
+# itself (foot, tmux, the dconf keys after an activation) and, on Linux, the
+# GTK/Qt/cursor/icon themes in ./toolkits.nix. See docs/theme.md.
 {
   config,
   lib,
@@ -112,6 +113,8 @@ let
 
 in
 {
+  imports = [ ./toolkits.nix ];
+
   options.dedsm.theme = {
     enable = mkEnableOption "automatic dark/light mode toggling";
   };

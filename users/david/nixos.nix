@@ -5,7 +5,7 @@
 
   dedsm = {
     dms.enable = true;
-    defaults.enable = true;
+    linux-desktop.enable = true;
     antigravity.enable = true;
   };
 

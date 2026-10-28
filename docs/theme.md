@@ -11,7 +11,8 @@ that differs per platform:**
 The `theme` home-manager module (`modules/home/theme/default.nix`, opt-in via
 `dedsm.theme.enable`) holds what is shared: the Solarized palette in its `colors` attrset (also dumped to
 `~/.colorscheme-palette` as JSON), the tmux theme files, the matugen templates and hooks that carry
-a transition to foot and tmux, and the activation guard below. It no longer runs a scheduler of its
+a transition to foot and tmux, the activation guard below, and (Linux only, in `toolkits.nix`) the
+GTK, Qt, cursor and icon theme settings. It no longer runs a scheduler of its
 own on Linux — darkman is gone.
 
 ## The one rule: one owner for `color-scheme` and `gtk-theme`
@@ -44,7 +45,7 @@ gcr prompter is GTK3), while Firefox, Slack and every GTK4 app follow the schedu
 
 #### The `@import` is what actually fixes it
 
-`gtk.gtk3.extraCss` in `defaults/settings.nix` opens with:
+`gtk.gtk3.extraCss` in `theme/toolkits.nix` opens with:
 
 ```css
 @import url("dank-colors.css");
@@ -99,7 +100,7 @@ there the D-Bus activation environment.
 
 **Nothing else in this repo may declare those two keys**, whether directly via `dconf.settings` or
 indirectly via home-manager options that mirror into them. Concretely, this is why
-`modules/home/defaults/settings.nix` deliberately does *not* set:
+`modules/home/theme/toolkits.nix` deliberately does *not* set:
 
 | Setting | Why it's absent |
 | --- | --- |
@@ -204,7 +205,7 @@ user template in `~/.config/matugen/config.toml` if it is missed.
 
 - **foot** is signalled in place: `SIGUSR1` selects `[colors-dark]`, `SIGUSR2` selects
   `[colors-light]`. Both palettes are declared in the `foot` settings in
-  `modules/home/defaults/settings.nix`. A *newly started* terminal takes its
+  `modules/home/linux-desktop/default.nix`. A *newly started* terminal takes its
   mode from `main.initial-color-theme`, which only accepts a literal `dark` or `light` — foot has no
   "follow the system" value — so `foot.ini` includes `~/.config/foot/mode.ini`, a one-line file the
   same hook rewrites on every transition. It is written to a temporary file and `mv`'d into place,

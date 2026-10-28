@@ -468,9 +468,10 @@ notification corner.
   window-rule settings write Lua fragments under `~/.config/hypr/dms/`. This repo's `hyprland.lua`
   includes none of them, so they are inert here, and Hyprland is configured in Nix.
 - **Its display settings panel** — `hyprdynamicmonitors` owns monitor profiles here.
-- **Its icon-theme picker** — `icon-theme` is declared statically as `Papirus` in the `defaults`
-  module, and a runtime write would be reset on the next activation. Same failure mode as the two
-  dconf keys in [`theme.md`](./theme.md).
+- **Its icon-theme picker** — the icon theme is declared per mode in `dms/settings.nix`
+  (`iconThemeLight`/`iconThemeDark`, both Papirus), a Nix-owned drop-in, so a pick made in the
+  panel lasts only until the shell restarts. `theme/toolkits.nix` leaves `gtk.iconTheme` unset so
+  that nothing else writes the `icon-theme` dconf key (see [`theme.md`](./theme.md)).
 - **`input` group membership** for the evdev warning in `dms doctor`: it buys a caps-lock indicator
   and costs read access to every input device for anything running as this user.
 

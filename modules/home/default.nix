@@ -20,6 +20,6 @@
     ./antigravity
     ./agent-harness
     ./cli-notify
-    ./defaults
+    ./linux-desktop
   ];
 }
