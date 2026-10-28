@@ -8,11 +8,12 @@ David's personal system configuration, as a single Nix flake covering both **Nix
 ## Structure
 
 ```
-flake.nix               # Inputs, overlays, each host's system config and Home Manager users
+flake.nix               # Inputs, each host's system config and Home Manager users, outputs
 lib/
 ├── default.nix          # Exports nixosHost / darwinHost builders
 ├── nixos-host.nix        # mkHost: assembles a NixOS system from systemConfig + users + hardwareModules
-└── darwin-host.nix       # mkDarwinHost: same, for nix-darwin
+├── darwin-host.nix       # mkDarwinHost: same, for nix-darwin
+└── pkgs.nix              # mkPkgs: nixpkgs plus the pkgs.unstable/.unfree/.local overlay
 
 hosts/
 └── manwe/

@@ -29,11 +29,12 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 ## Architecture Overview
 
 ```
-flake.nix                # Inputs, overlays (mkPkgs), each host's system config and Home Manager users
-├── lib/                 # Utilities for host creation
+flake.nix                # Inputs, each host's system config and Home Manager users, outputs
+├── lib/                 # Host builders and the package set
 │   ├── default.nix        # Exports nixosHost and darwinHost
 │   ├── nixos-host.nix      # NixOS host builder (mkHost), takes hardwareModules per host
-│   └── darwin-host.nix     # Darwin host builder (mkDarwinHost)
+│   ├── darwin-host.nix     # Darwin host builder (mkDarwinHost)
+│   └── pkgs.nix            # mkPkgs: nixpkgs plus the pkgs.unstable/.unfree/.local overlay
 ├── hosts/                # Per-host hardware configuration
 │   └── manwe/
 │       └── hardware-configuration.nix
@@ -85,7 +86,7 @@ flake.nix                # Inputs, overlays (mkPkgs), each host's system config 
 
 4. **Custom Namespace**: System and Home Manager modules use `dedsm.*` options to avoid conflicts with standard NixOS/Darwin/Home Manager options.
 
-5. **Package Overlays**: Custom packages are exposed via `pkgs.local.*`, unstable packages via `pkgs.unstable.*`, unfree packages via `pkgs.unfree.*`.
+5. **Package Overlays**: `lib/pkgs.nix` (`mkPkgs`) builds the one package set every host and output uses. Custom packages are exposed via `pkgs.local.*`, unstable packages via `pkgs.unstable.*`, unfree packages via `pkgs.unfree.*`.
 
 ## Setup Commands
 
