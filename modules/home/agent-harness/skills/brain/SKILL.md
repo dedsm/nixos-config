@@ -112,7 +112,7 @@ repo's `AGENTS.md` / `.claude/` rules), not here. This skill is the generic mech
 
 `brain.py`, the schema it enforces, and the `~/brain` pre-commit hook are **canonical artifacts
 shipped from nixos-config** (`~/Develop/personal/nixos-config`, under
-`modules/common/users/common/agent-harness/skills/brain/`); the on-machine copies are read-only Nix
+`modules/home/agent-harness/skills/brain/`); the on-machine copies are read-only Nix
 deployments. **If a check, the schema, or a hook needs to change** — a new `status`/`kind` value, a
 new field, a relaxed rule, a different hook — **STOP and ask David to update the skill in
 nixos-config**, then rebuild + `/brain --sync`. Never hand-edit the deployed CLI/hook, loosen a

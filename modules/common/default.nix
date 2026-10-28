@@ -1,6 +1,6 @@
 # Shared by both host builders: system fonts, the nix registry, and the
 # Home Manager settings every user gets. The users themselves are set by the
-# builders (home-manager.users); every module in users/common is registered for
+# builders (home-manager.users); every module in modules/home is registered for
 # all of them here and stays off until a user's config enables it.
 {
   nixpkgs,
@@ -23,7 +23,7 @@
   # hyprland/hyprdynamicmonitors takes the daemon's package from the input.
   home-manager.extraSpecialArgs = { inherit hyprdynamicmonitors; };
   home-manager.sharedModules = [
-    ./users/common
+    ../home
     hyprdynamicmonitors.homeManagerModules.default
   ];
 }

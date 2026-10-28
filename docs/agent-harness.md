@@ -1,6 +1,6 @@
 # Agent harness plugins
 
-Module: [`modules/common/users/common/agent-harness/`](../modules/common/users/common/agent-harness/) · flags: `dedsm.agent-harness.<plugin>.<harness>` (set in `users/david/shared.nix`).
+Module: [`modules/home/agent-harness/`](../modules/home/agent-harness/) · flags: `dedsm.agent-harness.<plugin>.<harness>` (set in `users/david/shared.nix`).
 
 Some tools plug into every coding agent the same way: rtk rewrites the commands an agent runs, direnv loads the project's environment, and the personal `brain` skill tracks ongoing work. Each agent ("harness") has its own config format for that. This module holds the list of plugins and the per-harness switches in one place, so adding a harness means writing one adapter rather than copying each plugin into its module.
 

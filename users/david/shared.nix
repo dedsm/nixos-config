@@ -1,5 +1,5 @@
 # david's settings on every host; imported by ./nixos.nix and ./darwin.nix.
-# Each dedsm.<name> toggle is declared by modules/common/users/common/<name>.
+# Each dedsm.<name> toggle is declared by modules/home/<name>.
 { pkgs, ... }:
 {
   dedsm = {

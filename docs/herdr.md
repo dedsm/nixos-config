@@ -9,7 +9,7 @@ otherwise answered by cycling through windows.
 It is a standalone Rust binary with its own PTY handling and socket API. It does **not**
 embed or wrap tmux, so nothing in `programs.tmux` carries over to it.
 
-Module: [`modules/common/users/common/herdr/default.nix`](../modules/common/users/common/herdr/default.nix).
+Module: [`modules/home/herdr/default.nix`](../modules/home/herdr/default.nix).
 Toggle: `dedsm.herdr.enable`, set in `users/david/shared.nix` — both hosts or neither.
 
 ## It coexists with tmux
@@ -237,7 +237,7 @@ name = "solarized"
 
 `auto_switch` follows the **host terminal's** light/dark appearance, not the OS and not a
 notification daemon. That is why Herdr needs none of the bridge that
-[`theme/default.nix`](../modules/common/users/common/theme/default.nix) builds for tmux —
+[`theme/default.nix`](../modules/home/theme/default.nix) builds for tmux —
 no matugen templates or transition hooks on manwe, no `dark-notify` agent or
 `theme-apply` symlink dance on morgoth. It detects the transition itself, identically on both hosts.
 
@@ -475,7 +475,7 @@ A per-session toggle would have to be a plugin action that rewrites `config.toml
 ## Automatic workspace naming
 
 Workspaces are renamed on `chpwd` by `_herdr_rename_workspace` in the
-[`zsh`](../modules/common/users/common/zsh/default.nix) module — the herdr counterpart to the
+[`zsh`](../modules/home/zsh/default.nix) module — the herdr counterpart to the
 existing `_tmux_rename_window`. Both now share `_workspace_display_name`, which produces
 `repo:dir` for a checkout whose directory differs from its repository name and the bare
 basename otherwise:

@@ -320,7 +320,7 @@ brain today                        # today's date from the system clock — neve
 
 `brain.py`, the schema it enforces, and the pre-commit hook are **canonical artifacts shipped
 from nixos-config** (`~/Develop/personal/nixos-config`, at
-`modules/common/users/common/agent-harness/skills/brain/`). The copies on this machine are
+`modules/home/agent-harness/skills/brain/`). The copies on this machine are
 Nix-store deployments.
 
 **If a check, the schema, or a hook needs to change** — a new `status`/`kind` value, a new field,
@@ -640,14 +640,14 @@ people with no Slack handle, no work email, and no job title.
 This manual, the `brain` CLI, and the store scaffold are the **canonical brain template**,
 version-controlled with the skill in the nixos-config repo (`~/Develop/personal/nixos-config`):
 
-- **Template (canonical):** `modules/common/users/common/agent-harness/skills/brain/templates/`
+- **Template (canonical):** `modules/home/agent-harness/skills/brain/templates/`
   — this manual (`AGENTS.md`, plus the `CLAUDE.md` stub that imports it for Claude Code) + the
   empty scaffold. Deployed read-only as the skill's `templates/` in each agent harness.
-- **CLI + schema (mechanism):** `modules/common/users/common/agent-harness/skills/brain/brain.py`
+- **CLI + schema (mechanism):** `modules/home/agent-harness/skills/brain/brain.py`
   — packaged to `PATH` as `brain`. The commit hooks (pre-commit gate + post-commit auto-push) are
   defined in the agent-harness module's `brain.nix` and installed by its activation on rebuild — Nix is their sole
   installer.
-- **Skill (mechanism):** `modules/common/users/common/agent-harness/skills/brain/SKILL.md`
+- **Skill (mechanism):** `modules/home/agent-harness/skills/brain/SKILL.md`
 
 The store's **content** (pages, `index.md`, `log.md`) is never templated — only the
 scaffold/manual/CLI.

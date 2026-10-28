@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MANIFEST_FILE="$REPO_DIR/modules/common/users/common/claude-code/manifest.zst.json"
+MANIFEST_FILE="$REPO_DIR/modules/home/claude-code/manifest.zst.json"
 BASE_URL="https://downloads.claude.ai/claude-code-releases"
 
 # The pin is upstream's release manifest, stored verbatim and handed straight to

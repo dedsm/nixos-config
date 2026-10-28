@@ -1,6 +1,6 @@
 # Google Antigravity
 
-Module: [`modules/common/users/common/antigravity/`](../modules/common/users/common/antigravity/) · toggle: `dedsm.antigravity.enable` (on in `users/david/nixos.nix`, not in `shared.nix` — this is Linux-only, see [Darwin](#darwin)), with per-component sub-toggles `dedsm.antigravity.hub.enable`, `.ide.enable`, `.cli.enable`, all on by default.
+Module: [`modules/home/antigravity/`](../modules/home/antigravity/) · toggle: `dedsm.antigravity.enable` (on in `users/david/nixos.nix`, not in `shared.nix` — this is Linux-only, see [Darwin](#darwin)), with per-component sub-toggles `dedsm.antigravity.hub.enable`, `.ide.enable`, `.cli.enable`, all on by default.
 
 Antigravity 2.0 split the product into three separately-shipped artifacts, and this config installs all three:
 

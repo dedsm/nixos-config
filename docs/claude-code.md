@@ -1,6 +1,6 @@
 # Claude Code setup
 
-Module: [`modules/common/users/common/claude-code/`](../modules/common/users/common/claude-code/) · toggle: `dedsm.claude-code.enable` (on in `users/david/shared.nix`).
+Module: [`modules/home/claude-code/`](../modules/home/claude-code/) · toggle: `dedsm.claude-code.enable` (on in `users/david/shared.nix`).
 
 ## Package pinning
 
@@ -100,7 +100,7 @@ All hook scripts are generated Nix strings (`home.file.".local/bin/claude-*.sh"`
 
 ## Editor integration
 
-The `nvim` module (see [`nvim.md`](./nvim.md)) pulls in `claude-code-nvim` and binds `<leader>cc` / `<leader>cR` to toggle an in-editor Claude Code terminal — see `modules/common/users/common/nvim/config/lua/config/claude-code.lua`.
+The `nvim` module (see [`nvim.md`](./nvim.md)) pulls in `claude-code-nvim` and binds `<leader>cc` / `<leader>cR` to toggle an in-editor Claude Code terminal — see `modules/home/nvim/config/lua/config/claude-code.lua`.
 
 ## MCP servers
 

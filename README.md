@@ -23,8 +23,8 @@ users/                  # Each user's Home Manager config, as modules layered wi
 └── root.nix
 
 modules/
-├── common/               # Shared by both platforms: fonts, nix registry, Home Manager settings
-│   └── users/common/       # Home Manager modules: tmux, herdr, nvim, zsh, hyprland, ghostty, claude-code, ...
+├── common/               # Used by both NixOS and nix-darwin: fonts, nix registry, Home Manager settings
+├── home/                 # Home Manager modules: tmux, herdr, nvim, zsh, hyprland, ghostty, claude-code, ...
 ├── nixos/                 # NixOS system modules (dedsm.<name>.enable toggles)
 │   ├── core/                # Always-on baseline: networking, audio, xdg, base packages
 │   ├── laptop/               # Power management, lid/sleep behaviour

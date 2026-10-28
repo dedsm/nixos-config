@@ -365,7 +365,7 @@ applies — it fails open, deliberately, because the alternative is a service
 crash locking you out of your own reader.
 
 This is what makes the limit stick. The locker's own cap is per instance —
-DMS's `maxFprintTries` is set to 5 in `modules/common/users/common/dms/` to
+DMS's `maxFprintTries` is set to 5 in `modules/home/dms/` to
 match, but `CTRL+ALT+SHIFT+L` (below) restarts the shell on a locked session and
 that resets it. The counter in `/run` is what a restart does not reset.
 
@@ -404,7 +404,7 @@ shell that already owns the lock.
 ## Idle, DPMS, and the black-screen backstops
 
 DMS's `IdleService` drives both timers off `ext_idle_notifier_v1`, configured in
-`modules/common/users/common/dms/`: **`acLockTimeout` / `batteryLockTimeout` =
+`modules/home/dms/`: **`acLockTimeout` / `batteryLockTimeout` =
 300s → lock**, **`acMonitorTimeout` / `batteryMonitorTimeout` = 600s → monitors
 off**. Suspend is left to logind (`acSuspendTimeout = 0`; see
 [`hibernation.md`](./hibernation.md)). Nothing else in the repo writes DPMS.
@@ -430,7 +430,7 @@ re-enumeration) brought the picture back.
 
 The guard that survived the migration is the compositor-level one:
 **`misc.mouse_move_enables_dpms` / `misc.key_press_enables_dpms`** in
-`modules/common/users/common/hyprland/`. Both default to **false**, which is
+`modules/home/hyprland/`. Both default to **false**, which is
 what made the state unrecoverable from the keyboard. These make Hyprland wake
 the display on input regardless of what any idle daemon thinks — and it is the
 only guard that survives that daemon being wrong, wedged, or dead. DMS's own

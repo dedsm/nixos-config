@@ -1,6 +1,6 @@
 # Neovim setup
 
-Module: [`modules/common/users/common/nvim/`](../modules/common/users/common/nvim/) · toggle: `dedsm.nvim.enable` (on in `users/david/shared.nix` and `users/root.nix`).
+Module: [`modules/home/nvim/`](../modules/home/nvim/) · toggle: `dedsm.nvim.enable` (on in `users/david/shared.nix` and `users/root.nix`).
 
 ## Shape
 
@@ -30,4 +30,4 @@ is unset — `after/plugin` is what lets it win over the plugin's own mappings. 
 
 ## Adding a plugin
 
-Add it to the `plugins` list in `modules/common/users/common/nvim/default.nix` (from `pkgs.unstable.vimPlugins.*` if available, otherwise a `buildVimPlugin`/`fetchFromGitHub` pin like `solarized-nvim`), then add or extend a `config/lua/config/*.lua` module and `require()` it from `init.lua` if it needs setup.
+Add it to the `plugins` list in `modules/home/nvim/default.nix` (from `pkgs.unstable.vimPlugins.*` if available, otherwise a `buildVimPlugin`/`fetchFromGitHub` pin like `solarized-nvim`), then add or extend a `config/lua/config/*.lua` module and `require()` it from `init.lua` if it needs setup.

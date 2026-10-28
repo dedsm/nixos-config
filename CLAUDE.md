@@ -44,13 +44,13 @@ flake.nix                # Inputs, overlays (mkPkgs), each host's system config 
 │   │   └── darwin.nix       # imports shared.nix; macOS toggles and packages
 │   └── root.nix           # root on NixOS: shell and editor only
 ├── modules/              # Modular configuration components
-│   ├── common/             # Shared modules (both platforms)
-│   │   ├── default.nix       # Shared by both builders: nix registry, fonts.nix, Home Manager settings
-│   │   ├── fonts.nix          # System fonts, imported by modules/common/default.nix
-│   │   └── users/common/      # Home Manager modules, each declaring dedsm.<name>.enable — tmux,
-│   │                            herdr, nvim, zsh, hyprland, dms, ghostty, theme, claude-code,
-│   │                            playwright, antigravity, agent-harness (rtk/direnv/brain skill
-│   │                            per coding agent), ... Registered for every user, off by default
+│   ├── common/             # System modules used by both NixOS and nix-darwin
+│   │   ├── default.nix       # nix registry, fonts.nix, the Home Manager settings every user gets
+│   │   └── fonts.nix          # System fonts
+│   ├── home/               # Home Manager modules, each declaring dedsm.<name>.enable — tmux,
+│   │                         herdr, nvim, zsh, hyprland, dms, ghostty, theme, claude-code,
+│   │                         playwright, antigravity, agent-harness (rtk/direnv/brain skill
+│   │                         per coding agent), ... Registered for every user, off by default
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, xserver/xkb,
 │   │   │                         dbus, xdg portals, audio, home-manager wiring, base packages
@@ -167,7 +167,7 @@ nix build .#darwinConfigurations.morgoth.config.system.build.toplevel --dry-run
 ### Module Organization
 - **NixOS system modules**: Located in `modules/nixos/`, use `dedsm.*` options namespace
 - **Darwin system modules**: Located in `modules/darwin/`, use `dedsm.*` options namespace
-- **Home Manager modules**: Located in `modules/common/users/common/`
+- **Home Manager modules**: Located in `modules/home/`
 - **Each module**: Should have a clear enable option and sensible defaults — the one exception is `modules/nixos/core`, which is the unconditional baseline every NixOS host gets
 - **Combining configurations**: `imports` for whole modules, `lib.mkMerge` for several config blocks inside one
 
@@ -277,7 +277,7 @@ journalctl -b | grep -i error
 
 ### Module Development
 - System modules go in `modules/nixos/` or `modules/darwin/`
-- Home Manager modules go in `modules/common/users/common/` and must be added to the `imports` list in its `default.nix`
+- Home Manager modules go in `modules/home/` and must be added to the `imports` list in its `default.nix`
 - Use the existing module patterns (enable options, conditional config)
 - Test new modules on a single host before generalizing
 

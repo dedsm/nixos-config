@@ -101,7 +101,7 @@ nothing important open) after any change to this area, and before shortening
 
 - [`login-flow.md`](./login-flow.md) — what happens on the way back up: the DMS
   lock screen is the auth gate on resume, password-only after suspend.
-- DMS's idle service (`modules/common/users/common/dms/settings.nix`) only locks
+- DMS's idle service (`modules/home/dms/settings.nix`) only locks
   and blanks; its suspend timeouts are **0**, i.e. off. Combined with
   `HandleLidSwitchDocked = "ignore"`, closing the lid while docked on battery
   leaves the machine fully awake.

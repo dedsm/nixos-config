@@ -131,7 +131,7 @@ in
               modules/nixos/hyprland/default.nix
             - the portalPackage line and its comment under
               wayland.windowManager.hyprland in
-              modules/common/users/common/hyprland/default.nix
+              modules/home/hyprland/default.nix
             - the ba31964 paragraph under "Screen recording" in docs/dms.md
           If not, raise the version in this assertion.
         '';

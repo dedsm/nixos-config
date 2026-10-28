@@ -16,7 +16,7 @@ Two modules configure it:
 | Module | Owns |
 | --- | --- |
 | `modules/nixos/dms` (`dedsm.dms.enable`) | the package and its Quickshell, the systemd user service, `/etc/pam.d/dankshell`, the GeoClue app entry, the CLI policy, `adw-gtk3` |
-| `modules/common/users/common/dms` (`dedsm.dms.enable`) | the declared settings (`config.d/10-nix.json`, in `settings.nix`), the seeds for `settings.json` and `session.json` (`default.nix`), the vendored theme, the screenshot and recording pickers (`screenshot.nix`, `screencast.nix`) |
+| `modules/home/dms` (`dedsm.dms.enable`) | the declared settings (`config.d/10-nix.json`, in `settings.nix`), the seeds for `settings.json` and `session.json` (`default.nix`), the vendored theme, the screenshot and recording pickers (`screenshot.nix`, `screencast.nix`) |
 
 ## Packaging
 
@@ -188,7 +188,7 @@ wallpaper-derived colour. What it fans out to, and what this repo keeps for itse
 
 The setting is a *path in a JSON file*, and it has to be written as `"${theme}"` — never
 `toString theme`. `toString` on a relative path yields the file's location inside the flake source
-(`/nix/store/<hash>-source/modules/common/users/common/dms/solarized-osaka-night.json`) as a plain
+(`/nix/store/<hash>-source/modules/home/dms/solarized-osaka-night.json`) as a plain
 string, and a plain string buys no store reference: Nix registers a reference only for a hash that
 belongs to the derivation's own inputs, and the source tree is not an input of the settings
 file's derivation (`config.d/10-nix.json` since 2.0, `settings.json` before). The rendered file ends up with **no references at all**, so the next garbage collection
@@ -305,7 +305,7 @@ none of this touches the s2idle drain floor in [`hibernation.md`](./hibernation.
 
 ## Keybinds
 
-The binds stay in `modules/common/users/common/hyprland/` as `hl.bind` calls; only their targets
+The binds stay in `modules/home/hyprland/` as `hl.bind` calls; only their targets
 moved to `dms ipc call`:
 
 | Bind | Call |

@@ -2,7 +2,7 @@
 
 A personal "second brain" agent skill: a local, git-backed markdown knowledge base tracking the status and narrative of goals, projects, initiatives, and other ongoing work — usable from any Claude Code or Antigravity session, in any repo or none.
 
-Shipped from: [`modules/common/users/common/agent-harness/skills/brain/`](../modules/common/users/common/agent-harness/skills/brain/) (`SKILL.md`, `brain.py`, `templates/`), built by [`brain.nix`](../modules/common/users/common/agent-harness/brain.nix) and installed by the agent-harness module as its `brain` plugin, one flag per harness (`agent-harness.brain.claude-code`, `agent-harness.brain.antigravity`) — see [`agent-harness.md`](./agent-harness.md) § brain. The same `SKILL.md` is installed into both harnesses; nothing in it is harness-specific.
+Shipped from: [`modules/home/agent-harness/skills/brain/`](../modules/home/agent-harness/skills/brain/) (`SKILL.md`, `brain.py`, `templates/`), built by [`brain.nix`](../modules/home/agent-harness/brain.nix) and installed by the agent-harness module as its `brain` plugin, one flag per harness (`agent-harness.brain.claude-code`, `agent-harness.brain.antigravity`) — see [`agent-harness.md`](./agent-harness.md) § brain. The same `SKILL.md` is installed into both harnesses; nothing in it is harness-specific.
 
 ## What's managed vs. what's yours
 
