@@ -62,7 +62,9 @@ let
   # each DCC modifier in turn and died on "no more input formats". OBS and
   # browsers hit the same thing and quietly fall back to slow SHM copies.
   # ba31964 (gsr's author, merged 2026-08-29) sends every plane; it applies
-  # cleanly to 1.3.12 and is in no xdph release yet — 1.4.1 predates it.
+  # cleanly to 1.3.12. It first shipped in xdph 1.5.0 (2026-10-28), which
+  # nixpkgs master has (NixOS/nixpkgs#580005) but release-26.05 doesn't; drop
+  # the patch once the xdph this module builds is 1.5.0 or later.
   xdphFix = pkgs.fetchpatch {
     name = "xdph-screencopy-all-dmabuf-planes.patch";
     url = "https://github.com/hyprwm/xdg-desktop-portal-hyprland/commit/ba31964ee42b56bcb0d3b78a64ead5d8a1c3c6f6.patch";

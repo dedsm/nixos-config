@@ -9,7 +9,6 @@
 {
   nixpkgs,
   unstable,
-  antigravity-nix,
 }:
 system:
 let
@@ -22,16 +21,14 @@ let
       "claude-code"
       # modules/home/agent-harness: BUSL-1.1 since 1.0, see docs/agent-harness.md
       "rtk"
-      # pkgs.local.slack and pkgs.local.granola (manwe)
-      "slack"
+      # pkgs.local.granola (manwe)
       "granola"
-      # pkgs.local.antigravity-{hub,ide,cli}, via modules/home/antigravity (manwe);
-      # the GUI packages depend on google-chrome, see docs/antigravity.md
-      "google-antigravity2"
-      "google-antigravity-ide"
-      "google-antigravity-cli"
-      "google-chrome"
+      # modules/home/antigravity (manwe)
+      "antigravity-hub"
+      "antigravity-ide"
+      "antigravity-cli"
       # manwe's home.packages in hosts/manwe
+      "slack"
       "spotify"
       "vscode"
       "synology-drive-client"
@@ -47,10 +44,7 @@ let
       "epson_201207w"
     ];
   };
-  localpkgs = import ../pkgs {
-    unstablePkgs = unstablePkgs;
-    antigravityNix = antigravity-nix;
-  };
+  localpkgs = import ../pkgs { unstablePkgs = unstablePkgs; };
   overlay = final: prev: {
     unstable = unstablePkgs;
     unfree = unfreePkgs;

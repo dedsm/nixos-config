@@ -12,17 +12,6 @@
       url = "github:NixOS/nixos-hardware";
     };
 
-    # Google Antigravity (the 2.0 "hub" app, the legacy IDE and the `agy` CLI).
-    # nixpkgs has all three (the hub since NixOS/nixpkgs#524225), but they lag
-    # this repo, which bumps its pinned tarballs ~3x/week. Taken as a plain source
-    # tree rather than a flake: `pkgs/default.nix` calls its package files with
-    # our own `unstable` nixpkgs, so its own nixpkgs/flake-utils inputs would
-    # only bloat the lock. `nix flake update antigravity-nix` is the updater.
-    antigravity-nix = {
-      url = "github:jacopone/antigravity-nix";
-      flake = false;
-    };
-
     hyprdynamicmonitors = {
       url = "github:fiffeek/hyprdynamicmonitors";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -41,14 +30,13 @@
       home-manager,
       nixos-hardware,
       hyprdynamicmonitors,
-      antigravity-nix,
       darwin,
       ...
     }:
     let
       lib = nixpkgs.lib;
 
-      mkPkgs = import ./lib/pkgs.nix { inherit nixpkgs unstable antigravity-nix; };
+      mkPkgs = import ./lib/pkgs.nix { inherit nixpkgs unstable; };
 
       util = import ./lib {
         inherit

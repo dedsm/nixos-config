@@ -33,7 +33,7 @@ The native module only matches Electron's ABI within one major version. `pkgs/de
 
 ## Desktop integration
 
-The desktop entry is `granola.desktop`, with `MimeType=x-scheme-handler/granola` so that the browser's sign-in redirect reopens the app. The window's Wayland app id is `granola`. Wayland flags are the same as `pkgs/slack`: `--ozone-platform=wayland` plus `WaylandWindowDecorations` and `--enable-wayland-ime`, behind nixpkgs' `NIXOS_OZONE_WL` gate (the hyprland module sets it). App data lives in `~/.config/Granola`.
+The desktop entry is `granola.desktop`, with `MimeType=x-scheme-handler/granola` so that the browser's sign-in redirect reopens the app. The window's Wayland app id is `granola`. Wayland flags are `--ozone-platform=wayland` plus `WaylandWindowDecorations` and `--enable-wayland-ime`, behind nixpkgs' `NIXOS_OZONE_WL` gate (the hyprland module sets it). App data lives in `~/.config/Granola`.
 
 ## System audio (the other side of a call)
 

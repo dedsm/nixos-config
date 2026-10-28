@@ -165,8 +165,8 @@ stdenv.mkDerivation (finalAttrs: {
     cp -r app Resources/icons $out/share/granola/resources/
     install -Dm644 Resources/icons/icon.png $out/share/pixmaps/granola.png
 
-    # Same Wayland flags as pkgs/slack: an explicit --ozone-platform rather than
-    # nixpkgs' `auto` hint, under nixpkgs' usual NIXOS_OZONE_WL gate.
+    # Wayland flags under nixpkgs' usual NIXOS_OZONE_WL gate, with an explicit
+    # --ozone-platform rather than nixpkgs' `auto` hint.
     makeWrapper ${lib.getExe electron} $out/bin/granola \
       --add-flags $out/share/granola/resources/app \
       --add-flags "\''${NIXOS_OZONE_WL:+\''${WAYLAND_DISPLAY:+--ozone-platform=wayland --enable-features=WaylandWindowDecorations --enable-wayland-ime=true}}" \

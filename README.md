@@ -40,13 +40,11 @@ modules/
     └── aerospace/
 
 pkgs/                    # Custom package overlays (pkgs.local.*)
-├── slack/                 # Slack wrapper
 ├── cli-notify/            # Native notification helper
 ├── dstask-note/           # pty-wrapped `dstask note`
 ├── vim-herdr-navigation/  # herdr plugin: vim-aware ctrl+h/j/k/l navigation
 ├── granola/               # Granola's macOS Electron app, repackaged for Linux (manwe only)
-└── default.nix            # ...and antigravity-hub/-ide/-cli, built from the
-                           #    `antigravity-nix` input (no directory of their own)
+└── default.nix            # The overlay itself
 
 scripts/                 # Maintenance scripts
 ├── update-packages.sh     # Bump every hand-pinned source (`--list` to see them)
@@ -118,7 +116,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 
 - [`docs/claude-code.md`](./docs/claude-code.md) — package pinning, the managed-settings merge strategy, hooks, status line, editor integration
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — how the Playwright MCP server is pointed at a Nix-managed browser instead of downloading its own
-- [`docs/antigravity.md`](./docs/antigravity.md) — the Antigravity hub, IDE and `agy` CLI: why they come from a third-party flake input instead of nixpkgs, how they're built, and why macOS doesn't get them
+- [`docs/antigravity.md`](./docs/antigravity.md) — the Antigravity hub, IDE and `agy` CLI: why they come from nixpkgs again after a spell on a third-party flake input, how nixpkgs builds them, and why macOS doesn't get them
 - [`docs/granola.md`](./docs/granola.md) — Granola (macOS/Windows only upstream) running on nixpkgs' Electron: what's patched and why, the native-module rebuild, system-audio capture (it works, via the default output's monitor), what doesn't work on Linux, and how updates are pulled from Granola's own update feed
 - [`docs/agent-harness.md`](./docs/agent-harness.md) — rtk (including its PostToolUse output compression), direnv and the `brain` skill wired into Claude Code and Antigravity from one module, switchable per agent, with rtk's instructions generated from the pinned rtk so they can't go stale
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config

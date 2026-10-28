@@ -61,7 +61,7 @@
         imports = [ ../../users/david/nixos.nix ];
         dedsm.hyprland.enable = true;
         home.packages = [
-          pkgs.local.slack # unfree (lib/pkgs.nix)
+          pkgs.unstable.slack # unfree (lib/pkgs.nix)
           pkgs.local.granola # unfree (lib/pkgs.nix)
           pkgs.unstable.spotify # unfree (lib/pkgs.nix)
           # unfree (lib/pkgs.nix)

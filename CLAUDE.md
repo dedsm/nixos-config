@@ -24,7 +24,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 - **Aerospace**: Tiling window manager (macOS)
 - **Ghostty**: Terminal emulator (macOS)
 - **Framework laptop hardware**: Via a `nixos-hardware` module, wired per-host (see "Host Configuration Management" below)
-- **Custom overlays**: For packages not in nixpkgs (Slack wrapper, `cli-notify`, `dstask-note`, `vim-herdr-navigation`, and `granola` — the macOS Electron app repackaged for Linux, see [`docs/granola.md`](./docs/granola.md)) and for the three Google Antigravity components, which come from a pinned third-party source tree rather than nixpkgs — see [`docs/antigravity.md`](./docs/antigravity.md)
+- **Custom overlays**: For packages not in nixpkgs (`cli-notify`, `dstask-note`, `vim-herdr-navigation`, and `granola` — the macOS Electron app repackaged for Linux, see [`docs/granola.md`](./docs/granola.md))
 
 ## Architecture Overview
 
@@ -66,9 +66,8 @@ flake.nix                # Inputs, each host's system config and Home Manager us
 │       ├── default.nix       # macOS system defaults
 │       └── aerospace/         # Aerospace window manager
 ├── pkgs/                  # Custom package overlays
-│   ├── slack/ cli-notify/ dstask-note/ vim-herdr-navigation/ granola/
-│   └── default.nix          # ...plus antigravity-hub/-ide/-cli, built straight from the
-│                              `antigravity-nix` input (no directory of their own)
+│   ├── cli-notify/ dstask-note/ vim-herdr-navigation/ granola/
+│   └── default.nix          # The overlay exposed as pkgs.local.*
 └── docs/                  # Deeper docs for specific subsystems — see "Further documentation"
 ```
 
@@ -295,20 +294,15 @@ Custom packages are defined in `pkgs/` with an overlay system:
 
 ```bash
 # Package locations
-pkgs/slack/               # Slack wrapper with custom settings
 pkgs/cli-notify/          # Native notification helper (used by the claude-code module on Darwin)
 pkgs/dstask-note/         # pty-wrapped `dstask note` (bare command silently no-ops without a TTY)
 pkgs/vim-herdr-navigation/ # herdr plugin: vim-aware ctrl+h/j/k/l navigation, registered by the herdr module
 pkgs/granola/             # Granola's macOS build on nixpkgs' Electron (x86_64-linux, manwe only); update.sh is its updateScript
 
-# Not every entry in the overlay has a directory: antigravity-hub, antigravity-ide
-# and antigravity-cli are callPackage'd straight out of the `antigravity-nix`
-# input in pkgs/default.nix. See docs/antigravity.md.
-
 # Testing custom packages — the `pkgs/` overlay is exposed as the flake's
 # `packages` output, filtered per system (cli-notify is Darwin-only)
 nix build .#vim-herdr-navigation
-nix build .#slack
+nix build .#dstask-note
 nix flake show
 ```
 
@@ -340,16 +334,14 @@ silently missing.
 
 Two traps worth knowing: a package that *wraps* a nixpkgs package inherits **nixpkgs'**
 `updateScript`, which would try to update a nixpkgs checkout — strip it with
-`passthru = builtins.removeAttrs (oldAttrs.passthru or { }) [ "updateScript" ];`, as
-`pkgs/slack` does. And nothing here runs automatically: review with `git diff`, then rebuild.
+`passthru = builtins.removeAttrs (oldAttrs.passthru or { }) [ "updateScript" ];`. And
+nothing here runs automatically: review with `git diff`, then rebuild.
 
-Overlay entries whose version lives in a flake input are updated by `nix flake update
-<input>`, not by this runner, and so carry no `updateScript` at all: `pkgs.local.slack`
-follows `unstable`, and the three `antigravity-*` packages follow the `antigravity-nix`
-input (`nix flake update antigravity-nix`).
+Packages taken from nixpkgs as they are (including `pkgs.unstable.*`) are updated by
+`nix flake update`, not by this runner.
 
 ### Package Access
-- Custom packages: `pkgs.local.slack`, `pkgs.local.vim-herdr-navigation`, `pkgs.local.antigravity-hub`
+- Custom packages: `pkgs.local.granola`, `pkgs.local.vim-herdr-navigation`, `pkgs.local.dstask-note`
 - Unstable packages: `pkgs.unstable.spotify`, `pkgs.unstable.vscode`
 - Unfree packages: `pkgs.unfree._1password-cli` (stable) or `pkgs.unstable.spotify` (unstable), each also named on that set's allowlist in `lib/pkgs.nix`
 
@@ -385,7 +377,7 @@ input (`nix flake update antigravity-nix`).
 - Claude Code: pinned version, managed-but-mergeable settings, hooks, status line — see [`docs/claude-code.md`](./docs/claude-code.md)
 - Playwright MCP: points at a Nix-managed Chromium instead of downloading its own — see [`docs/playwright-mcp.md`](./docs/playwright-mcp.md)
 - Agent harness plugins: rtk, rtk's `rtk:posthook` output-compression pipeline (Claude Code only), direnv and the personal `brain` skill (CLI, store bootstrap, commit hooks, health hooks) installed into Claude Code and Antigravity from one module, with a `dedsm.agent-harness.<plugin>.<harness>` flag for each pair; rtk's awareness text (`~/.claude/RTK.md`) is generated from the pinned rtk at build time — see [`docs/agent-harness.md`](./docs/agent-harness.md)
-- Google Antigravity (hub + IDE + `agy` CLI): from the `antigravity-nix` input rather than nixpkgs, non-FHS build, Linux-only (enabled in `users/david/nixos.nix`) — see [`docs/antigravity.md`](./docs/antigravity.md)
+- Google Antigravity (hub + IDE + `agy` CLI): from `pkgs.unstable` (a third-party flake input until nixpkgs caught up), Linux-only (enabled in `users/david/nixos.nix`) — see [`docs/antigravity.md`](./docs/antigravity.md)
 
 ### Debugging
 ```bash
@@ -466,7 +458,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`README.md`](./README.md) — human-facing overview and setup instructions
 - [`docs/claude-code.md`](./docs/claude-code.md) — Claude Code package pinning, settings-merge strategy, hooks, status line
 - [`docs/playwright-mcp.md`](./docs/playwright-mcp.md) — Playwright MCP browser wiring
-- [`docs/antigravity.md`](./docs/antigravity.md) — the three Google Antigravity components: why they come from the `antigravity-nix` input instead of nixpkgs (and what would let them go back), `useFHS = false`/`useUserProfile = false` and the google-chrome dependency that survives them, the IDE's keyring flag, and why macOS doesn't get it at all
+- [`docs/antigravity.md`](./docs/antigravity.md) — the three Google Antigravity components, from `pkgs.unstable`: why the `antigravity-nix` input they used to come from was dropped (and how nixpkgs' builds differ — no FHS sandbox, no google-chrome), the IDE's keyring flag, and why macOS doesn't get it at all
 - [`docs/agent-harness.md`](./docs/agent-harness.md) — plugins shared across coding agents (rtk, rtk-posthook, direnv, brain): the per-harness flags and their validation, what the BUSL compression engine's `rtk:posthook` pipeline compresses (and its lockfile-summary caveat) and the build-time `rtk pipeline validate` guard, why rtk's `RTK.md`/`AGENTS.md` are generated by the pinned rtk's own `rtk init` in the build sandbox, why the Claude Code hook goes through the claude-code module's `managedSettings` instead of a second writer of `settings.json`, the `@RTK.md` line kept in an otherwise unmanaged `~/.claude/CLAUDE.md`, the combined rtk+direnv Antigravity hook, the brain plugin (one `SKILL.md` for both harnesses, store machinery installed once), rtk's BUSL licence, and how to add a harness such as Codex
 - [`docs/nvim.md`](./docs/nvim.md) — Neovim configuration
 - [`docs/herdr.md`](./docs/herdr.md) — the `herdr` agent-aware multiplexer: why it coexists with tmux, settings rationale (prefix, vim-aware prefix-free `ctrl+h/j/k/l` pane movement and what it costs, sidebar layout), restart semantics, the local patch that makes pane apps' light/dark detection (Claude Code's "auto" theme) see the new background, how plugins are packaged and registered from an activation script (and why every herdr command there is wrapped to warn instead of failing — an out-of-date running server used to abort the whole home-manager activation), and the agent-integration bits deliberately left unmanaged
