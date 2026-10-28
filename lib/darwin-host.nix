@@ -11,8 +11,8 @@ attrs@{
       name,
       system,
       user,
-      systemConfig,
-      users,
+      # The host's own modules, normally just ./hosts/<name>.
+      modules,
     }:
     let
       pkgs = mkPkgs system;
@@ -29,14 +29,14 @@ attrs@{
         {
           nixpkgs.pkgs = pkgs;
           networking.hostName = name;
-          home-manager.users = users;
           users.users.${user}.home = "/Users/${user}";
           system.stateVersion = 6; # Darwin state version
 
           home-manager.useUserPackages = true;
-
-          dedsm = systemConfig;
         }
+      ]
+      ++ modules
+      ++ [
         ../modules/darwin
         ../modules/common
       ];

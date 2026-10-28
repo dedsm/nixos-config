@@ -9,9 +9,9 @@ attrs@{
     {
       name,
       system,
-      systemConfig,
-      users,
-      hardwareModules ? [ ],
+      # The host's own modules, normally just ./hosts/<name>: its hardware,
+      # dedsm toggles, users and Home Manager config.
+      modules,
     }:
     let
       pkgs = mkPkgs system;
@@ -26,18 +26,9 @@ attrs@{
           imports = [ (modulesPath + "/misc/nixpkgs/read-only.nix") ];
           nixpkgs.pkgs = pkgs;
         })
-        {
-          dedsm = builtins.removeAttrs systemConfig [
-            "stateVersion"
-            "systemUsers"
-          ];
-          users.users = systemConfig.systemUsers or { };
-          networking.hostName = name;
-          home-manager.users = users;
-          system.stateVersion = systemConfig.stateVersion;
-        }
+        { networking.hostName = name; }
       ]
-      ++ hardwareModules
+      ++ modules
       ++ [
         ../modules/common
       ];

@@ -1,6 +1,6 @@
 # Granola
 
-Package: [`pkgs/granola/`](../pkgs/granola/) · installed in `manweUsers`' package list (`flake.nix`) (`pkgs.local.granola`), so only manwe gets it. It is `x86_64-linux` only.
+Package: [`pkgs/granola/`](../pkgs/granola/) · installed in manwe's `home-manager.users.david` package list (`hosts/manwe/default.nix`) (`pkgs.local.granola`), so only manwe gets it. It is `x86_64-linux` only.
 
 [Granola](https://www.granola.ai) (an AI notepad for meetings) ships for macOS and Windows only. It is an Electron app, though, so the macOS build carries all of its JavaScript, and that runs on nixpkgs' Linux Electron once a few things are fixed. The recipe comes from [tirtha4/Granola-for-Linux](https://github.com/tirtha4/Granola-for-Linux), which does the same thing as a shell script that installs into `~/Applications`. Here it is a derivation, built the same way as the nixpkgs Electron apps that run on the shared `electron` (signal-desktop, ente-desktop, goose-desktop). Nixpkgs has no Granola package.
 

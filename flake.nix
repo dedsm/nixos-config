@@ -71,114 +71,13 @@
         "x86_64-linux"
         "aarch64-darwin"
       ];
-
-      defaultUser = {
-        name = "david";
-        groups = [
-          "disk"
-          "wheel"
-          "video"
-          "docker"
-          "networkmanager"
-          "lp"
-          "scanner"
-          "uinput" # solaar
-        ];
-      };
-
-      # Define the unified configuration for the 'manwe' host
-      manweSystemConfig = {
-        laptop.enable = true;
-        performance.enable = true;
-        gnome-programs.enable = true;
-        gnome-services.enable = true;
-        hyprland.enable = true;
-        greetd.enable = true;
-        bluetooth.enable = true;
-        printing.enable = true;
-        scanning.enable = true;
-        virtualisation.enable = true;
-        onepassword.enable = true;
-        gnupg.enable = true;
-        peripherals.enable = true;
-        fingerprintPolicy = {
-          enable = true;
-          # Using dedsm.fingerprintPolicy's defaults. Fingerprint is refused,
-          # and the password required, after a restart or logout, after 5
-          # failed matches, after 48h with no unlock, or when the password is
-          # over 156h old and there has been no fingerprint unlock for 4h.
-          # See docs/login-flow.md.
-          # The lock screen authenticates as david, not root, so its password
-          # unlock can only refresh the clock if david may write the state.
-          users = [ "david" ];
-        };
-        fwupd.enable = true;
-        ddclient.enable = true;
-        dms.enable = true;
-
-        systemUsers = {
-          david = {
-            isNormalUser = true;
-            extraGroups = defaultUser.groups;
-          };
-        };
-        stateVersion = "21.05";
-      };
-
-      # Each user is a Home Manager module: a layer from users/ plus whatever
-      # is specific to this host.
-      manweUsers = {
-        david =
-          { pkgs, ... }:
-          {
-            imports = [ ./users/david/nixos.nix ];
-            dedsm.hyprland.enable = true;
-            home.packages = [
-              pkgs.local.slack
-              pkgs.local.granola
-              pkgs.unstable.spotify
-              (pkgs.unstable.vscode.override {
-                commandLineArgs = "--password-store=gnome-libsecret";
-              })
-              pkgs.unstable.synology-drive-client
-              pkgs.unstable.ledger-live-desktop
-              pkgs.unstable.awscli2
-            ];
-          };
-        root = ./users/root.nix;
-      };
-
-      morgothSystemConfig = {
-        aerospace.enable = true;
-      };
-
-      morgothUsers = {
-        "david.de.sousa" = {
-          imports = [ ./users/david/darwin.nix ];
-          programs.git.includes = [
-            {
-              path = "~/Develop/Carv/.gitconfig";
-              condition = "gitdir:~/Develop/Carv/";
-            }
-          ];
-          dedsm.zsh.extraInit = ''
-            eval "$(/opt/homebrew/bin/brew shellenv)"
-            eval "$(docker completion zsh)"
-          '';
-        };
-      };
     in
     {
       nixosConfigurations = {
         manwe = nixosHost.mkHost {
           name = "manwe";
           system = "x86_64-linux";
-          systemConfig = manweSystemConfig;
-          users = manweUsers;
-          hardwareModules = [
-            nixos-hardware.nixosModules.framework-amd-ai-300-series
-            ./hosts/manwe/hardware-configuration.nix
-          ];
+          modules = [ ./hosts/manwe ];
         };
       };
 
@@ -187,8 +86,7 @@
           name = "morgoth";
           system = "aarch64-darwin";
           user = "david.de.sousa";
-          systemConfig = morgothSystemConfig;
-          users = morgothUsers;
+          modules = [ ./hosts/morgoth ];
         };
       };
 

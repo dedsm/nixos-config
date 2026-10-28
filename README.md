@@ -11,13 +11,16 @@ David's personal system configuration, as a single Nix flake covering both **Nix
 flake.nix               # Inputs, each host's system config and Home Manager users, outputs
 lib/
 ├── default.nix          # Exports nixosHost / darwinHost builders
-├── nixos-host.nix        # mkHost: assembles a NixOS system from systemConfig + users + hardwareModules
+├── nixos-host.nix        # mkHost: a NixOS system from the shared modules plus the host's own
 ├── darwin-host.nix       # mkDarwinHost: same, for nix-darwin
 └── pkgs.nix              # mkPkgs: nixpkgs plus the pkgs.unstable/.unfree/.local overlay
 
-hosts/
-└── manwe/
-    └── hardware-configuration.nix   # Per-host hardware/disk layout (nixos-generate-config output)
+hosts/                  # One module per machine: hardware, dedsm toggles, users
+├── manwe/
+│   ├── default.nix                  # imports its hardware; system toggles, users, Home Manager users
+│   └── hardware-configuration.nix   # Disk layout (nixos-generate-config output)
+└── morgoth/
+    └── default.nix
 
 users/                  # Each user's Home Manager config, as modules layered with `imports`
 ├── david/                # shared.nix (every host), nixos.nix and darwin.nix (per platform)
@@ -62,7 +65,7 @@ in {
 }
 ```
 
-A host is composed in `flake.nix` from its `<name>SystemConfig` (the system modules' `dedsm.*` toggles) and `<name>Users`, where each user is a Home Manager module that imports a layer from `users/` (`users/david/shared.nix` for every host, `nixos.nix`/`darwin.nix` per platform) and adds what is specific to the host. The module system merges the layers, so an override names only what it changes.
+Each host is a module in `hosts/<name>/default.nix`: it imports its hardware, sets the system modules' `dedsm.*` toggles and its users, and sets `home-manager.users`, where each user is a Home Manager module that imports a layer from `users/` (`users/david/shared.nix` for every host, `nixos.nix`/`darwin.nix` per platform) and adds what is specific to the host. The module system merges the layers, so an override names only what it changes. `flake.nix` only lists the hosts.
 
 ## Setup
 
@@ -105,8 +108,8 @@ nix flake update                              # Bump input pins
 ## Adding a new host
 
 1. Run `nixos-generate-config` on the target machine and copy the resulting `hardware-configuration.nix` into `hosts/<name>/`.
-2. Add a `<name>SystemConfig` / `<name>Users` pair in `flake.nix`: turn on whichever `dedsm.*` system modules the host needs (`hyprland`, `printing`, `bluetooth`, etc. are all opt-in), and have each user import a layer from `users/` (e.g. `users/david/nixos.nix`).
-3. Register it under `nixosConfigurations` via `nixosHost.mkHost` with `users = <name>Users`, passing `hardwareModules` for that host's disk layout and any matching `nixos-hardware` module — see the `manwe` entry for reference.
+2. Write `hosts/<name>/default.nix` (start from `hosts/manwe/`): import the hardware file and any matching `nixos-hardware` module, turn on whichever `dedsm.*` system modules the host needs (`hyprland`, `printing`, `bluetooth`, etc. are all opt-in), set `users.users` and `system.stateVersion`, and have each `home-manager.users` entry import a layer from `users/` (e.g. `users/david/nixos.nix`).
+3. Register it under `nixosConfigurations` via `nixosHost.mkHost { name; system; modules = [ ./hosts/<name> ]; }` — see the `manwe` entry for reference.
 4. `sudo nixos-rebuild switch --flake .#<name>`.
 
 ## Documentation

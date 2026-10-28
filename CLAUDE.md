@@ -2,7 +2,7 @@
 
 ## Documentation mandate
 
-**This file, `README.md`, and everything under `docs/` must stay accurate.** Whenever a change touches something they describe — a module moves/renames, a toggle's default changes, a host is added/removed, a script's behavior changes, `lib/nixos-host.nix`'s `mkHost` signature changes, etc. — update the relevant doc **in the same change**, not as follow-up. If a subsystem is significant enough to need explaining and isn't covered by an existing doc, add one under `docs/` and link it from the "Further documentation" section below and from `README.md`. A stale doc is worse than no doc: don't leave one behind.
+**This file, `README.md`, and everything under `docs/` must stay accurate.** Whenever a change touches something they describe — a module moves/renames, a toggle's default changes, a host is added/removed, a script's behavior changes, `lib/nixos-host.nix`'s `mkHost` signature changes, a host module moves, etc. — update the relevant doc **in the same change**, not as follow-up. If a subsystem is significant enough to need explaining and isn't covered by an existing doc, add one under `docs/` and link it from the "Further documentation" section below and from `README.md`. A stale doc is worse than no doc: don't leave one behind.
 
 ## Project Overview
 
@@ -32,12 +32,15 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 flake.nix                # Inputs, each host's system config and Home Manager users, outputs
 ├── lib/                 # Host builders and the package set
 │   ├── default.nix        # Exports nixosHost and darwinHost
-│   ├── nixos-host.nix      # NixOS host builder (mkHost), takes hardwareModules per host
+│   ├── nixos-host.nix      # NixOS host builder (mkHost): shared modules + the host's own
 │   ├── darwin-host.nix     # Darwin host builder (mkDarwinHost)
 │   └── pkgs.nix            # mkPkgs: nixpkgs plus the pkgs.unstable/.unfree/.local overlay
-├── hosts/                # Per-host hardware configuration
-│   └── manwe/
-│       └── hardware-configuration.nix
+├── hosts/                # One module per machine: hardware, dedsm toggles, users, Home Manager users
+│   ├── manwe/
+│   │   ├── default.nix
+│   │   └── hardware-configuration.nix
+│   └── morgoth/
+│       └── default.nix
 ├── users/                # Home Manager modules for each user, layered with `imports`
 │   ├── david/
 │   │   ├── shared.nix       # every host: toggles, git, shell tools, common packages
@@ -74,15 +77,15 @@ flake.nix                # Inputs, each host's system config and Home Manager us
 1. **Users are Home Manager modules, layered with `imports`**:
    - `users/david/shared.nix`: settings for every host (toggles, `programs.git`, shell tools, common packages)
    - `users/david/nixos.nix` / `darwin.nix`: import `shared.nix` and add the platform's toggles and packages
-   - Each host's users (`manweUsers`, `morgothUsers` in `flake.nix`) import a layer and add host-specific settings
+   - Each host's `home-manager.users` entries (in `hosts/<name>/default.nix`) import a layer and add host-specific settings
    - The module system merges the layers: lists such as `home.packages` and `programs.git.includes` concatenate, nested attrsets merge, so an override names only what it changes
 
-2. **Host Builder Pattern**: Hosts are created via builder functions:
-   - `nixosHost.mkHost { name, system, systemConfig, users, hardwareModules ? [] }` — `hardwareModules` is a list (typically a `nixos-hardware` module + that host's `hosts/<name>/hardware-configuration.nix`), so hardware is never shared across hosts by accident.
-   - `darwinHost.mkDarwinHost { name, system, user, systemConfig, users }`
-   - `users` is an attrset of Home Manager modules keyed by user name; the builders assign it to `home-manager.users`
+2. **Hosts are modules too**: `hosts/<name>/default.nix` is a NixOS (or nix-darwin) module holding everything specific to that machine — its hardware imports (so hardware is never shared across hosts by accident), `dedsm.*` toggles, `users.users`, `home-manager.users` and `system.stateVersion`. The builders add what every host gets:
+   - `nixosHost.mkHost { name, system, modules }` — `modules/nixos`, the Home Manager NixOS module, the read-only `nixpkgs.pkgs` from `mkPkgs system`, `networking.hostName`, `modules/common`, and `modules` (normally `[ ./hosts/<name> ]`)
+   - `darwinHost.mkDarwinHost { name, system, user, modules }` — the same for nix-darwin, plus `users.users.<user>.home` and the `user` special argument
+   - Flake inputs reach every module as special arguments, which is how `hosts/manwe` imports `nixos-hardware`
 
-3. **Conditional Module Loading**: Both NixOS system modules and Home Manager modules are opt-in through typed `dedsm.<name>.enable` options: in the host's `systemConfig` for system modules, in a user's Home Manager module for Home Manager modules (e.g. `dedsm.hyprland.enable`, `dedsm.ghostty.enable`). A misspelt toggle is an evaluation error, not a silent no-op. Only `modules/nixos/core` is unconditional.
+3. **Conditional Module Loading**: Both NixOS system modules and Home Manager modules are opt-in through typed `dedsm.<name>.enable` options: in the host module for system modules, in a user's Home Manager module for Home Manager modules (e.g. `dedsm.hyprland.enable`, `dedsm.ghostty.enable`). A misspelt toggle is an evaluation error, not a silent no-op. Only `modules/nixos/core` is unconditional.
 
 4. **Custom Namespace**: System and Home Manager modules use `dedsm.*` options to avoid conflicts with standard NixOS/Darwin/Home Manager options.
 
@@ -213,13 +216,14 @@ in
   home.packages = with pkgs; [ /* darwin packages */ ];
 }
 
-# flake.nix
-morgothUsers = {
-  "david.de.sousa" = {
-    imports = [ ./users/david/darwin.nix ];
+# hosts/morgoth/default.nix
+{
+  dedsm.aerospace.enable = true;
+  home-manager.users."david.de.sousa" = {
+    imports = [ ../../users/david/darwin.nix ];
     programs.git.includes = [ /* host-specific, merged with shared.nix's git */ ];
   };
-};
+}
 ```
 
 ## Testing Instructions
@@ -260,20 +264,20 @@ journalctl -b | grep -i error
 
 ### Adding a New NixOS Host
 1. Run `nixos-generate-config` on the target machine, copy the resulting `hardware-configuration.nix` into `hosts/<hostname>/`.
-2. Create new `<hostname>SystemConfig` and `<hostname>Users` in `flake.nix`. Define system options (`laptop.enable`, and whichever `dedsm.*` modules the host needs — `hyprland`, `printing`, `bluetooth`, etc. are all opt-in) and `systemUsers`; each user imports a layer from `users/` and adds what is specific to this host.
-3. Add to `nixosConfigurations` using `nixosHost.mkHost` with `users = <hostname>Users`, passing `hardwareModules = [ <matching nixos-hardware module if any> ./hosts/<hostname>/hardware-configuration.nix ]`.
+2. Write `hosts/<hostname>/default.nix` (start from `hosts/manwe/`): import `./hardware-configuration.nix` and any matching `nixos-hardware` module, enable the `dedsm.*` modules the host needs (`laptop`, `hyprland`, `printing`, `bluetooth`, etc. are all opt-in), and set `users.users`, `home-manager.users` (each user imports a layer from `users/`) and `system.stateVersion`.
+3. Add to `nixosConfigurations` using `nixosHost.mkHost { name = "<hostname>"; system = ...; modules = [ ./hosts/<hostname> ]; }`.
 4. Deploy: `sudo nixos-rebuild switch --flake .#<hostname>`.
 
 ### Adding a New Darwin Host
-1. Create new `<hostname>SystemConfig` and `<hostname>Users` in `flake.nix`
-2. Define system options (`aerospace.enable`, etc.)
-3. Add to `darwinConfigurations` using `darwinHost.mkDarwinHost` with `users = <hostname>Users`
+1. Write `hosts/<hostname>/default.nix` (start from `hosts/morgoth/`)
+2. Set the system options (`dedsm.aerospace.enable`, etc.) and `home-manager.users`
+3. Add to `darwinConfigurations` using `darwinHost.mkDarwinHost { name; system; user; modules = [ ./hosts/<hostname> ]; }`
 4. Deploy: `darwin-rebuild switch --flake .#<hostname>`
 
 ### Adding a New User
-1. Add user to `systemUsers` in host's systemConfig (NixOS) or use `users.users` (Darwin)
+1. Add the user to `users.users` in the host's module (`hosts/<hostname>/default.nix`)
 2. Create the user's layers under `users/<name>/` (a `shared.nix` plus a platform layer that imports it, like `users/david/`), setting `home.stateVersion` and the `dedsm.<name>.enable` toggles they need
-3. Add the user to the host's `<hostname>Users` in `flake.nix`, importing the platform layer
+3. Add the user to the host's `home-manager.users`, importing the platform layer
 4. Override or extend settings there; the module system merges them with the layers
 
 ### Module Development
