@@ -70,10 +70,10 @@ lib.mkIf (config.dedsm.theme.enable && pkgs.stdenv.isLinux) {
     iconTheme = null;
 
     # `theme.name` is left unset on purpose: home-manager mirrors it into BOTH
-    # gtk-3.0/settings.ini and the `gtk-theme` dconf key, which would re-pin the
-    # light variant on every activation and fight DMS, which drives that key
-    # itself (adw-gtk3/adw-gtk3-dark, installed by modules/nixos/dms). The
-    # package below stays for the Adwaita icon/theme fallbacks.
+    # gtk-3.0/settings.ini and the `gtk-theme` dconf key, and that key is the
+    # activation guard's (pinned to adw-gtk3 in both modes, installed by
+    # modules/nixos/dms; see default.nix). The package below stays for the
+    # Adwaita icon/theme fallbacks.
     theme = null;
   };
 

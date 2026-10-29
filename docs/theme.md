@@ -17,16 +17,17 @@ own on Linux — darkman is gone.
 
 ## The one rule: one owner for `color-scheme` and `gtk-theme`
 
-Two dconf keys decide the mode for almost every GUI app on the Linux side:
+Two dconf keys sit under almost every GUI app on the Linux side:
 
 ```
-/org/gnome/desktop/interface/color-scheme    prefer-dark | prefer-light
-/org/gnome/desktop/interface/gtk-theme       adw-gtk3-dark | adw-gtk3
+/org/gnome/desktop/interface/color-scheme    prefer-dark | default (DMS) / prefer-light (activation guard)
+/org/gnome/desktop/interface/gtk-theme       adw-gtk3, in both modes
 ```
 
-`xdg-desktop-portal-gtk` reads them and re-exports them over
-`org.freedesktop.portal.Settings` / `org.freedesktop.appearance`; Firefox, Slack and every other
-Electron app follow *that*, not the GTK config files. So the chain is:
+Only `color-scheme` carries the mode; `gtk-theme` is pinned, for the reason in
+[`gtk-theme` never changes](#gtk-theme-never-changes). `xdg-desktop-portal-gtk` reads both and
+re-exports them over `org.freedesktop.portal.Settings` / `org.freedesktop.appearance`; Firefox, Slack
+and every other Electron app follow *that*, not the GTK config files. So the chain is:
 
 ```
 DMS → dconf → xdg-desktop-portal-gtk → org.freedesktop.portal.Settings → Firefox / Slack / …
@@ -78,13 +79,18 @@ Adwaita accents.
 
 #### `GTK_USE_PORTAL=1` is an improvement, not a prerequisite
 
-`xdg.configFile."uwsm/env"` in `theme/default.nix` exports it, which makes GTK3 read `gtk-theme` and
-`color-scheme` from the portal like everything else. With it, GTK3 uses the real `adw-gtk3-dark`
-rather than light Adwaita with dark colours substituted — so it covers what Adwaita hardcodes
-*outside* those 32 names: some borders and shadows, symbolic icon recolouring, and any widget that
-branches on the dark flag rather than on a colour. GTK 3.24.38 taught GTK3 to read
-`org.freedesktop.appearance color-scheme` alongside `gtk-theme`, and nixpkgs is on 3.24.52, so the
-portal carries both.
+`xdg.configFile."uwsm/env"` in `theme/default.nix` exports it, which makes GTK3 read its settings —
+`gtk-theme`, `icon-theme`, fonts, cursor — from the portal instead of `settings.ini`. GTK3 then gets
+`adw-gtk3` (with the palette overridden as above) rather than stock Adwaita, and its icons follow
+DMS's per-mode Papirus.
+
+It does **not** carry the mode. GTK 3.24.52's Wayland backend has no entry for `color-scheme` in its
+portal translation table (`gdk/wayland/gdkscreen-wayland.c`), so a GTK3 app's mode is only ever the
+palette. And since `gtk-theme` is pinned to the light `adw-gtk3`, GTK3 never gets `adw-gtk3-dark`:
+what Adwaita hardcodes *outside* those 32 names — some borders and shadows, symbolic icon
+recolouring, any widget that branches on the dark flag rather than on a colour — stays the light
+variant at night. That is the price of Electron apps following the schedule; see
+[`gtk-theme` never changes](#gtk-theme-never-changes).
 
 It is deliberately *not* required for dark to work, and two things follow from that. It costs a
 relogin — uwsm sources the file at session start, so a `nixos-rebuild switch` alone does not export
@@ -111,10 +117,41 @@ indirectly via home-manager options that mirror into them. Concretely, this is w
 | `gtk4.extraConfig.gtk-application-prefer-dark-theme` | Hard-locks GTK4/libadwaita apps to one mode in `gtk-4.0/settings.ini` |
 | `dconf.settings."org/gnome/desktop/interface".icon-theme`, `gtk.iconTheme` | See [the icon theme](#the-icon-theme-is-a-third-dms-owned-key) below — `gtk.iconTheme` mirrors into the dconf key too |
 
-`gtk.theme.package` is gone with `gtk.theme`. DMS points `gtk-theme` at `adw-gtk3` /
-`adw-gtk3-dark` and patches a copy into `~/.local/share/themes`, so that theme has to be on disk:
-`modules/nixos/dms` installs `pkgs.adw-gtk3` for exactly this reason. A missing theme is not an
-error anywhere — GTK3 apps just fall back to raw defaults.
+`gtk.theme.package` is gone with `gtk.theme`. The activation guard points `gtk-theme` at `adw-gtk3`,
+so that theme has to be on disk: `modules/nixos/dms` installs `pkgs.adw-gtk3` for exactly this
+reason. A missing theme is not an error anywhere — GTK3 apps just fall back to raw defaults.
+
+### `gtk-theme` never changes
+
+On Linux, Chromium — and so every Electron app: Slack, VS Code, Granola, Antigravity, Chromium
+itself — has two opinions about the mode, and whichever spoke last wins:
+
+- the portal's `color-scheme`, re-read on every `SettingChanged`. This one is right.
+- GTK's, from `OsSettingsProviderGtk`, recomputed whenever GTK's `gtk-theme-name` or
+  `gtk-application-prefer-dark-theme` changes. It calls the mode dark if the GTK *window background
+  colour* is dark.
+
+That background colour is `window_bg_color` from `dank-colors.css`, through the `gtk.css` import
+above, and GTK3 reads `gtk.css` once, at startup. So inside a long-running app the GTK answer is
+frozen at the mode the app was **launched** in. While `gtk-theme` holds still, GTK is never asked
+again and the portal's answer stands. The moment `gtk-theme` changes — which, with
+`GTK_USE_PORTAL=1`, reaches GTK inside every running app through the portal — every Chromium app
+re-asks GTK and snaps back to its launch mode, whatever every key and file on the system says. It
+stays there until the next `color-scheme` change.
+
+DMS transitions don't touch `gtk-theme`: they write `color-scheme` and `icon-theme`. (DMS's own
+`refreshGtkTheme()` runs only after it has patched a user copy of adw-gtk3 in
+`~/.local/share/themes`, which doesn't exist here; if one ever appears, it will flip `gtk-theme` on
+every transition and bring this bug back.) Until 2026-10-29 the activation guard wrote `adw-gtk3` or
+`adw-gtk3-dark` by mode, so the key changed on any `nixos-rebuild switch` in the other half of the
+day from the previous one. Slack, if it had been started in the other mode, went back to that mode
+a few seconds after the switch: dark at sunset, light again after an evening rebuild, until a manual
+toggle. Reproduced with a bare Electron app launched in light mode: with the system fully dark, the
+guard's three `dconf write`s turned it light, and it stayed light.
+
+So the guard pins `gtk-theme` to `adw-gtk3` in both modes, and nothing else may change it. Keeping it
+in step with the mode instead would be worse: every transition would snap every app launched in the
+other mode.
 
 ### The icon theme is a third DMS-owned key
 
@@ -170,7 +207,8 @@ usual "fix" is toggling light and back to dark, which re-runs the transition.
 
 Removing the static declarations is the actual fix, but `home.activation.reassertColorScheme` in the
 `theme` module makes it stick: ordered `after = ["dconfSettings"]`, it re-writes all three keys —
-`color-scheme`, `gtk-theme` and `icon-theme` — to whatever mode is current, so no activation can leave them stale. It outlived darkman deliberately —
+`color-scheme` and `icon-theme` for whatever mode is current, `gtk-theme` to its fixed `adw-gtk3` —
+so no activation can leave them stale. It outlived darkman deliberately —
 the trigger is home-manager's own `dconf load`, not whoever owns the keys at runtime, and DMS would
 otherwise only put them back at its next transition.
 
@@ -276,7 +314,7 @@ journalctl --user -u dms | grep -i matugen
 
 # What the keys actually say
 dconf read /org/gnome/desktop/interface/color-scheme
-dconf read /org/gnome/desktop/interface/gtk-theme
+dconf read /org/gnome/desktop/interface/gtk-theme    # always adw-gtk3
 dconf read /org/gnome/desktop/interface/icon-theme   # Papirus-Light | Papirus-Dark
 cat ~/.config/qtengine/config.json                   # the tray's icon theme (theme.iconTheme)
 
@@ -305,13 +343,12 @@ dconf, so correct keys prove nothing about it. Confirm the import is the first l
 `~/.config/gtk-3.0/gtk.css` and that `dank-colors.css` next to it has a recent mtime — see
 [GTK3 is not on that chain by default](#gtk3-is-not-on-that-chain-by-default).
 
-If `color-scheme` and `gtk-theme` disagree with *each other* — `prefer-dark` alongside the light
-`adw-gtk3`, say — nothing in this repo wrote that pair: the activation below always writes them
-together. DMS toggles `gtk-theme` and `color-scheme` to force GTK apps to repaint and puts them
-back afterwards (`Failed to reset gtk-theme`, `Failed to restore color-scheme for GTK4 refresh` in
-its log), so a mismatch is a restore that did not happen. The next activation resyncs it; to fix it
-in place, write the pair by hand. It matters more than it used to: with `GTK_USE_PORTAL=1`, GTK3
-apps follow `gtk-theme`, so a stale light value there now shows up on screen.
+If Slack or another Chromium/Electron app is in the wrong mode while the portal answers correctly,
+it is almost certainly in the mode it was launched in, put there by a `gtk-theme` change — see
+[`gtk-theme` never changes](#gtk-theme-never-changes). The app's own log dates it: Slack writes a
+`UPDATE_SETTINGS` / `"userTheme"` pair to `~/.config/Slack/logs/default/browser.log` each time its
+mode moves. `theme-toggle` twice, or restarting the app, recovers it. If `gtk-theme` reads anything
+but `adw-gtk3`, find what wrote it; the next activation puts it back.
 
 If `dconf read` disagrees with `dms ipc call theme getMode` *and* the marker file agrees with DMS,
 something re-declared the keys statically — see the rule at the top. If the portal disagrees with `dconf`, the problem is in

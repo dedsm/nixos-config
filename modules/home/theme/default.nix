@@ -61,13 +61,16 @@ let
     source-file ${tmuxDarkCustom}
   '';
 
-  # The mode-dependent dconf keys DMS owns; nothing may declare them statically
+  # The dconf keys DMS owns; nothing may declare them statically
   # (docs/theme.md, "The one rule"). The icon theme names must match
-  # iconThemeLight/iconThemeDark in the dms module. `|| true`: activation runs
-  # under `set -eu`, and a write that can't reach a bus must not fail it.
-  gtkModeSettings = run: scheme: theme: icons: ''
+  # iconThemeLight/iconThemeDark in the dms module. `gtk-theme` is the same in
+  # both modes on purpose: changing it while a Chromium/Electron app runs snaps
+  # that app back to the mode it was launched in (docs/theme.md, "`gtk-theme`
+  # never changes"). `|| true`: activation runs under `set -eu`, and a write
+  # that can't reach a bus must not fail it.
+  gtkModeSettings = run: scheme: icons: ''
     ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/color-scheme "'${scheme}'" || true
-    ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'${theme}'" || true
+    ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/gtk-theme "'adw-gtk3'" || true
     ${run} ${pkgs.dconf}/bin/dconf write /org/gnome/desktop/interface/icon-theme "'${icons}'" || true
   '';
 
@@ -254,9 +257,9 @@ in
         fi
 
         if ${isDarkNow}; then
-        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-dark" "adw-gtk3-dark" "Papirus-Dark"}
+        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-dark" "Papirus-Dark"}
         else
-        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-light" "adw-gtk3" "Papirus-Light"}
+        ${gtkModeSettings "$DRY_RUN_CMD $reassertBus" "prefer-light" "Papirus-Light"}
         fi
       ''
     );

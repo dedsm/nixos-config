@@ -239,10 +239,9 @@ in
     # recording goes through the portal and needs none of this.
     programs.gpu-screen-recorder.enable = true;
 
-    # DMS points the `gtk-theme` dconf key at adw-gtk3/adw-gtk3-dark, and
-    # patches a copy of the theme into ~/.local/share/themes. Without the theme
-    # installed that key names something that doesn't exist and GTK3 apps fall
-    # back to raw defaults.
+    # The `theme` home-manager module pins the `gtk-theme` dconf key to adw-gtk3
+    # (docs/theme.md). Without the theme installed that key names something
+    # that doesn't exist and GTK3 apps fall back to raw defaults.
     environment.systemPackages = [
       pkgs.adw-gtk3
 
