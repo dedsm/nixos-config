@@ -53,7 +53,7 @@ flake.nix                # Inputs, each host's system config and Home Manager us
 │   │   └── fonts.nix          # System fonts
 │   ├── home/               # Home Manager modules, each declaring dedsm.<name>.enable — tmux,
 │   │                         herdr, nvim, zsh, hyprland, dms, ghostty, theme, claude-code,
-│   │                         playwright, antigravity, agent-harness (rtk/direnv/brain skill
+│   │                         playwright, antigravity, hex, agent-harness (rtk/direnv/brain skill
 │   │                         per coding agent), ... Registered for every user, off by default
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, xserver/xkb,
@@ -468,6 +468,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/login-flow.md`](./docs/login-flow.md) — the DMS greeter as the auth gate (and why it beat autologin plus a boot lock), the fprintd/polkit fingerprint policy (Apple's Touch ID conditions, mapped) and why it can't live in PAM, gnome-keyring PAM unlock, boot-speed rationale
 - [`docs/performance.md`](./docs/performance.md) — the `dedsm.performance` module: sched_ext/`scx_lavd`, ananicy-cpp with CachyOS rules, writeback sysctls sized for 128 GiB, and what was deliberately *not* ported from CachyOS
 - [`docs/granola.md`](./docs/granola.md) — Granola (meeting notes) repackaged from the macOS auto-update zip: the platform-label patch the API needs, why `ELECTRON_FORCE_IS_PACKAGED` and the `process.resourcesPath` rewrite are needed (dev mode otherwise registers `granola-dev://`), rebuilding the bundled SQLite fork against `electron.headers` past nixpkgs' `node-gyp` wrapper, `patchelfUnstable` for `drag.node`, the Electron-major guard, how system-audio capture works on Linux (default-output monitor, tested), what doesn't work, and the feed-driven updater
+- [`docs/hex.md`](./docs/hex.md) — Hex local voice dictation from its own flake: why the input is pinned to a release tag and follows `unstable` (26.05's Rust is too old), the Hyprland keys (toggle, not hold, and why the key in Hex's Settings does nothing), the declared settings (Parakeet v3, terminal paste, mic released when idle), the `hex-model` download service, the "Speakers (loopback)" device (a `pw-loopback` service plus an ALSA entry in `~/.asoundrc`, because Hex's list shows ALSA devices only), why models stay out of the Nix store, and what Dux Shell does and doesn't do for it
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB RAM, suspend-then-hibernate settings, why `boot.resumeDevice` must be set explicitly with a systemd initrd, `pm_async=0` resume workaround
 
 Remember the mandate at the top of this file: these all need to stay current.

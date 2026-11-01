@@ -21,5 +21,6 @@
     ./agent-harness
     ./cli-notify
     ./linux-desktop
+    ./hex
   ];
 }

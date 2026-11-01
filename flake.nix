@@ -17,6 +17,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Pinned to a release tag because the default branch is `dev`, its newest
+    # development builds. Follows unstable because 26.05's Rust is too old for
+    # it. See docs/hex.md.
+    hex = {
+      url = "github:anomalyco/hex/v3.1.2";
+      inputs.nixpkgs.follows = "unstable";
+      inputs.home-manager.follows = "home-manager";
+    };
+
     darwin = {
       url = "github:nix-darwin/nix-darwin/nix-darwin-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -30,6 +39,7 @@
       home-manager,
       nixos-hardware,
       hyprdynamicmonitors,
+      hex,
       darwin,
       ...
     }:
@@ -47,6 +57,7 @@
           nixos-hardware
           lib
           hyprdynamicmonitors
+          hex
           darwin
           ;
       };

@@ -6,6 +6,7 @@
   nixpkgs,
   unstable,
   hyprdynamicmonitors,
+  hex,
   ...
 }:
 {
@@ -25,5 +26,6 @@
   home-manager.sharedModules = [
     ../home
     hyprdynamicmonitors.homeManagerModules.default
+    hex.homeManagerModules.default
   ];
 }

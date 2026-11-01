@@ -39,6 +39,30 @@
         "type": "github"
       }
     },
+    "hex": {
+      "inputs": {
+        "home-manager": [
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "unstable"
+        ]
+      },
+      "locked": {
+        "lastModified": 1793546890,
+        "narHash": "sha256-UnPFZ3i5RvpGh5O/s0FXAFDaOI8uc7UVLoBS34m0Og8=",
+        "owner": "anomalyco",
+        "repo": "hex",
+        "rev": "826bdbc44c8806630a45c08ed8cef35a36817a17",
+        "type": "github"
+      },
+      "original": {
+        "owner": "anomalyco",
+        "ref": "v3.1.2",
+        "repo": "hex",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -129,6 +153,7 @@
     "root": {
       "inputs": {
         "darwin": "darwin",
+        "hex": "hex",
         "home-manager": "home-manager",
         "hyprdynamicmonitors": "hyprdynamicmonitors",
         "nixos-hardware": "nixos-hardware",

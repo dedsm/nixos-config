@@ -60,6 +60,7 @@
       {
         imports = [ ../../users/david/nixos.nix ];
         dedsm.hyprland.enable = true;
+        dedsm.hex.enable = true;
         home.packages = [
           pkgs.unstable.slack # unfree (lib/pkgs.nix)
           pkgs.local.granola # unfree (lib/pkgs.nix)
