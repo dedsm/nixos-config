@@ -169,8 +169,15 @@ in
     # private key is deleted right after it signs the one *.stoda.localhost
     # certificate, so trusting it trusts that certificate and nothing else.
     # Regenerating aegis's certificates makes a new CA: copy its ca.crt here.
+    # Proofhouse's local CA ("Proofhouse Local CA", `just proxy up` in
+    # proofhouse) is made the same way, for *.proofhouse.localhost only; a new
+    # one comes with each new certificate (yearly, or `just proxy certs`):
+    # copy $DEV_PROXY_DIR/certs/proofhouse-ca.crt here.
     # Firefox reads this store too: nixpkgs' NSS loads p11-kit's trust module
     # as its built-in roots, so no per-site exceptions are needed.
-    security.pki.certificateFiles = [ ./stoda-local-ca.crt ];
+    security.pki.certificateFiles = [
+      ./stoda-local-ca.crt
+      ./proofhouse-local-ca.crt
+    ];
   };
 }
