@@ -38,13 +38,10 @@ Session          one is enough
 | tmux | Herdr |
 |---|---|
 | session `carv` | the default session |
-| window `carv-os:cos-253-sdk-proposal` | workspace |
-| window `carv-os:main 2` | a second *tab* in the `carv-os:main` workspace |
+| a window on a worktree | workspace |
+| a second window on the same worktree | a second *tab* in that workspace |
 | pane running `.claude-wrapped` | pane, recognised as an agent |
 | cycling windows to find the blocked agent | the sidebar |
-
-The `carv-os:main 2` naming exists because tmux windows are a flat namespace. Tabs express
-the same thing natively, which is why the herdr renamer needs no dedup pass.
 
 ## Getting started
 
@@ -54,8 +51,8 @@ herdr                        # launch the server and attach
 
 Run from any directory and a workspace is created for it. Beyond that, no setup step is
 required: `[terminal] new_cwd` defaults to `follow`, so a new workspace, tab, or pane
-inherits the source pane's directory, and the zsh hook names the workspace from it. Creating
-one needs neither `--cwd` nor `--label`.
+inherits the source pane's directory, and Herdr names the workspace from it (see "Workspace
+naming" below). Creating one needs neither `--cwd` nor `--label`.
 
 Panes are ordinary terminals — run `claude`, an editor, anything. Because panes inherit the
 cwd, direnv fires per worktree exactly as it does under tmux.
@@ -472,34 +469,33 @@ A per-session toggle would have to be a plugin action that rewrites `config.toml
 `reload_config` — which the store symlink makes impossible for the same reason it broke the
 `onboarding` write below. Enabling it wholesale is the cheaper experiment.
 
-## Automatic workspace naming
+## Workspace naming
 
-Workspaces are renamed on `chpwd` by `_herdr_rename_workspace` in the
-[`zsh`](../modules/home/zsh/default.nix) module — the herdr counterpart to the
-existing `_tmux_rename_window`. Both now share `_workspace_display_name`, which produces
-`repo:dir` for a checkout whose directory differs from its repository name and the bare
-basename otherwise:
+Nothing in this repo names workspaces; Herdr's own automatic label is used. Read from the
+0.9.5 source (`src/workspace.rs`, `src/workspace/git/discovery.rs`), it comes from the
+**first tab's root pane** and follows that pane as it changes directory:
 
-```
-~/Develop/Carv/carv-os/work/main                 -> carv-os:main
-~/Develop/Carv/carv-os/work/cos-253-sdk-proposal -> carv-os:cos-253-sdk-proposal
-~/Develop/Carv/carv-sdk/work/main                -> carv-sdk:main
-~/Develop/Carv/carv-ats                          -> carv-ats
-```
+- inside a git checkout, the name of the checkout's top-level directory, so a subdirectory
+  keeps the checkout's label and `<repo>/work/main` is just `main`;
+- otherwise the directory's basename, or `~` for `$HOME`.
 
-It reads `$HERDR_WORKSPACE_ID` from the pane environment and no-ops when `$HERDR_ENV` is
-unset, so it costs nothing outside herdr. Because `[terminal] new_cwd` defaults to `follow`,
-a new workspace inherits the source pane's directory and then names itself — creating one
-needs no `--cwd` and no `--label`.
+There is no setting that changes this: no format string or template, in config or API.
+What Herdr does offer is a **custom name that overrides the automatic label**, from
+`prefix+shift+w`, `herdr workspace rename <id> <label>`, or `--label` on `workspace create`
+and `worktree create`/`open`. `ui.prompt_new_workspace_name = true` asks for one at creation.
 
-Unlike the tmux renamer this does **no** dedup pass. tmux's ` 2` suffix exists because
-windows are a flat namespace; in herdr a second view of one worktree is a tab inside the
-workspace, so the labels don't collide. `herdr workspace list` also has no `--json` mode,
-which would make a dedup pass depend on parsing human-readable output.
+A custom name is permanent for that workspace. It persists in `session.json`, automatic
+naming stops, and nothing clears it: the prompt ignores empty input, and the API has no
+clear method. Getting the automatic label back means closing the workspace and creating a
+new one.
 
-Renaming is per *workspace*, so in a workspace holding panes in different directories the
-last `cd` wins — the same behaviour the tmux hook already has for a window holding several
-panes.
+For more than the label there are two display-only levers: `$name` sidebar tokens fed by
+`herdr workspace report-metadata` (see "No index column in the sidebar"), and
+`ui.window_title` for the outer terminal's title. A plugin can also call rename on Herdr's
+workspace events, which is how a computed name would be done in Herdr itself.
+
+zsh `chpwd` hooks used to rename both Herdr workspaces and tmux windows (`repo:dir`); they
+were removed. tmux windows now take tmux's default name, the running command.
 
 ## Notifications
 
