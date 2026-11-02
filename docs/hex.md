@@ -23,8 +23,8 @@ Hex's shortcuts without a key, so the shortcut recorded in Hex's Settings does n
 `programs.hex.shortcut` is left unset.
 
 **Toggle, not hold.** Hold-to-talk depends on a release event, and Hex's docs record Hyprland's Lua
-binds dropping it when the modifier comes up before the key (fixed in 0.57; this machine ran 0.55
-when this was written). Toggle needs no release.
+binds dropping it when the modifier comes up before the key. That's fixed in 0.57, which this machine
+now runs, but hold hasn't been retried here. Toggle needs no release.
 
 **Let go of Super quickly.** Hyprland adds every modifier still held to Hex's paste. After a `hex`
 command Hex waits 250 ms and then pastes, so Super held past that plus the transcription turns

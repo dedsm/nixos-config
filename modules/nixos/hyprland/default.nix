@@ -51,28 +51,6 @@ let
     epoch = 1794182400;
     date = "2026-11-09";
   };
-
-  # --- xdg-desktop-portal-hyprland with upstream ba31964 --------------------
-  #
-  # The portal handed PipeWire consumers only the *first* plane of each
-  # dma-buf. On this AMD iGPU the compositor's buffers use DCC modifiers, which
-  # carry extra metadata planes, so every import failed: gpu-screen-recorder's
-  # `-w portal` (the window entry of the dms screencast picker) logged "failed
-  # to create egl image with modifier 0x2000000104abb04", renegotiated through
-  # each DCC modifier in turn and died on "no more input formats". OBS and
-  # browsers hit the same thing and quietly fall back to slow SHM copies.
-  # ba31964 (gsr's author, merged 2026-08-29) sends every plane; it applies
-  # cleanly to 1.3.12. It first shipped in xdph 1.5.0 (2026-10-28), which
-  # nixpkgs master has (NixOS/nixpkgs#580005) but release-26.05 doesn't; drop
-  # the patch once the xdph this module builds is 1.5.0 or later.
-  xdphFix = pkgs.fetchpatch {
-    name = "xdph-screencopy-all-dmabuf-planes.patch";
-    url = "https://github.com/hyprwm/xdg-desktop-portal-hyprland/commit/ba31964ee42b56bcb0d3b78a64ead5d8a1c3c6f6.patch";
-    hash = "sha256-K67rE3AXVLcuUMFs4ocG9dgihyIwabpGyPbbjz1zKTs=";
-  };
-  xdph = pkgs.xdg-desktop-portal-hyprland.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [ xdphFix ];
-  });
 in
 {
   options.dedsm.hyprland = {
@@ -89,10 +67,12 @@ in
     programs.hyprland = {
       enable = true;
       withUWSM = true;
-      # The module adds this to xdg.portal.extraPortals itself; listing the
-      # stock package there as well would install a second, unpatched portal
-      # under the same D-Bus name.
-      portalPackage = xdph;
+      # From unstable until 26.11, as a matched pair: 26.05's hyprtoolkit is too
+      # old to build xdph 1.5.0, the first release that sends PipeWire consumers
+      # every dma-buf plane (upstream ba31964). Window capture on this AMD iGPU
+      # needs that, and it let the local patch on xdph 1.3.12 go.
+      package = pkgs.unstable.hyprland;
+      portalPackage = pkgs.unstable.xdg-desktop-portal-hyprland;
     };
 
     # A third session entry, identical to the uwsm one except that uwsm's
@@ -123,19 +103,15 @@ in
 
     assertions = [
       {
-        assertion = versionOlder pkgs.xdg-desktop-portal-hyprland.version "1.4.2";
+        assertion = versionOlder pkgs.hyprland.version "0.57";
         message = ''
-          dedsm.hyprland: xdg-desktop-portal-hyprland is now
-          ${pkgs.xdg-desktop-portal-hyprland.version}, newer than the last release
-          known to lack upstream ba31964 (send all dma-buf planes). If the new
-          release includes it, remove every piece of the patch together:
-            - xdphFix, xdph, portalPackage and this assertion in
+          dedsm.hyprland: nixpkgs now has Hyprland ${pkgs.hyprland.version}, so it
+          no longer needs to come from unstable. Remove together:
+            - package, portalPackage and this assertion in
               modules/nixos/hyprland/default.nix
-            - the portalPackage line and its comment under
-              wayland.windowManager.hyprland in
-              modules/home/hyprland/default.nix
-            - the ba31964 paragraph under "Screen recording" in docs/dms.md
-          If not, raise the version in this assertion.
+            - package, portalPackage and their comment under
+              wayland.windowManager.hyprland in modules/home/hyprland/default.nix
+            - the "from unstable" wording in docs/dms.md and CLAUDE.md
         '';
       }
       {

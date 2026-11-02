@@ -20,7 +20,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 
 ### Key Technologies
 - **NixOS 26.05** / **nix-darwin 26.05** / **Home Manager 26.05**
-- **Hyprland**: Wayland compositor (Linux) — the only Linux WM this repo supports (sway was dropped)
+- **Hyprland**: Wayland compositor (Linux) — the only Linux WM this repo supports (sway was dropped); it and its portal come from `pkgs.unstable` until 26.11
 - **Aerospace**: Tiling window manager (macOS)
 - **Ghostty**: Terminal emulator (macOS)
 - **Framework laptop hardware**: Via a `nixos-hardware` module, wired per-host (see "Host Configuration Management" below)

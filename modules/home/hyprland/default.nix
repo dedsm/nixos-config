@@ -63,11 +63,13 @@ with lib;
         systemd.enable = false;
         # Hyprland 0.55 deprecated hyprlang in favor of lua; generate hyprland.lua.
         configType = "lua";
-        # Part of the xdph ba31964 patch in modules/nixos/hyprland (window
-        # capture on AMD), and removed with it — the xdph version assertion
-        # there lists this line. Left at its default this would add the stock
-        # xdph to the user profile alongside the patched one.
-        portalPackage = osConfig.programs.hyprland.portalPackage;
+        # Both from unstable until 26.11; the assertion in modules/nixos/hyprland
+        # lists these lines. Left at its default, package would add 26.05's
+        # Hyprland to the profile too. portalPackage is null because the system
+        # module already provides the portal, and this module would override it
+        # with a `hyprland` argument that xdph 1.5.0 no longer accepts.
+        package = osConfig.programs.hyprland.package;
+        portalPackage = null;
 
         # Declarative option sections render to a single hl.config({...}) call.
         settings = {
