@@ -32,13 +32,13 @@ if [ -s "$last" ]; then
 fi
 # Each prompt's gap since the last choice, to size this window from real shares.
 if [ "$preview" = 0 ] && [ "$gap" != none ] && [ "$gap" -lt 4 ]; then
-  printf '%s gap=%ss reused\n' "$(date +%T)" "$gap" >>"$runtime/prompts"
+  printf '%s gap=%s reused\n' "$(date +%T)" "$gap" >>"$runtime/prompts"
   cat "$last"
   echo
   exit 0
 fi
 if [ "$preview" = 0 ]; then
-  printf '%s gap=%ss asked\n' "$(date +%T)" "$gap" >>"$runtime/prompts"
+  printf '%s gap=%s asked\n' "$(date +%T)" "$gap" >>"$runtime/prompts"
 fi
 
 out="$(mktemp "$runtime/out.XXXXXX")"

@@ -37,7 +37,7 @@ xdph reads its config once, so activation restarts it when the file changes, whi
 - **Repeats reuse the first choice.** Chromium and Electron can ask several times for one share, so the script
   serializes prompts and answers from the last choice for 4 seconds. A new share started within those 4 seconds gets
   the same answer, because xdph doesn't tell the picker which app is asking. `$XDG_RUNTIME_DIR/share-picker/prompts`
-  records each prompt's gap since the last choice and whether it was reused, which is what to size the window from.
+  records each prompt's gap in seconds since the last choice and whether it was reused, which is what to size the window from.
 
 ## Limits
 
