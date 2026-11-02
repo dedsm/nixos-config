@@ -73,3 +73,15 @@ sysctl vm.dirty_bytes vm.dirty_background_bytes vm.dirty_writeback_centisecs vm.
 ```
 
 To A/B test the scheduler without rebuilding, `sudo systemctl stop scx` and use the machine — EEVDF takes back over immediately. `systemctl start scx` to return. This is a feel change, not a benchmark change: throughput will not improve, so the honest test is daily use for a week and then turning it off to see whether the machine gets worse.
+
+## powertop's frequency limit
+
+`powertop --auto-tune` (laptop module) writes each CPU's `scaling_max_freq` back as it read it, in
+`abstract_cpu::wiggle`. If boost is off at that moment, it reads the nominal 2 GHz, and the write turns that into a limit
+that stays after boost comes back. Every power profile then stops at 2 GHz, though the fast cores can reach 5.16 GHz, and
+nothing reports it: the profile, governor and `boost` all look right. Reproduced by running powertop in `power-saver` and
+then switching to `performance`. Why boost was off during boot, when the cap first appeared, isn't known.
+
+The service therefore ends by writing `2147483647`, the kernel's "no limit" value for this setting, to every CPU. A
+number from `cpuinfo_max_freq` wouldn't do, because with boost off that reads 2 GHz as well. `power-saver` still drops
+to 2 GHz by turning boost off, which is a separate mechanism.

@@ -56,6 +56,16 @@ in
       wantedBy = [ "timers.target" ];
       timerConfig.OnBootSec = "30s";
     };
+    # powertop writes scaling_max_freq back as it read it (abstract_cpu::wiggle).
+    # Reading it while boost is off, when it shows the nominal 2 GHz, turns that
+    # into a limit that outlives boost and every power profile. This value clears
+    # the limit instead of naming a frequency, so boost being off here is harmless.
+    systemd.services.powertop.serviceConfig.ExecStartPost =
+      pkgs.writeShellScript "powertop-clear-max-freq" ''
+        for limit in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_max_freq; do
+          echo 2147483647 >"$limit"
+        done
+      '';
     powerManagement.powerDownCommands = ''
       # Disable all ACPI wakeup sources except the power button (PWRB) before suspend
       for dev in $(${pkgs.gawk}/bin/awk '$3 == "*enabled" && $1 != "PWRB" {print $1}' /proc/acpi/wakeup); do
