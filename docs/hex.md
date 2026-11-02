@@ -207,7 +207,7 @@ Recording works on manwe from DMA-BUFs, apparently with VA-API (the file has no 
 
 These are reported with tested patches as [#999](https://github.com/anomalyco/hex/issues/999) (scale and bar offset) and [#1000](https://github.com/anomalyco/hex/issues/1000) (target). The second matches the stream's size against Hyprland's monitors and windows, since the portal doesn't say what was picked: xdph reports a stream's position as 0,0. Neither patch is part of this repo. Live ink never shows over the bar, and the pen cursor never appears, because Rune maps custom cursors to the default shape on layer surfaces.
 
-The portal's picker floats (`float-share-picker` in `modules/home/hyprland`). Tiled, it shrinks the windows beside it, so a window picked on that screen starts its stream at the wrong size.
+The stock portal picker, now only the [fallback](./share-picker.md), floats (`float-share-picker` in `modules/home/hyprland`). Tiled, it shrinks the windows beside it, so a window picked on that screen starts its stream at the wrong size.
 
 ## Dux Shell
 

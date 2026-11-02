@@ -53,7 +53,7 @@ flake.nix                # Inputs, each host's system config and Home Manager us
 │   │   └── fonts.nix          # System fonts
 │   ├── home/               # Home Manager modules, each declaring dedsm.<name>.enable — tmux,
 │   │                         herdr, nvim, zsh, hyprland, dms, ghostty, theme, claude-code,
-│   │                         playwright, antigravity, hex, agent-harness (rtk/direnv/brain skill
+│   │                         playwright, antigravity, hex, share-picker, agent-harness (rtk/direnv/brain skill
 │   │                         per coding agent), ... Registered for every user, off by default
 │   ├── nixos/               # NixOS system-level modules, each an opt-in dedsm.<name>.enable
 │   │   ├── core/               # Always-on baseline (no toggle): networking, xserver/xkb,
@@ -472,6 +472,7 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/granola.md`](./docs/granola.md) — Granola (meeting notes) repackaged from the macOS auto-update zip: the platform-label patch the API needs, why `ELECTRON_FORCE_IS_PACKAGED` and the `process.resourcesPath` rewrite are needed (dev mode otherwise registers `granola-dev://`), rebuilding the bundled SQLite fork against `electron.headers` past nixpkgs' `node-gyp` wrapper, `patchelfUnstable` for `drag.node`, the Electron-major guard, how system-audio capture works on Linux (default-output monitor, tested), what doesn't work, and the feed-driven updater
 - [`docs/local-llm.md`](./docs/local-llm.md) — the local model server (`dedsm.localLlm`): llama.cpp's router behind `services.llama-cpp`, loading and idle unloading, how to call it, adding and updating models through `models.json`, why they're in the Nix store, and the service environment the router needs
 - [`docs/hex.md`](./docs/hex.md) — Hex local voice dictation from its own flake: the cleanup flow (Labs toggles, the two-model `cleanup` transform and its rules, its cold and warm timings, why the term list isn't a set of replacements, the trust prompt, why Nix copies the transform rather than linking it, and why streaming and OpenCode don't help), why the input is pinned to a release tag and follows `unstable` (26.05's Rust is too old), the Hyprland keys (toggle, not hold, and why the key in Hex's Settings does nothing), Annotate and how it differs from `dms-screencast`, the declared settings (Parakeet Unified English, terminal paste, mic released when idle), why the live text lab needs a streaming model, the `hex-model` download service, the "Speakers (loopback)" device (a `pw-loopback` service plus an ALSA entry in `~/.asoundrc`, because Hex's list shows ALSA devices only), why models stay out of the Nix store, and what Dux Shell does and doesn't do for it
+- [`docs/share-picker.md`](./docs/share-picker.md) — the macOS-style screen share overlay (`dedsm.sharePicker`) that replaces `hyprland-share-picker`: how xdph runs it and what it must print, why keyboard focus is on demand, the fallback to the stock picker, repeat prompts, and `share-picker --preview`
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB RAM, suspend-then-hibernate settings, why `boot.resumeDevice` must be set explicitly with a systemd initrd, `pm_async=0` resume workaround
 
 Remember the mandate at the top of this file: these all need to stay current.

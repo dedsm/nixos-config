@@ -22,5 +22,6 @@
     ./cli-notify
     ./linux-desktop
     ./hex
+    ./share-picker
   ];
 }

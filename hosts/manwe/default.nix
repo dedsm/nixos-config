@@ -61,6 +61,7 @@
       {
         imports = [ ../../users/david/nixos.nix ];
         dedsm.hyprland.enable = true;
+        dedsm.sharePicker.enable = true;
         dedsm.hex = {
           enable = true;
           cleanup.enable = true;

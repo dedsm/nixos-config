@@ -403,7 +403,7 @@ The recorder is **gpu-screen-recorder**, encoding H.264 on the GPU. H.264 is set
 `auto` may choose HEVC, which browsers and Slack do not play, and gsr's own man page lists black bars
 with HEVC/AV1 on AMD. It was chosen over wl-screenrec for the window entry alone:
 
-- **Window** is `-w portal`. xdg-desktop-portal-hyprland's share dialog picks the window, and the
+- **Window** is `-w portal`. xdg-desktop-portal-hyprland's picker ([`docs/share-picker.md`](./share-picker.md)) picks the window, and the
   capture is tied to that window, not to a rectangle, so it keeps recording it across workspaces
   and moves. A geometry-based recorder, the only kind wl-screenrec is, would record whatever ended up
   in the rectangle the window occupied when picked. Expect a hidden window to freeze on its last
