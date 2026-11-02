@@ -119,12 +119,12 @@ Debugging: `systemctl --user status hex.service`, `journalctl --user -u hex.serv
 
 ## Updating
 
-The input is pinned to a release tag (`github:anomalyco/hex/v3.1.2`) because the default branch is
+The input is pinned to a release tag (`github:anomalyco/hex/v3.2.0`) because the default branch is
 `dev`, Hex's newest development builds. `nix flake update` therefore won't move it: change the tag in
 `flake.nix`, then run `nix flake update hex`. Hex's in-app updater doesn't touch a Nix install.
 
-The input follows this repo's `unstable`, not `nixpkgs`, because v3.1.2 needs Rust 1.97 and 26.05 has
-1.95. Don't leave it on Hex's own pinned nixpkgs: Hex's docs warn that it can then end up on an older
+The input follows this repo's `unstable`, not `nixpkgs`, because Hex needs a newer Rust than 26.05's
+1.95 (v3.1.2 needed 1.97). Don't leave it on Hex's own pinned nixpkgs: Hex's docs warn that it can then end up on an older
 glibc than the system's graphics drivers need, find no Vulkan adapter, and not open its window. `unstable`
 avoids that because its glibc is at least as new as the one the drivers are built against.
 
@@ -135,8 +135,7 @@ usually means another rebuild, not only bumping Hex's tag.
 ## Privacy
 
 Audio stays on this machine. Text can leave it only through Hex's optional OpenCode rewrite, which isn't
-configured here. Custom transforms can't reach the network or run programs on v3.1.2; `fetch` and
-`node:child_process`, behind a trust prompt, arrive in v3.2.0. Hex's `dev` docs already describe them, so
-check `hex commands check` rather than those docs for what the pinned version allows. Three things persist locally: History (7
-days by default), Hex's diagnostic logs (currently unbounded, and not stopped by turning History off),
+configured here, or through a custom transform in `~/.config/hex/hex.config.ts`, which this repo doesn't
+manage. Since v3.2.0 a transform can use `fetch` and `node:child_process`, but only once its config is
+allowed at a trust prompt, which asks again after any edit to it. Three things persist locally: History (7 days by default), Hex's diagnostic logs (currently unbounded, and not stopped by turning History off),
 and transcripts in the Dux Shell clipboard history, because Hex pastes through the clipboard.
