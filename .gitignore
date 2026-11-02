@@ -13,3 +13,6 @@ modules/common/users/common/.DS_Store
 # Dynamic-DNS credentials — must never be committed (see modules/nixos/ddclient)
 ddclient.conf
 ddclientPassword
+
+# Scratch space for working notes and patches; never committed
+tmp/
