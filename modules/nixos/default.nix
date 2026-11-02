@@ -16,6 +16,7 @@
     ./peripherals
     ./fingerprint-policy
     ./fwupd
+    ./local-llm
     ./ddclient
     ./dms
   ];

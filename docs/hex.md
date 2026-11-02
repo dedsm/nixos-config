@@ -36,9 +36,12 @@ declared stays editable in Hex's window, and `settings.json` stays writable. An 
 value makes the whole apply fail with a warning, without failing the switch, so check the activation
 output after adding one.
 
-- **`model = "parakeet_v3"`**: 25 languages, detected from the audio, 740 MB. Hex's default,
-  Parakeet Unified English, is English-only but more accurate on English and streams. Hex's catalogue
-  gives 1.60% against 1.94% word error on its English benchmark.
+- **`model = "parakeet_unified_en"`**: Hex's default, 730 MB, English only. It streams, which
+  [live text](#live-text) needs, and a streamed dictation finishes in about 200 ms after the keypress
+  instead of being transcribed whole (32 s for a 107 s clip on Parakeet v3). Of the catalogue's two
+  streaming models it is the more accurate: 1.60% word error on Hex's English benchmark, against 3.05%
+  for Nemotron 3.5 ASR. Nemotron is the one to pick if dictation needs other languages (27), and
+  Parakeet v3 (25 languages, 1.94%) if those matter more than live text.
 - **`paste_with_shift = true`**: Hex sends `Ctrl+Shift+V` instead of `Ctrl+V`, because foot pastes on
   `Ctrl+Shift+V` and passes `Ctrl+V` through to the program inside. Hex has one paste key for every
   app, so a target that doesn't bind `Ctrl+Shift+V` won't paste. The text is on the clipboard for
@@ -48,6 +51,73 @@ output after adding one.
   dictation can start instantly with pre-roll. That holds the audio device awake and keeps a Bluetooth
   headset on its call profile. The cost is a slower start and no pre-roll, so wait a moment before
   speaking.
+
+## Live text
+
+The Labs toggle `live-text` (`hex labs on live-text`) shows provisional words beside the overlay while
+recording. It isn't declared here, so it stays a choice made in Hex and is kept in `settings.json`.
+
+The toggle alone does nothing unless the selected model streams: with an offline model it stays on, no
+words appear, and the log shows no error. The model picker tags the ones that can with "Streams". To
+check, `hex logs --process` should show `source="stream"` and `finished live stream` with a non-zero
+`partials` count for each dictation. `source="offline"` means no stream ran. On manwe the text changed
+every two seconds or so. The text shown is never pasted: the final transcript replaces it.
+
+## Cleanup
+
+`dedsm.hex.cleanup.enable` removes fillers, repeats and false starts from each dictation and fixes misheard
+technical names, on this machine. It needs the [local model server](./local-llm.md) (`dedsm.localLlm`), and
+evaluation fails without it. A dictation goes through:
+
+1. **Hex's Labs toggles**, declared on: `spoken-formatting` turns "open quote", "close quote" and "new line"
+   into characters, and `filler-words` removes "um" and "uh".
+2. **Cleanup 1**, a small model trained for dictation: fillers, repeats, spoken corrections like "no wait", and
+   punctuation. It has no instructions to tune, only `text: ...` and `out:`.
+3. **The fixed rules**: "flake dot nix" to `flake.nix`, "my underscore variable" to `my_variable`, a spoken path
+   to `lib/pkgs.nix`, and repeats like "the the".
+4. **Gemma 4 E4B**, with a prompt and a short term list, fixing only misheard names: "knicks OS" to NixOS.
+5. **The fixed rules again**, in case Gemma undid them.
+
+Steps 2 to 5 are the `cleanup` transform, `modules/home/hex/hex.config.ts`. Each line is handled separately, so a
+spoken "new line" survives.
+
+**Why two models.** Tested alone, Cleanup 1 was fast and good at fillers and punctuation but left names like
+"knicks" alone, and Gemma fixed names but left long sentences unpunctuated. Why the rules run before Gemma as well:
+it rewrote `my underscore variable` into `my_ variable` otherwise.
+
+**The term list is not a set of replacements.** It was: with `flake.nix` and `llama-server` on it, Gemma turned
+"knicks flake update" into `flake.nix flake update` and "Lama service" into `llama-server`. So the prompt now says
+never to swap a name for a different one, and the list holds plain names. Keep it short and general. It goes in
+every request, and a word that keeps coming out wrong is better fixed by the prompt than by a rule per word.
+
+**Timing, on the 890M.** A dictation of a sentence or two takes about 1.4 s after transcription when both models
+are loaded, 0.7 s to 3.5 s across the samples tried. With the models unloaded, or waking from idle sleep, it's about
+5.5 s, and about 7.3 s with Gemma also out of the disk cache. Those happen once, on the first dictation after
+[4 hours idle](./local-llm.md#loading-and-unloading).
+
+**It can fail safely.** Every pass is optional. If one fails, the text carries on without it, with a log line
+starting `cleanup:`. An answer whose length is implausible is discarded, which Cleanup 1 needs on very short input:
+"um we need to to fix it" came back empty. Past 25 s the remaining passes are skipped, so Hex's 30-second transform
+limit doesn't throw away work already done.
+
+**It's still models.** "iGPU" comes back as "GPU" and "home manager" as "HomeManager", both from Cleanup 1. Spelling
+something out letter by letter doesn't survive Gemma. Live text isn't cleaned: the overlay shows raw words, and the
+pasted text is the cleaned version.
+
+**Streaming wouldn't help.** Hex's `fetch` reads a response whole, and a transform returns one finished string. The
+paste has to wait for the final text anyway.
+
+**The trust prompt.** A transform that uses `fetch` needs one approval in Hex's Output pane, pinned to a hash of the
+config. Until then both models are skipped, while the fixed rules still run. Changing `hex.config.ts` in any way asks
+again. Nix can't answer it, by design: a config can't approve itself.
+
+**Nix owns these.** Activation copies `hex.config.ts` over `~/.config/hex/hex.config.ts`, so add transforms in the
+repo. It's a copy and not a `home.file` link because Hex's watcher skips symlinks, and Hex refreshes the files beside
+it, so the folder has to stay writable. `dictation_processing.default_mode` is declared whole, so corrections added
+in the Output pane are lost on the next switch.
+
+**Why not OpenCode.** Hex's OpenCode option is one call to a one-shot route per dictation, without an agent session,
+so it would add a service and no passes. A transform can make as many calls as it likes.
 
 ## Models
 
@@ -63,15 +133,16 @@ a connection: offline, the first attempt fails and the 60-second retry takes ove
 new model with `systemctl --user start hex-model`, or at the next login. Old models stay on disk until
 removed with `hex model` or in Settings.
 
-**The first enable can select the wrong model.** On manwe's first switch `hex-model` started
-just before `hexSettings` applied the declared settings, and it downloaded Hex's default. Hex
-then ended up on Parakeet Unified English instead of v3, either from that or from its one-time
-`streaming-english-model` migration, which moves English dictation to that model once it is
-installed. The migration is recorded as done in `settings.json`, so this was fixed once with
-`hex model install parakeet_v3`. Check `hex settings get transcription.model` on a new machine.
+**The selected model can drift on a first enable.** `hex-model` can start just before `hexSettings`
+applies the declared settings, and so download Hex's default. Hex also has a one-time
+`streaming-english-model` migration, which moves English dictation to Parakeet Unified English once it
+is installed. Both now land on the declared model, but declaring a different one means checking
+`hex settings get transcription.model` on a new machine.
+
+`hex model use` only lasts until the next switch, because activation applies the declared model again.
 
 Nix could own the files instead, with `fetchurl` and `xdg.dataFile` symlinks into the models directory.
-That isn't done here: each model would add 740 MB to the store, the pins would have to track Hex's on
+That isn't done here: each model would add 730 MB to the store, the pins would have to track Hex's on
 every update, and it gains little integrity over Hex's own check.
 
 ## Transcribing speaker audio
@@ -98,8 +169,9 @@ pw-record -P stream.capture.sink=true --rate 16000 --channels 1 --format s16 spe
 hex model transcribe speakers.wav
 ```
 
-For live text, Hex's documented `/streams` API accepts 16 kHz mono from any source, but nothing here
-implements a client for it.
+With **Speakers (loopback)** selected, [live text](#live-text) shows what the speakers are playing as it
+plays. That still occupies dictation: Hex's documented `/streams` API accepts 16 kHz mono from any source
+without touching the selection, but nothing here implements a client for it.
 
 ## Dux Shell
 
@@ -135,7 +207,7 @@ usually means another rebuild, not only bumping Hex's tag.
 ## Privacy
 
 Audio stays on this machine. Text can leave it only through Hex's optional OpenCode rewrite, which isn't
-configured here, or through a custom transform in `~/.config/hex/hex.config.ts`, which this repo doesn't
-manage. Since v3.2.0 a transform can use `fetch` and `node:child_process`, but only once its config is
-allowed at a trust prompt, which asks again after any edit to it. Three things persist locally: History (7 days by default), Hex's diagnostic logs (currently unbounded, and not stopped by turning History off),
+configured here, or through a custom transform. Since v3.2.0 a transform can use `fetch` and
+`node:child_process`, but only once its config is allowed at a trust prompt, which asks again after any edit
+to it. The one declared here calls only the [local model server](./local-llm.md), on loopback. Three things persist locally: History (7 days by default), Hex's diagnostic logs (currently unbounded, and not stopped by turning History off),
 and transcripts in the Dux Shell clipboard history, because Hex pastes through the clipboard.

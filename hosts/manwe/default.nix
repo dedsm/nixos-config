@@ -34,6 +34,7 @@
       users = [ "david" ];
     };
     fwupd.enable = true;
+    localLlm.enable = true;
     ddclient.enable = true;
     dms.enable = true;
   };
@@ -60,7 +61,10 @@
       {
         imports = [ ../../users/david/nixos.nix ];
         dedsm.hyprland.enable = true;
-        dedsm.hex.enable = true;
+        dedsm.hex = {
+          enable = true;
+          cleanup.enable = true;
+        };
         home.packages = [
           pkgs.unstable.slack # unfree (lib/pkgs.nix)
           pkgs.local.granola # unfree (lib/pkgs.nix)

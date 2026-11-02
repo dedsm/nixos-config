@@ -3,11 +3,16 @@
 {
   config,
   lib,
+  osConfig,
   pkgs,
   ...
 }:
 let
   cfg = config.dedsm.hex;
+
+  transforms = pkgs.replaceVars ./hex.config.ts {
+    port = toString osConfig.services.llama-cpp.port;
+  };
 
   # A PipeWire source carrying whatever the default output plays. Passive, so
   # it doesn't keep the output awake. The low priority keeps WirePlumber from
@@ -19,15 +24,25 @@ let
   '';
 in
 {
-  options.dedsm.hex.enable = lib.mkEnableOption "Hex local voice dictation";
+  options.dedsm.hex = {
+    enable = lib.mkEnableOption "Hex local voice dictation";
+    cleanup.enable = lib.mkEnableOption "dictation cleanup through the local model server";
+  };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = cfg.cleanup.enable -> osConfig.dedsm.localLlm.enable;
+        message = "dedsm.hex.cleanup needs dedsm.localLlm on the host.";
+      }
+    ];
+
     programs.hex = {
       enable = true;
       autostart = true;
-      # Parakeet v3 rather than Hex's English-only default: 25 languages,
-      # detected from the audio.
-      model = "parakeet_v3";
+      # English only, but Labs' live text needs a model that streams, and this
+      # is the more accurate of the two that do. Parakeet v3 doesn't stream.
+      model = "parakeet_unified_en";
       installModel = true;
       settings = {
         # foot pastes on Ctrl+Shift+V and sends Ctrl+V to the program inside.
@@ -37,8 +52,42 @@ in
         # the audio device awake and keeps a Bluetooth headset on its call
         # profile.
         release_microphone_while_idle = true;
+      }
+      // lib.optionalAttrs cfg.cleanup.enable {
+        # Spoken "open quote" and "new line", which the model would otherwise
+        # leave as words, and the fillers it would have to spend time on.
+        "labs.spoken_formatting" = true;
+        "labs.filler_words" = true;
+        # Replaces what the Output pane holds, so corrections belong here.
+        "dictation_processing.default_mode" = {
+          name = "Global";
+          applications = [ ];
+          browser_hosts = [ ];
+          post_processing = {
+            enabled = false;
+            deadline_seconds = 30;
+            model = null;
+            variant = null;
+            prompt = "Rewrite the transcript into clear, natural text while preserving the speaker's intended meaning.";
+          };
+          replacements = [ ];
+          transformations = [ "cleanup" ];
+        };
       };
     };
+
+    # Copied, not linked: Hex's file watcher skips symlinks, so a linked config
+    # wouldn't reload, and home.file would refuse Hex's own starter file. Only
+    # when it differs, so a switch that changes nothing leaves it alone. Before
+    # hexSettings, so the transform exists when the settings select it.
+    home.activation.hexTransforms = lib.mkIf cfg.cleanup.enable (
+      lib.hm.dag.entryBetween [ "hexSettings" ] [ "writeBoundary" ] ''
+        target=${lib.escapeShellArg "${config.xdg.configHome}/hex/hex.config.ts"}
+        if ! ${pkgs.diffutils}/bin/cmp -s ${transforms} "$target"; then
+          run ${pkgs.coreutils}/bin/install -D -m 644 ${transforms} "$target"
+        fi
+      ''
+    );
 
     # Hex's Microphone list holds ALSA devices only, so the PipeWire source
     # needs an ALSA device naming it before it can be picked there.

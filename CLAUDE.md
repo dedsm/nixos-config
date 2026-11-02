@@ -61,6 +61,7 @@ flake.nix                # Inputs, each host's system config and Home Manager us
 │   │   ├── laptop/ performance/ gnome-services/ gnome-programs/
 │   │   ├── hyprland/ greetd/ bluetooth/ printing/ scanning/ fingerprint-policy/
 │   │   ├── virtualisation/ onepassword/ gnupg/ peripherals/ fwupd/ ddclient/
+│   │   ├── local-llm/          # llama.cpp router on loopback; models pinned in models.json
 │   │   └── dms/                # DankMaterialShell (Dux Shell since 2.0): package, PAM stack, geoclue entry
 │   └── darwin/              # Darwin system-level modules
 │       ├── default.nix       # macOS system defaults
@@ -322,8 +323,9 @@ The runner collects two kinds of updater and needs no list of its own for the fi
   package is all that's needed for the runner to pick it up.
 - **`scripts/updaters/update-<name>.sh`** — for things that aren't packages in `pkgs/`.
   The directory *is* the registry: any executable script matching that name is discovered
-  and exposed as `<name>`. Currently just `claude-code`, which is pinned by storing
-  upstream's release manifest (`manifest.zst.json`) verbatim and feeding it back through
+  and exposed as `<name>`. Currently `local-llm-models`, which moves each model in
+  `modules/nixos/local-llm/models.json` to its Hugging Face repo's newest commit and hash, and
+  `claude-code`, which is pinned by storing upstream's release manifest (`manifest.zst.json`) verbatim and feeding it back through
   nixpkgs' `manifest` package argument — a whole JSON file, not a hash in a `.nix` file, so
   `nix-update` can't touch it; nixpkgs' own `claude-code` uses a bespoke `update.sh` for the
   same reason.
@@ -468,7 +470,8 @@ ls -la /nix/var/nix/profiles/system-*-link
 - [`docs/login-flow.md`](./docs/login-flow.md) — the DMS greeter as the auth gate (and why it beat autologin plus a boot lock), the fprintd/polkit fingerprint policy (Apple's Touch ID conditions, mapped) and why it can't live in PAM, gnome-keyring PAM unlock, boot-speed rationale
 - [`docs/performance.md`](./docs/performance.md) — the `dedsm.performance` module: sched_ext/`scx_lavd`, ananicy-cpp with CachyOS rules, writeback sysctls sized for 128 GiB, and what was deliberately *not* ported from CachyOS
 - [`docs/granola.md`](./docs/granola.md) — Granola (meeting notes) repackaged from the macOS auto-update zip: the platform-label patch the API needs, why `ELECTRON_FORCE_IS_PACKAGED` and the `process.resourcesPath` rewrite are needed (dev mode otherwise registers `granola-dev://`), rebuilding the bundled SQLite fork against `electron.headers` past nixpkgs' `node-gyp` wrapper, `patchelfUnstable` for `drag.node`, the Electron-major guard, how system-audio capture works on Linux (default-output monitor, tested), what doesn't work, and the feed-driven updater
-- [`docs/hex.md`](./docs/hex.md) — Hex local voice dictation from its own flake: why the input is pinned to a release tag and follows `unstable` (26.05's Rust is too old), the Hyprland keys (toggle, not hold, and why the key in Hex's Settings does nothing), the declared settings (Parakeet v3, terminal paste, mic released when idle), the `hex-model` download service, the "Speakers (loopback)" device (a `pw-loopback` service plus an ALSA entry in `~/.asoundrc`, because Hex's list shows ALSA devices only), why models stay out of the Nix store, and what Dux Shell does and doesn't do for it
+- [`docs/local-llm.md`](./docs/local-llm.md) — the local model server (`dedsm.localLlm`): llama.cpp's router behind `services.llama-cpp`, loading and idle unloading, how to call it, adding and updating models through `models.json`, why they're in the Nix store, and the service environment the router needs
+- [`docs/hex.md`](./docs/hex.md) — Hex local voice dictation from its own flake: the cleanup flow (Labs toggles, the two-model `cleanup` transform and its rules, its cold and warm timings, why the term list isn't a set of replacements, the trust prompt, why Nix copies the transform rather than linking it, and why streaming and OpenCode don't help), why the input is pinned to a release tag and follows `unstable` (26.05's Rust is too old), the Hyprland keys (toggle, not hold, and why the key in Hex's Settings does nothing), the declared settings (Parakeet Unified English, terminal paste, mic released when idle), why the live text lab needs a streaming model, the `hex-model` download service, the "Speakers (loopback)" device (a `pw-loopback` service plus an ALSA entry in `~/.asoundrc`, because Hex's list shows ALSA devices only), why models stay out of the Nix store, and what Dux Shell does and doesn't do for it
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB RAM, suspend-then-hibernate settings, why `boot.resumeDevice` must be set explicitly with a systemd initrd, `pm_async=0` resume workaround
 
 Remember the mandate at the top of this file: these all need to stay current.
