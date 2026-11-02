@@ -194,16 +194,20 @@ and ffmpeg. Without them a capture fails at once with `could not load libpipewir
 the package to add them, which doesn't recompile Hex. Reported as [#974](https://github.com/anomalyco/hex/issues/974): drop the wrapper if a later Hex release ships them.
 
 Hex's default key, F9, belongs to Dux Shell here, and Hyprland's portal wouldn't honour a key set in Hex anyway, so the
-keys are Hyprland binds. They're toggles because holding a key to draw needs a release event, which Lua binds can drop.
+keys are Hyprland binds. They're toggles because holding a key to draw needs a release event: with a Lua bind to
+`hl.dsp.global` on Hyprland 0.55.4, releasing the key did nothing until the next tap.
 
-Recording works on manwe, with VA-API encoding from DMA-BUFs: `Recording 2560x1440 of 3840x2160 (Screen, DMA-BUF)`.
+Recording works on manwe from DMA-BUFs, apparently with VA-API (the file has no x264 marker, and the log names no encoder).
 
-**Drawing doesn't work on Hyprland as of v3.2.0**, reported as [#975](https://github.com/anomalyco/hex/issues/975). The pen lights up in the capsule, but the cursor doesn't change and
-clicks go to the app underneath, and the capture has 0 strokes. The `Hex ink` layer is there, full screen on the right
-monitor, so it isn't taking the pointer. Hex makes it click-through and asks for input regions when the pen turns on.
-Rune, its UI library, sets those regions without committing them, leaving that to the next presented frame, so one
-possible cause is that the frame never comes while nothing is drawn. That's from reading the code and isn't confirmed.
-A narrated capture still works without ink.
+**Drawing is only partly right on v3.2.0.** Recording follows what's picked in the portal, but the pen doesn't, in three ways:
+
+- **It stays on the monitor where the capture started**, at the top left, whatever was picked. Clicks elsewhere reach the app underneath, which looks like the pen not working. The workaround is to start the capture on the screen being shared.
+- **It uses the wrong scale.** Rune takes a layer surface's scale from `wl_surface.preferred_buffer_scale`, an integer, so 1.5 and 1.33 become 2 and the pen's area shrinks: only the top-left 1920x1080 of the 4K screen works.
+- **Saved ink is offset by the bar**, because the layer starts below it, so strokes appear doubled in a screen recording.
+
+These are reported with tested patches as [#999](https://github.com/anomalyco/hex/issues/999) (scale and bar offset) and [#1000](https://github.com/anomalyco/hex/issues/1000) (target). The second matches the stream's size against Hyprland's monitors and windows, since the portal doesn't say what was picked: xdph reports a stream's position as 0,0. Neither patch is part of this repo. Live ink never shows over the bar, and the pen cursor never appears, because Rune maps custom cursors to the default shape on layer surfaces.
+
+The portal's picker floats (`float-share-picker` in `modules/home/hyprland`). Tiled, it shrinks the windows beside it, so a window picked on that screen starts its stream at the wrong size.
 
 ## Dux Shell
 

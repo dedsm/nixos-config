@@ -301,6 +301,9 @@ with lib;
           -- general:no_border_on_floating.
           hl.window_rule({ name = "float-picture", match = { title = "^(.*Picture.*)$" }, float = true })
           hl.window_rule({ name = "float-calculator", match = { class = "org.gnome.Calculator" }, float = true })
+          -- Tiled, the portal's picker shrinks the windows beside it, and a window
+          -- picked from that screen starts its stream at the shrunken size.
+          hl.window_rule({ name = "float-share-picker", match = { class = "^(hyprland-share-picker)$" }, float = true })
           hl.window_rule({ name = "noborder-floating", match = { float = true }, border_size = 0 })
         '';
       };
