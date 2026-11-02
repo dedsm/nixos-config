@@ -2,6 +2,7 @@
 # (registered in modules/common). x86_64-linux only. See docs/hex.md.
 {
   config,
+  hex,
   lib,
   osConfig,
   pkgs,
@@ -9,6 +10,27 @@
 }:
 let
   cfg = config.dedsm.hex;
+
+  # Annotate loads libpipewire and libva at run time and runs ffmpeg, and the
+  # flake's wrapper provides none of them, so a capture fails at once. Wrapped
+  # here rather than overridden, because changing the package itself would
+  # recompile Hex. From unstable, as Hex is.
+  package = pkgs.symlinkJoin {
+    name = "hex-with-annotate";
+    paths = [ hex.packages.${pkgs.stdenv.hostPlatform.system}.default ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram $out/bin/hex \
+        --prefix PATH : ${lib.makeBinPath [ pkgs.unstable.ffmpeg-headless ]} \
+        --prefix LD_LIBRARY_PATH : ${
+          lib.makeLibraryPath [
+            pkgs.unstable.libva
+            pkgs.unstable.pipewire
+          ]
+        }
+    '';
+    meta.mainProgram = "hex";
+  };
 
   transforms = pkgs.replaceVars ./hex.config.ts {
     port = toString osConfig.services.llama-cpp.port;
@@ -39,6 +61,7 @@ in
 
     programs.hex = {
       enable = true;
+      inherit package;
       autostart = true;
       # English only, but Labs' live text needs a model that streams, and this
       # is the more accurate of the two that do. Parakeet v3 doesn't stream.
@@ -52,6 +75,26 @@ in
         # the audio device awake and keeps a Bluetooth headset on its call
         # profile.
         release_microphone_while_idle = true;
+        # OpenCode isn't installed, and otherwise every Annotate capture ends by
+        # complaining that it can't be reached. Captures are still copied. The
+        # rest of this object is Hex's defaults, because the key is set whole.
+        "capture.routing" = {
+          agentHost = null;
+          agentOpencode = null;
+          aliases = { };
+          apps = { };
+          autoSend = "rules";
+          delivery = "steer";
+          jev = null;
+          jevApiKey = null;
+          jevRouting = false;
+          refusedRules = [ ];
+          sendCaptures = false;
+          servers = { };
+          sites = { };
+          smartRouting = false;
+          undoWindowSec = null;
+        };
       }
       // lib.optionalAttrs cfg.cleanup.enable {
         # Spoken "open quote" and "new line", which the model would otherwise
@@ -129,6 +172,8 @@ in
       -- Hex dictation (modules/home/hex)
       hl.bind("SUPER + D", hl.dsp.exec_cmd("hex dictation toggle"))
       hl.bind("SUPER + SHIFT + D", hl.dsp.exec_cmd("hex paste-last"))
+      hl.bind("SUPER + A", hl.dsp.exec_cmd("hex annotate toggle"))
+      hl.bind("SUPER + SHIFT + A", hl.dsp.exec_cmd("hex annotate draw"))
     '';
   };
 }

@@ -13,6 +13,8 @@ flake, whose Home Manager module `modules/common` registers for every user. `ded
 | --- | --- |
 | `Super+D` | `hex dictation toggle`: start recording, press again to transcribe and paste |
 | `Super+Shift+D` | `hex paste-last`: paste the last dictation again |
+| `Super+A` | `hex annotate toggle`: start or stop an [Annotate](#annotate) recording |
+| `Super+Shift+A` | `hex annotate draw`: turn its pen on or off, starting a recording if none runs |
 
 Caps Lock is Super on this layout, so `Caps+D` works too.
 
@@ -172,6 +174,36 @@ hex model transcribe speakers.wav
 With **Speakers (loopback)** selected, [live text](#live-text) shows what the speakers are playing as it
 plays. That still occupies dictation: Hex's documented `/streams` API accepts 16 kHz mono from any source
 without touching the selection, but nothing here implements a client for it.
+
+## Annotate
+
+Hex's Annotate records the screen or a window with narration from Hex's microphone and ink drawn on top, and
+writes a bundle for an agent: `recording.mp4`, keyframes, a contact sheet, `scrawl.json`, and a summary with the
+transcript. It's on by default, and it isn't configured here beyond the keys above. It complements
+[`dms-screencast`](./dms.md#screen-recording), which makes full-resolution videos to share. Annotate scales to
+2560 px on the long edge, and its own overlay shows in the recording.
+
+The bundle goes to the clipboard. Pasted into a terminal, it's the summary, which names the contact sheet. Hex can
+also send it to a running OpenCode session, but OpenCode isn't installed here, so `capture.routing` is declared with
+`sendCaptures = false`. Otherwise every capture ends by complaining that it can't reach OpenCode. The key is an
+object set whole, so routing changed in Hex's window is lost on the next switch. `hex annotate list` and `hex annotate
+show` read past captures, which keep their video for 7 days and the rest for 30.
+
+The flake's package doesn't provide what Annotate needs at run time: libpipewire and libva, which it loads itself,
+and ffmpeg. Without them a capture fails at once with `could not load libpipewire-0.3.so.0`. `modules/home/hex` wraps
+the package to add them, which doesn't recompile Hex. Reported as [#974](https://github.com/anomalyco/hex/issues/974): drop the wrapper if a later Hex release ships them.
+
+Hex's default key, F9, belongs to Dux Shell here, and Hyprland's portal wouldn't honour a key set in Hex anyway, so the
+keys are Hyprland binds. They're toggles because holding a key to draw needs a release event, which Lua binds can drop.
+
+Recording works on manwe, with VA-API encoding from DMA-BUFs: `Recording 2560x1440 of 3840x2160 (Screen, DMA-BUF)`.
+
+**Drawing doesn't work on Hyprland as of v3.2.0**, reported as [#975](https://github.com/anomalyco/hex/issues/975). The pen lights up in the capsule, but the cursor doesn't change and
+clicks go to the app underneath, and the capture has 0 strokes. The `Hex ink` layer is there, full screen on the right
+monitor, so it isn't taking the pointer. Hex makes it click-through and asks for input regions when the pen turns on.
+Rune, its UI library, sets those regions without committing them, leaving that to the next presented frame, so one
+possible cause is that the frame never comes while nothing is drawn. That's from reading the code and isn't confirmed.
+A narrated capture still works without ink.
 
 ## Dux Shell
 
