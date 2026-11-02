@@ -21,7 +21,7 @@
     # development builds. Follows unstable because 26.05's Rust is too old for
     # it. See docs/hex.md.
     hex = {
-      url = "github:anomalyco/hex/v3.2.0";
+      url = "github:anomalyco/hex/v3.3.0";
       inputs.nixpkgs.follows = "unstable";
       inputs.home-manager.follows = "home-manager";
     };

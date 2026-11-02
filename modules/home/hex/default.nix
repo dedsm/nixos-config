@@ -11,27 +11,6 @@
 let
   cfg = config.dedsm.hex;
 
-  # Annotate loads libpipewire and libva at run time and runs ffmpeg, and the
-  # flake's wrapper provides none of them, so a capture fails at once. Wrapped
-  # here rather than overridden, because changing the package itself would
-  # recompile Hex. From unstable, as Hex is.
-  package = pkgs.symlinkJoin {
-    name = "hex-with-annotate";
-    paths = [ hex.packages.${pkgs.stdenv.hostPlatform.system}.default ];
-    nativeBuildInputs = [ pkgs.makeWrapper ];
-    postBuild = ''
-      wrapProgram $out/bin/hex \
-        --prefix PATH : ${lib.makeBinPath [ pkgs.unstable.ffmpeg-headless ]} \
-        --prefix LD_LIBRARY_PATH : ${
-          lib.makeLibraryPath [
-            pkgs.unstable.libva
-            pkgs.unstable.pipewire
-          ]
-        }
-    '';
-    meta.mainProgram = "hex";
-  };
-
   transforms = pkgs.replaceVars ./hex.config.ts {
     port = toString osConfig.services.llama-cpp.port;
   };
@@ -61,7 +40,7 @@ in
 
     programs.hex = {
       enable = true;
-      inherit package;
+      package = hex.packages.${pkgs.stdenv.hostPlatform.system}.default;
       autostart = true;
       # English only, but Labs' live text needs a model that streams, and this
       # is the more accurate of the two that do. Parakeet v3 doesn't stream.

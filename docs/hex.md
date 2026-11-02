@@ -189,23 +189,19 @@ also send it to a running OpenCode session, but OpenCode isn't installed here, s
 object set whole, so routing changed in Hex's window is lost on the next switch. `hex annotate list` and `hex annotate
 show` read past captures, which keep their video for 7 days and the rest for 30.
 
-The flake's package doesn't provide what Annotate needs at run time: libpipewire and libva, which it loads itself,
-and ffmpeg. Without them a capture fails at once with `could not load libpipewire-0.3.so.0`. `modules/home/hex` wraps
-the package to add them, which doesn't recompile Hex. Reported as [#974](https://github.com/anomalyco/hex/issues/974): drop the wrapper if a later Hex release ships them.
-
 Hex's default key, F9, belongs to Dux Shell here, and Hyprland's portal wouldn't honour a key set in Hex anyway, so the
 keys are Hyprland binds. They're toggles because holding a key to draw needs a release event: with a Lua bind to
 `hl.dsp.global` on Hyprland 0.55.4, releasing the key did nothing until the next tap.
 
 Recording works on manwe from DMA-BUFs, apparently with VA-API (the file has no x264 marker, and the log names no encoder).
 
-**Drawing is only partly right on v3.2.0.** Recording follows what's picked in the portal, but the pen doesn't, in three ways:
+**Drawing is only partly right on v3.3.0.** Recording follows what's picked in the portal, but the pen doesn't, in three ways:
 
 - **It stays on the monitor where the capture started**, at the top left, whatever was picked. Clicks elsewhere reach the app underneath, which looks like the pen not working. The workaround is to start the capture on the screen being shared.
-- **It uses the wrong scale.** Rune takes a layer surface's scale from `wl_surface.preferred_buffer_scale`, an integer, so 1.5 and 1.33 become 2 and the pen's area shrinks: only the top-left 1920x1080 of the 4K screen works.
-- **Saved ink is offset by the bar**, because the layer starts below it, so strokes appear doubled in a screen recording.
+- **It uses the wrong scale.** Rune takes a layer surface's scale from `wl_surface.preferred_buffer_scale`, an integer, so 1.5 and 1.33 become 2 and the pen's area shrinks: only the top-left 1128x752 of the 1692x1128 laptop screen works. Hex's fix for this ([#1001](https://github.com/anomalyco/hex/pull/1001)) takes the logical size from the portal's `size`, but xdph reports pixels there, so it does nothing here.
+- **It stops at the bar**, because Rune's layer has an exclusive zone of 0. Strokes there don't reach Hex, and the clicks go to Dux Shell.
 
-These are reported with tested patches as [#999](https://github.com/anomalyco/hex/issues/999) (scale and bar offset) and [#1000](https://github.com/anomalyco/hex/issues/1000) (target). The second matches the stream's size against Hyprland's monitors and windows, since the portal doesn't say what was picked: xdph reports a stream's position as 0,0. Neither patch is part of this repo. Live ink never shows over the bar, and the pen cursor never appears, because Rune maps custom cursors to the default shape on layer surfaces.
+These are reported as [#999](https://github.com/anomalyco/hex/issues/999) (scale and bar) and [#1000](https://github.com/anomalyco/hex/issues/1000) (target). For screen picks all three have a fix that needs no Hyprland-specific code, tested on the laptop screen but not part of this repo: xdph 1.4.1 and later send the output's name as `mapping_id`, which finds its `wl_output` and its logical size from `xdg_output`, and a full-screen overlay can use an exclusive zone of -1. Nothing in the portal identifies a picked window, and xdph reports a stream's position as 0,0. The pen cursor never appears, because Rune maps custom cursors to the default shape on layer surfaces.
 
 The stock portal picker, now only the [fallback](./share-picker.md), floats (`float-share-picker` in `modules/home/hyprland`). Tiled, it shrinks the windows beside it, so a window picked on that screen starts its stream at the wrong size.
 
@@ -227,7 +223,7 @@ Debugging: `systemctl --user status hex.service`, `journalctl --user -u hex.serv
 
 ## Updating
 
-The input is pinned to a release tag (`github:anomalyco/hex/v3.2.0`) because the default branch is
+The input is pinned to a release tag (`github:anomalyco/hex/v3.3.0`) because the default branch is
 `dev`, Hex's newest development builds. `nix flake update` therefore won't move it: change the tag in
 `flake.nix`, then run `nix flake update hex`. Hex's in-app updater doesn't touch a Nix install.
 
