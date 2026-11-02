@@ -43,7 +43,7 @@ with lib;
       fi
     '';
 
-    # Refresh gpg-agent's pinentry on every activation.
+    # Refresh gpg-agent's pinentry when an activation changes it.
     #
     # gpg-agent resolves pinentry to a /nix/store path once, at startup. Nothing
     # recycles the agent across a rebuild — the zsh hook above only attaches to
@@ -62,8 +62,30 @@ with lib;
     #            /etc/gnupg/gpg-agent.conf, which the rebuild has just rewritten,
     #            so a SIGHUP is enough: the agent re-reads the file and picks up
     #            the new path. Reloading also stays out of the way of the
-    #            systemd socket activation that owns the agent there, and keeps
-    #            cached passphrases and unlocked ssh keys.
+    #            systemd socket activation that owns the agent there. But SIGHUP
+    #            flushes the agent's whole cache, including the YubiKey's PINs,
+    #            so the next ssh and the next signed commit each prompt again.
+    #            So the reload only happens when it fixes something: when the
+    #            file differs from the copy saved at the last reload. The whole
+    #            file is compared because a reload is also what applies any other
+    #            option in it. No saved copy means reloading once, to be safe. The
+    #            copy lives in the persistent state directory so that the first
+    #            switch after a boot doesn't flush the cache for nothing: an agent
+    #            started since the last activation read the current file anyway.
+    #            The check only runs when activation does, which a switch skips
+    #            if the Home Manager unit is unchanged. A pinentry bump changes
+    #            the unit too in practice, since both come from one package set.
+    #
+    #            A reload that does happen can't restore a PIN, so it asks for
+    #            it straight away instead of in the middle of later work. Before
+    #            reloading, `gpg-card-pins probe` tests each PIN with pinentry
+    #            mode `cancel`, which succeeds silently if it is unlocked and
+    #            fails before anything reaches the card if not, so it can't use
+    #            a retry. Only the PINs that were unlocked are asked for again,
+    #            from a transient user unit so that the switch doesn't wait on
+    #            someone typing. No CLI reports the sign PIN's state, so probing
+    #            and unlocking it each make one discarded signature, which adds
+    #            to the card's signature counter.
     #
     #   Darwin — there is no gpg-agent.conf at all; pinentry is gnupg's built-in
     #            default, compiled into the binary the agent is still executing.
@@ -90,6 +112,53 @@ with lib;
       let
         gpgconf = "${pkgs.gnupg}/bin/gpgconf";
         gpgConnectAgent = "${pkgs.gnupg}/bin/gpg-connect-agent";
+        gpgAgentConf = "/etc/gnupg/gpg-agent.conf";
+        loadedGpgAgentConf = "${config.xdg.stateHome}/gpg-agent.conf.loaded";
+        gpgCardPins = pkgs.writeShellApplication {
+          name = "gpg-card-pins";
+          runtimeInputs = [
+            pkgs.coreutils
+            pkgs.gnupg
+            pkgs.gnused
+          ];
+          text = ''
+            serial=$(gpg-connect-agent --no-autostart 'SCD SERIALNO openpgp' /bye 2>/dev/null \
+              | sed -n 's/^S SERIALNO \([0-9A-F]*\).*/\1/p') || true
+            [ -n "$serial" ] || exit 0
+
+            auth() {
+              [ "$(gpg-connect-agent --no-autostart "OPTION pinentry-mode=$1" \
+                'SCD SERIALNO openpgp' "SCD CHECKPIN $serial" /bye 2>/dev/null \
+                | tail -n 1)" = OK ]
+            }
+
+            sign() {
+              local fpr
+              fpr=$(gpg --batch --no-tty --card-status --with-colons 2>/dev/null \
+                | sed -n 's/^fpr:\([0-9A-F]*\):.*/\1/p') || return 1
+              [ -n "$fpr" ] || return 1
+              printf 'gpg-card-pins' | gpg --batch --no-tty --yes --pinentry-mode "$1" \
+                --local-user "$fpr" --clearsign -o /dev/null 2>/dev/null
+            }
+
+            case "''${1:-}" in
+              probe)
+                if auth cancel; then echo auth; fi
+                if sign cancel; then echo sign; fi
+                ;;
+              unlock)
+                shift
+                for pin in "$@"; do
+                  "$pin" ask || true
+                done
+                ;;
+              *)
+                echo "usage: gpg-card-pins probe | unlock [auth] [sign]" >&2
+                exit 2
+                ;;
+            esac
+          '';
+        };
       in
       if pkgs.stdenv.isDarwin then
         ''
@@ -106,7 +175,23 @@ with lib;
         ''
       else
         ''
-          $DRY_RUN_CMD ${gpgconf} --reload gpg-agent || true
+          if [ -r ${gpgAgentConf} ] \
+            && ! ${pkgs.diffutils}/bin/cmp -s ${gpgAgentConf} "${loadedGpgAgentConf}"; then
+            unlockedPins=""
+            if [ -z "$DRY_RUN_CMD" ]; then
+              unlockedPins=$(${lib.getExe gpgCardPins} probe 2>/dev/null || true)
+            fi
+            if $DRY_RUN_CMD ${gpgconf} --reload gpg-agent \
+              && $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -D -m 0644 \
+                ${gpgAgentConf} "${loadedGpgAgentConf}"; then
+              if [ -n "$unlockedPins" ]; then
+                # shellcheck disable=SC2086 # one word per PIN
+                XDG_RUNTIME_DIR="''${XDG_RUNTIME_DIR:-/run/user/$(${pkgs.coreutils}/bin/id -u)}" \
+                  ${pkgs.systemd}/bin/systemd-run --user --collect --no-block --quiet \
+                  --unit=gpg-card-unlock ${lib.getExe gpgCardPins} unlock $unlockedPins || true
+              fi
+            fi
+          fi
         ''
     );
   };
