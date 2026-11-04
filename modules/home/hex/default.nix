@@ -11,6 +11,20 @@
 let
   cfg = config.dedsm.hex;
 
+  hexUpstream = hex.packages.${pkgs.stdenv.hostPlatform.system}.default;
+
+  # Annotate's pen on Hyprland (docs/hex.md#annotate): open it on the screen
+  # picked in the portal, at that screen's size in points, and over the bar.
+  # The second patch is for Rune, a git dependency, so it goes to the vendored
+  # copy, which the cargo setup hook has already made writable. Hex compiles
+  # from source either way: its flake has no binary cache.
+  hexPackage = hexUpstream.overrideAttrs (old: {
+    patches = (old.patches or [ ]) ++ [ ./annotate-mapping-id.patch ];
+    postPatch = (old.postPatch or "") + ''
+      patch -d "$cargoDepsCopy/rune-0.0.1" -p2 < ${./rune-full-screen-over-bars.patch}
+    '';
+  });
+
   transforms = pkgs.replaceVars ./hex.config.ts {
     port = toString osConfig.services.llama-cpp.port;
   };
@@ -36,11 +50,20 @@ in
         assertion = cfg.cleanup.enable -> osConfig.dedsm.localLlm.enable;
         message = "dedsm.hex.cleanup needs dedsm.localLlm on the host.";
       }
+      {
+        assertion = hexUpstream.version == "3.3.0";
+        message = ''
+          Hex is now ${hexUpstream.version}, and modules/home/hex carries two
+          Annotate patches written for 3.3.0. Check anomalyco/hex#1000: drop
+          them if the new release fixes the pen on Hyprland, otherwise rebase
+          them, then update this version and docs/hex.md#annotate.
+        '';
+      }
     ];
 
     programs.hex = {
       enable = true;
-      package = hex.packages.${pkgs.stdenv.hostPlatform.system}.default;
+      package = hexPackage;
       autostart = true;
       # English only, but Labs' live text needs a model that streams, and this
       # is the more accurate of the two that do. Parakeet v3 doesn't stream.

@@ -195,13 +195,20 @@ keys are Hyprland binds. They're toggles because holding a key to draw needs a r
 
 Recording works on manwe from DMA-BUFs, apparently with VA-API (the file has no x264 marker, and the log names no encoder).
 
-**Drawing is only partly right on v3.3.0.** Recording follows what's picked in the portal, but the pen doesn't, in three ways:
+**Stock v3.3.0 draws wrongly here**, and the module carries two patches for it. Recording follows what's picked in the portal, but unpatched, the pen doesn't, in three ways:
 
-- **It stays on the monitor where the capture started**, at the top left, whatever was picked. Clicks elsewhere reach the app underneath, which looks like the pen not working. The workaround is to start the capture on the screen being shared.
+- **It stays on the monitor where the capture started**, at the top left, whatever was picked. Clicks elsewhere reach the app underneath, which looks like the pen not working.
 - **It uses the wrong scale.** Rune takes a layer surface's scale from `wl_surface.preferred_buffer_scale`, an integer, so 1.5 and 1.33 become 2 and the pen's area shrinks: only the top-left 1128x752 of the 1692x1128 laptop screen works. Hex's fix for this ([#1001](https://github.com/anomalyco/hex/pull/1001)) takes the logical size from the portal's `size`, but xdph reports pixels there, so it does nothing here.
 - **It stops at the bar**, because Rune's layer has an exclusive zone of 0. Strokes there don't reach Hex, and the clicks go to Dux Shell.
 
-These are reported as [#999](https://github.com/anomalyco/hex/issues/999) (scale and bar) and [#1000](https://github.com/anomalyco/hex/issues/1000) (target). For screen picks all three have a fix that needs no Hyprland-specific code, tested on the laptop screen but not part of this repo: xdph 1.4.1 and later send the output's name as `mapping_id`, which finds its `wl_output` and its logical size from `xdg_output`, and a full-screen overlay can use an exclusive zone of -1. Nothing in the portal identifies a picked window, and xdph reports a stream's position as 0,0. The pen cursor never appears, because Rune maps custom cursors to the default shape on layer surfaces.
+These are reported as [#999](https://github.com/anomalyco/hex/issues/999) (scale and bar) and [#1000](https://github.com/anomalyco/hex/issues/1000) (target), and the patches are posted on #1000. Neither needs Hyprland-specific code:
+
+- `annotate-mapping-id.patch` (Hex): xdph 1.4.1 and later send the picked output's name as `mapping_id`, so Hex finds that `wl_output`, opens the pen on it, and takes its size in points from `xdg_output` as the stroke frame. Tested on the laptop screen at 1.33 and on a 4K screen at 1.5 picked from the laptop. Without a name, or with one that matches no output, Hex behaves as stock.
+- `rune-full-screen-over-bars.patch` (Rune): a full-screen overlay uses an exclusive zone of -1, so it covers the bar. It's applied to the vendored copy of Rune in `postPatch`, because Rune is a git dependency.
+
+An assertion fails once the pin moves past 3.3.0, to check whether upstream fixed it. Hex compiles from source anyway (see [Updating](#updating)), so the patches don't add a build.
+
+**Window picks are still wrong, on any portal**: the ScreenCast spec gives `position` for monitor streams only, so nothing says where a picked window is. The pen covers the whole screen, and the frame is the window's size from the screen's top-left corner, so marks are offset by the window's position. The pen cursor never appears, because Rune maps custom cursors to the default shape on layer surfaces.
 
 The stock portal picker, now only the [fallback](./share-picker.md), floats (`float-share-picker` in `modules/home/hyprland`). Tiled, it shrinks the windows beside it, so a window picked on that screen starts its stream at the wrong size.
 

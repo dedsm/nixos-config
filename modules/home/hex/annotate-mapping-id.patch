@@ -1,0 +1,313 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 0e380a9..c9091d9 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -102,7 +102,7 @@ futures-util = { version = "0.3.34", default-features = false, features = ["allo
+ tokio = { version = "1.54.1", features = ["rt", "rt-multi-thread", "time"] }
+ transcribe-cpp = { version = "=0.4.1", features = ["vulkan"] }
+ wayland-client = "0.31.15"
+-wayland-protocols = { version = "0.32.13", features = ["client", "staging"] }
++wayland-protocols = { version = "0.32.13", features = ["client", "staging", "unstable"] }
+ wayland-protocols-wlr = { version = "0.3.12", features = ["client"] }
+ x11-clipboard = "0.9.3"
+ x11rb = { version = "0.14.0", features = ["xkb", "xtest"] }
+diff --git a/crates/capture/src/capture/linux.rs b/crates/capture/src/capture/linux.rs
+index ba44d3b..dcd7e92 100644
+--- a/crates/capture/src/capture/linux.rs
++++ b/crates/capture/src/capture/linux.rs
+@@ -246,6 +246,18 @@ pub fn recorded_screen() -> Option<(u32, u32)> {
+ /// shows the screen is scaled.
+ static RECORDED_POINTS: std::sync::Mutex<Option<(f64, f64)>> = std::sync::Mutex::new(None);
+ 
++/// The output the portal says is being recorded (its `mapping_id`).
++static RECORDED_OUTPUT: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
++
++/// The name of the output being recorded, when the portal says which one it is. A host
++/// drawing over the screen finds that `wl_output` by name, with no desktop-specific calls.
++pub fn recorded_output() -> Option<String> {
++    RECORDED_OUTPUT
++        .lock()
++        .unwrap_or_else(std::sync::PoisonError::into_inner)
++        .clone()
++}
++
+ /// The size of the screen being recorded in the desktop's logical points, as the screen-cast
+ /// portal reported it (Wayland). A host drawing over the screen uses it rather than dividing
+ /// the pixels by its own scale, which a fractional scale (1.5, 1.33) rounds up to a whole
+@@ -278,6 +290,9 @@ pub(super) fn run_sampler(sampler: Sampler) -> Option<super::Movie> {
+     *RECORDED_POINTS
+         .lock()
+         .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
++    *RECORDED_OUTPUT
++        .lock()
++        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+     match recorded {
+         Ok(movie) => movie,
+         Err(error) => {
+@@ -341,9 +356,12 @@ fn record(sampler: &Sampler) -> Result<Option<super::Movie>> {
+             Some((format.width, format.height));
+         let points = logical_screen(cast.size, (format.width, format.height));
+         scrawl_log(format!(
+-            "Screen size from the portal: {:?}, in points: {points:?}",
+-            cast.size
++            "Screen size from the portal: {:?}, in points: {points:?}, output: {:?}",
++            cast.size, cast.mapping_id
+         ));
++        *RECORDED_OUTPUT
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner) = cast.mapping_id.clone();
+         *RECORDED_POINTS
+             .lock()
+             .unwrap_or_else(std::sync::PoisonError::into_inner) = points;
+diff --git a/crates/capture/src/linux/portal.rs b/crates/capture/src/linux/portal.rs
+index 520414d..47f5cd5 100644
+--- a/crates/capture/src/linux/portal.rs
++++ b/crates/capture/src/linux/portal.rs
+@@ -58,6 +58,9 @@ pub struct Cast {
+     pub node: u32,
+     pub size: Option<(i32, i32)>,
+     pub position: Option<(i32, i32)>,
++    /// The portal's `mapping_id`: on xdg-desktop-portal-hyprland, the picked monitor's output
++    /// name. Absent for a window.
++    pub mapping_id: Option<String>,
+     runtime: tokio::runtime::Runtime,
+     connection: Connection,
+     session: OwnedObjectPath,
+@@ -314,6 +317,7 @@ fn start_with(
+         node: 0,
+         size: None,
+         position: None,
++        mapping_id: None,
+         runtime,
+         connection,
+         session,
+@@ -346,6 +350,9 @@ fn start_with(
+     cast.node = node;
+     cast.size = pair("size");
+     cast.position = pair("position");
++    cast.mapping_id = props
++        .get("mapping_id")
++        .and_then(|value| value.try_clone().ok()?.try_into().ok());
+     Ok(cast)
+ }
+ 
+diff --git a/src/capture_host.rs b/src/capture_host.rs
+index caf5c72..bbd8d1e 100644
+--- a/src/capture_host.rs
++++ b/src/capture_host.rs
+@@ -2334,6 +2334,15 @@ fn as_pen(event: scrawl_capture::capture::InputEvent) -> scrawl_capture::capture
+     }
+ }
+ 
++/// The logical size of the output the pen was placed on (`linux::pen_output`).
++#[cfg(target_os = "linux")]
++static PEN_POINTS: Mutex<Option<(f64, f64)>> = Mutex::new(None);
++
++#[cfg(target_os = "linux")]
++pub fn set_pen_points(points: Option<(f64, f64)>) {
++    *PEN_POINTS.lock().unwrap_or_else(|error| error.into_inner()) = points;
++}
++
+ /// A pointer move on the drawing overlay, at `x`, `y` in its points;
+ /// `scale` is its pixels per point (Linux). The capture's target becomes
+ /// the recorded screen in points, so strokes land where they were drawn:
+@@ -2349,7 +2358,8 @@ pub fn draw(x: f32, y: f32, scale: f32) {
+         && scale > 0.0
+         && let Some(source) = ink_source()
+     {
+-        let area = scrawl_capture::capture::recorded_screen_points().map_or(
++        let pen_points = *PEN_POINTS.lock().unwrap_or_else(|error| error.into_inner());
++        let area = pen_points.or_else(scrawl_capture::capture::recorded_screen_points).map_or(
+             [width as f32 / scale, height as f32 / scale],
+             |(width, height)| [width as f32, height as f32],
+         );
+diff --git a/src/linux.rs b/src/linux.rs
+index f5934ed..ccfa284 100644
+--- a/src/linux.rs
++++ b/src/linux.rs
+@@ -1,6 +1,7 @@
+ pub(crate) mod app;
+ pub(crate) mod atspi;
+ pub(crate) mod audio_control;
++pub(crate) mod pen_output;
+ pub(crate) mod background;
+ pub(crate) mod clipboard;
+ pub(crate) mod context;
+diff --git a/src/linux/pen_output.rs b/src/linux/pen_output.rs
+new file mode 100644
+index 0000000..29c52a0
+--- /dev/null
++++ b/src/linux/pen_output.rs
+@@ -0,0 +1,114 @@
++//! Finds an output by name with general Wayland protocols, for the Annotate pen: its
++//! `wl_output` global, to open the overlay there, and its logical size from `xdg_output`,
++//! since an overlay's own scale rounds a fractional one (1.5, 1.33) up to a whole number.
++
++use wayland_client::globals::{GlobalListContents, registry_queue_init};
++use wayland_client::protocol::{wl_output, wl_registry};
++use wayland_client::{Connection, Dispatch, QueueHandle};
++use wayland_protocols::xdg::xdg_output::zv1::client::{zxdg_output_manager_v1, zxdg_output_v1};
++
++#[derive(Debug)]
++pub(crate) struct PenOutput {
++    /// The output's `wl_output` global.
++    pub(crate) global: u32,
++    /// Its size in logical points.
++    pub(crate) points: (f64, f64),
++}
++
++pub(crate) fn find(wanted: &str) -> Option<PenOutput> {
++    let connection = Connection::connect_to_env().ok()?;
++    let (globals, mut queue) = registry_queue_init::<Outputs>(&connection).ok()?;
++    let handle = queue.handle();
++    let manager: zxdg_output_manager_v1::ZxdgOutputManagerV1 =
++        globals.bind(&handle, 1..=3, ()).ok()?;
++    let bound: Vec<_> = globals
++        .contents()
++        .clone_list()
++        .into_iter()
++        .filter(|global| global.interface == "wl_output" && global.version >= 4)
++        .map(|global| {
++            let output = globals.registry().bind::<wl_output::WlOutput, _, _>(
++                global.name,
++                4,
++                &handle,
++                global.name,
++            );
++            let xdg_output = manager.get_xdg_output(&output, &handle, global.name);
++            (output, xdg_output)
++        })
++        .collect();
++    let mut state = Outputs::default();
++    queue.roundtrip(&mut state).ok()?;
++    for (output, xdg_output) in bound {
++        xdg_output.destroy();
++        output.release();
++    }
++    manager.destroy();
++    let _ = queue.roundtrip(&mut state);
++    let (global, _) = state.names.iter().find(|(_, name)| name == wanted)?;
++    let (_, width, height) = state.sizes.iter().find(|(id, _, _)| id == global)?;
++    (*width > 0 && *height > 0).then(|| PenOutput {
++        global: *global,
++        points: (f64::from(*width), f64::from(*height)),
++    })
++}
++
++#[derive(Default)]
++struct Outputs {
++    names: Vec<(u32, String)>,
++    sizes: Vec<(u32, i32, i32)>,
++}
++
++impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for Outputs {
++    fn event(
++        _: &mut Self,
++        _: &wl_registry::WlRegistry,
++        _: wl_registry::Event,
++        _: &GlobalListContents,
++        _: &Connection,
++        _: &QueueHandle<Self>,
++    ) {
++    }
++}
++
++impl Dispatch<wl_output::WlOutput, u32> for Outputs {
++    fn event(
++        state: &mut Self,
++        _: &wl_output::WlOutput,
++        event: wl_output::Event,
++        global: &u32,
++        _: &Connection,
++        _: &QueueHandle<Self>,
++    ) {
++        if let wl_output::Event::Name { name } = event {
++            state.names.push((*global, name));
++        }
++    }
++}
++
++impl Dispatch<zxdg_output_manager_v1::ZxdgOutputManagerV1, ()> for Outputs {
++    fn event(
++        _: &mut Self,
++        _: &zxdg_output_manager_v1::ZxdgOutputManagerV1,
++        _: zxdg_output_manager_v1::Event,
++        _: &(),
++        _: &Connection,
++        _: &QueueHandle<Self>,
++    ) {
++    }
++}
++
++impl Dispatch<zxdg_output_v1::ZxdgOutputV1, u32> for Outputs {
++    fn event(
++        state: &mut Self,
++        _: &zxdg_output_v1::ZxdgOutputV1,
++        event: zxdg_output_v1::Event,
++        global: &u32,
++        _: &Connection,
++        _: &QueueHandle<Self>,
++    ) {
++        if let zxdg_output_v1::Event::LogicalSize { width, height } = event {
++            state.sizes.push((*global, width, height));
++        }
++    }
++}
+diff --git a/src/rune_ui/capture_capsule/ink.rs b/src/rune_ui/capture_capsule/ink.rs
+index 9a52ea0..d85bfd1 100644
+--- a/src/rune_ui/capture_capsule/ink.rs
++++ b/src/rune_ui/capture_capsule/ink.rs
+@@ -181,6 +181,9 @@ pub(crate) struct InkState {
+     /// The target the overlay covers, in global points.
+     placed: Option<[f32; 4]>,
+     overlay: Option<OverlayHandle<InkState>>,
++    /// The output the pen was last placed on (Linux).
++    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
++    located: Option<String>,
+     shown: bool,
+     /// The overlay takes the pointer to draw.
+     drawing: bool,
+@@ -209,6 +212,7 @@ impl InkState {
+             scene,
+             placed: None,
+             overlay: None,
++            located: None,
+             shown: true,
+             drawing: false,
+             pointer: [0.0; 2],
+@@ -222,6 +226,8 @@ fn poll(s: &mut InkState, _now: f64, tx: &mut Tx) -> bool {
+         return false;
+     }
+     s.source = crate::capture_host::ink_source();
++    #[cfg(target_os = "linux")]
++    place_pen(s);
+     let Some(source) = &s.source else {
+         if s.shown {
+             s.shown = false;
+@@ -315,6 +321,26 @@ fn poll(s: &mut InkState, _now: f64, tx: &mut Tx) -> bool {
+     changed
+ }
+ 
++/// Moves the pen to the output the portal says is recorded, once its stream has started,
++/// and back when it ends.
++#[cfg(target_os = "linux")]
++fn place_pen(s: &mut InkState) {
++    let recorded = scrawl_capture::capture::recorded_output();
++    if recorded == s.located {
++        return;
++    }
++    let found = recorded.as_deref().and_then(crate::linux::pen_output::find);
++    tracing::info!(?recorded, ?found, "Annotate pen placed");
++    s.located = recorded;
++    crate::capture_host::set_pen_points(found.as_ref().map(|output| output.points));
++    if let Some(overlay) = &s.overlay {
++        overlay.set_display(match found {
++            Some(output) => rune::DisplayTarget::Native(rune::NativeDisplayId::Wayland(output.global)),
++            None => rune::DisplayTarget::Primary,
++        });
++    }
++}
++
+ /// Told when drawing starts or stops (the capsule lights its pen).
+ static ON_DRAWING: std::sync::OnceLock<Box<dyn Fn(bool) + Send + Sync>> =
+     std::sync::OnceLock::new();

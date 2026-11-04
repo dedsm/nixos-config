@@ -1,0 +1,12 @@
+--- crates/rune/src/platform/layer_shell.rs	2026-11-02 14:19:03.099676881 +0100
++++ crates/rune/src/platform/layer_shell.rs	2026-11-02 21:36:38.583804168 +0100
+@@ -381,6 +381,9 @@
+     }
+ 
+     pub fn place(&mut self, at: Placement) {
++        // A full-screen overlay covers the bars too, so its points are the screen's.
++        let full_screen = matches!(self.options.placement, Some(OverlayPlacement::FullScreen));
++        self.layer.set_exclusive_zone(if full_screen { -1 } else { 0 });
+         match self.options.placement {
+             Some(OverlayPlacement::FullScreen) => {
+                 self.layer.set_size(0, 0);

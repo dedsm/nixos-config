@@ -126,7 +126,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 - [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching, why one owner must have the `color-scheme` dconf key and `gtk-theme` never changes, and how the mode reaches Firefox/Slack, Hyprland, foot and tmux
 - [`docs/login-flow.md`](./docs/login-flow.md) — the DMS greeter as the auth gate, the macOS-modelled fingerprint policy, keyring unlock, boot-speed rationale
 - [`docs/local-llm.md`](./docs/local-llm.md) — the local model server: llama.cpp on loopback, loading models on demand, and adding or updating them through `models.json`
-- [`docs/hex.md`](./docs/hex.md) — Hex, local voice dictation, from its own flake: keys, the local cleanup flow, declared settings, how models are downloaded, and how to update it
+- [`docs/hex.md`](./docs/hex.md) — Hex, local voice dictation, from its own flake: keys, the local cleanup flow, the Annotate patches, declared settings, how models are downloaded, and how to update it
 - [`docs/share-picker.md`](./docs/share-picker.md) — the macOS-style overlay that replaces the portal's screen share picker
 - [`docs/hibernation.md`](./docs/hibernation.md) — s2idle drain floor on 128 GiB, suspend-then-hibernate settings, why `boot.resumeDevice` is set explicitly, resume reliability caveats
 - [`docs/performance.md`](./docs/performance.md) — desktop responsiveness tuning ported from CachyOS: sched_ext (`scx_lavd`), ananicy-cpp with the CachyOS rule set, writeback sysctls sized for 128 GiB, and what was deliberately left out
