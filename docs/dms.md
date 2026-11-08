@@ -42,30 +42,26 @@ as well. If the two inputs are ever bumped separately, check the Qt versions mat
 nix eval --raw .#nixosConfigurations.manwe.pkgs.unstable.qt6.qtbase.version
 ```
 
-One `overrideAttrs` sits on top, carrying one patch: it removes the
-`pkill -HUP -f 'gtk'` that ends `updateGtkIconTheme` in `Common/SettingsData.qml`. It was meant to
-make GTK apps re-read `settings.ini`, but GTK does not handle SIGHUP, so it *kills* every process
+The package is used unpatched. Up to 2.1.0 one `overrideAttrs` removed the
+`pkill -HUP -f 'gtk'` that ended `updateGtkIconTheme` in `Common/SettingsData.qml`. It was meant to
+make GTK apps re-read `settings.ini`, but GTK does not handle SIGHUP, so it *killed* every process
 whose command line contains "gtk" — chiefly `xdg-desktop-portal-gtk`. With `iconThemePerMode` on
 (see [`theme.md`](./theme.md#the-icon-theme-is-a-third-dms-owned-key)) that ran on every light/dark
 transition, at the very moment the portal should have been broadcasting the new `color-scheme`, so
-Firefox missed each change and sat one mode behind — dark in light mode and vice versa. GTK apps
-already get the icon theme live through the portal. It uses `--replace-fail`, so an upstream
-change to the anchor is a build error rather than a silent no-op; the line is still there in 2.0.0.
-Nothing else about the package is patched. (Up to 1.6.2 there were two more, on the fingerprint
-path; 1.6.3 fixed that bug upstream — see
+Firefox missed each change and sat one mode behind — dark in light mode and vice versa. 2.1.1
+dropped the line upstream: the icon theme now reaches GTK through the portal and `settings.ini`
+only, so the patch's `--replace-fail` broke the build and the override went. (Up to 1.6.2 there were
+two more patches, on the fingerprint path; 1.6.3 fixed that bug upstream — see
 [the duty-cycle note below](#the-fingerprint-reader-was-dead-half-the-time).)
 
-**The patch runs in `preBuild`, against the source tree, and then re-runs `make sync-shell`.** As
-of 1.6.x the QML shell is no longer installed as files: nixpkgs builds with upstream's `withshell`
-tag, and `sync-shell` copies `quickshell/` into `core/internal/shellembed/dist` to be `go:embed`ed
-into the `dms` binary. `$out/share/quickshell` does not exist any more, so the `postInstall`
-substitutions these started life as had nothing to bite on — which is exactly how the 1.5.3 → 1.6.2
-bump announced itself, as `substitute(): ERROR: file ... does not exist`. Re-running `sync-shell` is
-safe (it is an `rm -rf` plus a fresh copy) and is what keeps the edit honest: it recomputes the
-`.dankrev` content hash that names the directory the shell extracts itself into at runtime
-(`$XDG_RUNTIME_DIR/dms-shell/<dankrev>/`). Editing the embed dir in place would leave that hash
-stale and let a previously-extracted copy win. The re-run needs a `chmod -R u+w` first, because
-nixpkgs' own `sync-shell` has already left a copy carrying the store's read-only permissions.
+If a patch is ever needed again: as of 1.6.x the QML shell is not installed as files. nixpkgs
+builds with upstream's `withshell` tag, and `sync-shell` copies `quickshell/` into
+`core/internal/shellembed/dist` to be `go:embed`ed into the `dms` binary, so a `postInstall`
+substitution has nothing to bite on. Patch the source tree in `preBuild`, then `chmod -R u+w
+internal/shellembed/dist` (nixpkgs' own `sync-shell` leaves a read-only copy) and re-run `make
+sync-shell`. The re-run recomputes the `.dankrev` content hash that names the directory the shell
+extracts itself into at runtime (`$XDG_RUNTIME_DIR/dms-shell/<dankrev>/`); editing the embed dir in
+place would leave that hash stale and let a previously-extracted copy win.
 
 26.05's module still has v1's feature toggles, each pulling in a helper. Two are built into the 2.0
 binary — unstable's module removed them for that reason — so `enableSystemMonitoring` (a stale

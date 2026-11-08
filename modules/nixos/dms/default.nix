@@ -27,44 +27,14 @@ in
     # 26.05's module still carries the v1 name and v1 feature toggles.
     programs.dms-shell = {
       enable = true;
-      # 26.05 ships 1.4.6; unstable is 2.0.0, renamed `dux-shell`. Upstream's
+      # 26.05 ships 1.4.6; unstable is 2.x, renamed `dux-shell`. Upstream's
       # own flake runs ahead, but mixing its package with this module drops
       # some dependency wiring, so track nixpkgs on both.
       #
-      # One patch on top: it drops a `pkill -HUP -f 'gtk'` that ends every
-      # icon-theme apply — see the comment at the patch and docs/dms.md. (Two
-      # fingerprint patches used to sit here too; 1.6.3 fixed the same bug
-      # upstream, see docs/dms.md.)
-      #
-      # This patches the *source* tree and re-runs `make sync-shell`, rather than
-      # editing the installed tree. As of 1.6.x the QML shell is baked into the
-      # Go binary — nixpkgs builds with the `withshell` tag, and `sync-shell`
-      # copies `quickshell/` into `core/internal/shellembed/dist` for `go:embed`
-      # — so `$out/share/quickshell` no longer exists and a postInstall
-      # substitution has nothing to bite on. `sync-shell` is `rm -rf` plus a
-      # fresh copy, so re-running it after the edit is safe and, importantly,
-      # recomputes the `.dankrev` content hash the shell keys its extracted
-      # copy on; patching the embed dir in place would leave that stale.
-      package = pkgs.unstable.dux-shell.overrideAttrs (old: {
-        preBuild = (old.preBuild or "") + ''
-          # Applying an icon theme ends by SIGHUPing every process whose
-          # command line contains "gtk", meant to make GTK apps re-read
-          # settings.ini. GTK doesn't handle SIGHUP, so it kills them instead —
-          # chiefly xdg-desktop-portal-gtk. With iconThemePerMode that happens
-          # on every light/dark transition, right as the portal should be
-          # announcing the new color-scheme, so Firefox missed each change
-          # and stayed one mode behind. GTK apps get the icon theme live
-          # through the portal anyway.
-          substituteInPlace ../quickshell/Common/SettingsData.qml \
-            --replace-fail "pkill -HUP -f 'gtk' 2>/dev/null || true" "true"
-
-          # nixpkgs' preBuild has already run `make sync-shell` once, and the
-          # copy it left behind carries the store's read-only permissions — so
-          # the `rm -rf` that opens a second run fails without this.
-          chmod -R u+w internal/shellembed/dist
-          make sync-shell
-        '';
-      });
+      # Used unpatched. Up to 2.1.0 this overrode it to drop a
+      # `pkill -HUP -f 'gtk'` that killed the settings portal on every
+      # light/dark transition; 2.1.1 no longer has it. See docs/dms.md.
+      package = pkgs.unstable.dux-shell;
       # Quickshell has to be built against the same Qt as the QML modules the
       # package wraps in (kirigami, qtmultimedia, kimageformats — all from
       # unstable). Stable's 0.3.0 is on Qt 6.11 against unstable's 6.12, and Qt
