@@ -28,9 +28,11 @@
 # See docs/granola.md.
 let
   # Granola bundles a *patched fork* of better-sqlite3-multiple-ciphers (it adds
-  # the `updateHook()` the renderer calls on startup) with its full C++ source
-  # but without binding.gyp. The build file comes from the matching npm release;
-  # the sources stay Granola's. The build checks the two versions agree.
+  # the `updateHook()` the renderer calls on startup), but since 7.749 only its
+  # JS and a macOS binary, no C++ sources. The Linux module is built from the
+  # matching npm release plus ./better-sqlite3-multiple-ciphers-fork.patch, the
+  # fork's changes as diffed from the sources Granola 7.722.1 still bundled.
+  # The build checks the bundled version against this pin.
   sqliteCipher = rec {
     version = "12.9.0";
     src = fetchurl {
@@ -41,14 +43,14 @@ let
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "granola";
-  version = "7.722.1";
+  version = "7.749.1";
 
   # The macOS auto-update payload, which is what the in-app updater installs: a
   # versioned universal .zip (the .dmg on the website is LZFSE-compressed APFS,
   # which needs a recent 7zz). The hash is the feed's own sha512.
   src = fetchurl {
     url = "https://dr2v7l5emb758.cloudfront.net/${finalAttrs.version}/Granola-${finalAttrs.version}-mac-universal.zip";
-    hash = "sha512-XL4qKV1mYnJ7yIAYUwR0/GQLcfBov/wtMxTLHEtv10VXwB/JduQrt2yp2+U8Nu/fnih/THfNsDe/V712ztSDlg==";
+    hash = "sha512-gx0aM2cZ3g2sC0UnDTlZgEBLhLj20D1WV+1uRekYBvULpFWgMCv59WcpOXOHzfAVQ+voD7y0e7TgIr83HMyQ8w==";
   };
 
   nativeBuildInputs = [
@@ -130,7 +132,7 @@ stdenv.mkDerivation (finalAttrs: {
       substituteInPlace "$f" --replace-fail process.resourcesPath "\"$out/share/granola/resources\""
     done
 
-    # Rebuild Granola's SQLite fork from its own sources for Linux.
+    # Build Granola's SQLite fork for Linux: npm's sources with the fork's patch.
     bs3=app/node_modules/better-sqlite3-multiple-ciphers
     bundledSqlite=$(node -p "require('./$bs3/package.json').version")
     if [ "$bundledSqlite" != "${sqliteCipher.version}" ]; then
@@ -138,8 +140,10 @@ stdenv.mkDerivation (finalAttrs: {
       echo "Run scripts/update-packages.sh granola." >&2
       exit 1
     fi
-    tar xzf ${sqliteCipher.src} package/binding.gyp
-    cp package/binding.gyp $bs3/
+    tar xzf ${sqliteCipher.src} package/binding.gyp package/src package/deps
+    patch -d package -p1 < ${./better-sqlite3-multiple-ciphers-fork.patch}
+    rm -rf $bs3/src $bs3/deps
+    cp -r package/binding.gyp package/src package/deps $bs3/
     # nixpkgs' node-gyp wrapper force-sets npm_config_nodedir to its own
     # nodejs, overriding the usual `npm_config_nodedir=''${electron.headers}`
     # (and --nodedir). Node's headers ship a stock sqlite3.h that shadows the

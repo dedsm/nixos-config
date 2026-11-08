@@ -16,5 +16,5 @@ self: super: {
   # callPackage. Granola is proprietary, so it is on unstable's unfree allowlist
   # in lib/pkgs.nix. The Electron major must match the one Granola ships, which
   # the build checks; see docs/granola.md.
-  granola = unstablePkgs.callPackage ./granola { electron = unstablePkgs.electron_44; }; # unfree (lib/pkgs.nix)
+  granola = unstablePkgs.callPackage ./granola { electron = unstablePkgs.electron_45; }; # unfree (lib/pkgs.nix)
 }
