@@ -67,7 +67,11 @@ Add an entry to `models.json`, with `rev` and `hash` left empty:
 
 Then run `scripts/update-packages.sh local-llm-models`, which fills in the pin, and rebuild. The entry's
 name is the name requests use. `preset` takes `llama-server`'s long option names without the dashes.
-A chat model needs `jinja`; Cleanup 1 takes a plain-text prompt and doesn't.
+A chat model needs `jinja`; Cleanup 1 takes a plain-text prompt and doesn't. Both current models set
+`"spec-type": "ngram-simple"`: speculative decoding that drafts tokens from n-grams already in the context instead of
+from a draft model. It costs nothing measurable on short requests and pays off when the answer repeats the prompt,
+which is all Hex's cleanup does — Gemma's pass on long dictations got about 5× faster, with the same output token
+for token (greedy sampling).
 
 Check a model's licence before adding it. It isn't subject to `lib/pkgs.nix`'s unfree allowlist, because
 it's fetched rather than packaged.

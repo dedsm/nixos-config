@@ -17,6 +17,8 @@ const TERMS = [
   "Nix",
   "NixOS",
   "nixpkgs",
+  "OpenTofu",
+  "Proxmox",
   "tmux",
   "useEffect",
   "useState",

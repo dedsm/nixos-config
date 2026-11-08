@@ -7,7 +7,8 @@
     "preset": {
       "ctx-size": 4096,
       "n-gpu-layers": 99,
-      "parallel": 1
+      "parallel": 1,
+      "spec-type": "ngram-simple"
     }
   },
   "gemma": {
@@ -19,7 +20,8 @@
       "ctx-size": 4096,
       "jinja": "on",
       "n-gpu-layers": 99,
-      "parallel": 1
+      "parallel": 1,
+      "spec-type": "ngram-simple"
     }
   }
 }

@@ -54,9 +54,10 @@ in
         assertion = hexUpstream.version == "3.3.0";
         message = ''
           Hex is now ${hexUpstream.version}, and modules/home/hex carries two
-          Annotate patches written for 3.3.0. Check anomalyco/hex#1000: drop
-          them if the new release fixes the pen on Hyprland, otherwise rebase
-          them, then update this version and docs/hex.md#annotate.
+          Annotate patches written for 3.3.0. Drop both: anomalyco/hex#1515
+          (merged after 3.3.0) does what annotate-mapping-id.patch does, and
+          the Rune bar patch is a nice-to-have not worth carrying alone. Then
+          remove hexPackage and this assertion, and update docs/hex.md#annotate.
         '';
       }
     ];

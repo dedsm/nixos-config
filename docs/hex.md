@@ -92,9 +92,14 @@ it rewrote `my underscore variable` into `my_ variable` otherwise.
 never to swap a name for a different one, and the list holds plain names. Keep it short and general. It goes in
 every request, and a word that keeps coming out wrong is better fixed by the prompt than by a rule per word.
 
-**Timing, on the 890M.** A dictation of a sentence or two takes about 1.4 s after transcription when both models
-are loaded, 0.7 s to 3.5 s across the samples tried. With the models unloaded, or waking from idle sleep, it's about
-5.5 s, and about 7.3 s with Gemma also out of the disk cache. Those happen once, on the first dictation after
+**Timing, on the 890M.** A dictation of a sentence or two takes 1 to 2 s after transcription when both models
+are loaded; 100 words take about 4 s, 185 words about 5 s and 470 words (three minutes of speech) about 11 s, split
+roughly evenly between the two passes. Both models run with n-gram speculative decoding (`spec-type` in
+[the presets](./local-llm.md#adding-a-model)), which drafts the next tokens from text already in the context. Each
+pass's answer is mostly a copy of its input, so Gemma reaches about 110 tokens/s on long text instead of 21. Without
+it, 185 words took 12.5 s and 470 words ran past the 25 s budget, so Gemma's pass was skipped; the output is
+identical either way. With the models unloaded, or waking from idle sleep, it's about 5.5 s, and about 7.3 s with
+Gemma also out of the disk cache. Those happen once, on the first dictation after
 [4 hours idle](./local-llm.md#loading-and-unloading).
 
 **It can fail safely.** Every pass is optional. If one fails, the text carries on without it, with a log line
@@ -151,8 +156,10 @@ every update, and it gains little integrity over Hex's own check.
 
 Pick **Speakers (loopback)** in General › Microphone, and dictation transcribes what the default output
 plays instead of your voice. Pick your microphone again to go back: the selection is global, so Hex
-hears one or the other. Meetings, the feature meant for system audio, is switched off outside macOS even
-though the source has a PipeWire capture for it, so `modules/home/hex` builds this from two parts:
+hears one or the other. Meetings (in Labs) records both sides of a call on its own: the selected input as
+"You" and its own `pw-record` of the default output's monitor as "Them", so leave the input on a microphone while
+recording one: with Speakers (loopback) selected, both tracks are the speakers. For dictation, `modules/home/hex` builds
+the loopback from two parts:
 
 - **`hex-speakers-loopback`**, a user service running `pw-loopback`, creates the PipeWire source
   `hex_speakers` from the default output's monitor. It follows the default output, and being passive
@@ -206,7 +213,7 @@ These are reported as [#999](https://github.com/anomalyco/hex/issues/999) (scale
 - `annotate-mapping-id.patch` (Hex): xdph 1.4.1 and later send the picked output's name as `mapping_id`, so Hex finds that `wl_output`, opens the pen on it, and takes its size in points from `xdg_output` as the stroke frame. Tested on the laptop screen at 1.33 and on a 4K screen at 1.5 picked from the laptop. Without a name, or with one that matches no output, Hex behaves as stock.
 - `rune-full-screen-over-bars.patch` (Rune): a full-screen overlay uses an exclusive zone of -1, so it covers the bar. It's applied to the vendored copy of Rune in `postPatch`, because Rune is a git dependency.
 
-An assertion fails once the pin moves past 3.3.0, to check whether upstream fixed it. Hex compiles from source anyway (see [Updating](#updating)), so the patches don't add a build.
+Upstream merged the same approach as `annotate-mapping-id.patch` in [#1515](https://github.com/anomalyco/hex/pull/1515) on 2026-11-08, after 3.3.0, so both patches go with the next release. The bar is still covered only by the Rune patch then (Rune at Hex `main` keeps an exclusive zone of 0), but the pen stopping at the bar is a minor annoyance, not worth a patch on its own. An assertion fails once the pin moves past 3.3.0, as the reminder. Hex compiles from source anyway (see [Updating](#updating)), so the patches don't add a build.
 
 **Window picks are still wrong, on any portal**: the ScreenCast spec gives `position` for monitor streams only, so nothing says where a picked window is. The pen covers the whole screen, and the frame is the window's size from the screen's top-left corner, so marks are offset by the window's position. The pen cursor never appears, because Rune maps custom cursors to the default shape on layer surfaces.
 
