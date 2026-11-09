@@ -20,7 +20,10 @@ session — inside a repo, another repo, or none. Always operate on the absolute
 the current working directory.
 
 Store conventions — bucket structure, page schema, workflows — live in `~/brain/AGENTS.md`, the
-working manual to follow for day-to-day operations. Frontmatter is written and validated by the
+working manual to follow for day-to-day operations. Since v18 it is a short always-loaded core
+plus topic files in `~/brain/.agents/rules/` (Antigravity's rules convention); the core's
+**Topic rules** table says which file to read before which kind of work — read it, whatever the
+harness. Frontmatter is written and validated by the
 Nix-managed **`brain` CLI** (on `PATH`), which owns the schema; prefer it over hand-editing YAML.
 The **canonical** copy of the manual, the CLI, and the store scaffold ship with this skill
 (`templates/` beside this file, and the CLI); `--sync` reconciles a store toward it. How to
@@ -29,12 +32,16 @@ repo's `AGENTS.md` / `.claude/` rules), not here. This skill is the generic mech
 
 ## Procedure
 
-1. **Read** `~/brain/AGENTS.md` (the operating manual: structure, page schema, the `brain` CLI,
-   workflows, guardrails — the source of truth) then run **`brain review`** (the current picture:
+1. **Read** `~/brain/AGENTS.md` (the core of the operating manual: structure, page schema, the
+   `brain` CLI, committing, guardrails, and the index of topic rules — the source of truth), plus
+   the `~/brain/.agents/rules/` file its index names for the work at hand, then run **`brain review`** (the current picture:
    focus, what's live, blocked, overdue, gone quiet, open tasks, pending inbox). Read `index.md`
    when you need the full catalog. (A SessionStart hook already injects **`brain health`**'s
    one-line vitals into every session — if it flagged something, `review` is the detail behind it;
-   if it said the store is behind the remote, `git -C ~/brain pull --rebase` **before** writing.)
+   if it said the store is behind the remote, `git -C ~/brain pull --rebase` **before** writing.
+   The same hook runs **`brain where`** for the session's directory and says whether its project
+   is tracked by a page, undecided, or to be left alone; a harness without the hook runs
+   `brain where` itself once — see `.agents/rules/workspaces.md`.)
 2. **Act** per the matching workflow in `AGENTS.md`, using the `brain` CLI for all frontmatter:
    - **Capture/ingest** new info → process `raw/inbox.md` first if it has entries, then
      `brain new <kind> <slug> --summary "…" [--status …]` (or `brain set` on an existing page)
@@ -67,7 +74,7 @@ repo's `AGENTS.md` / `.claude/` rules), not here. This skill is the generic mech
      to the window (git log + dstask dates as backstops). **If the answer took synthesizing 3+
      pages/systems and lives on no single page, offer to file it back** as a `resources/` page
      with an "Informed by" link list + `verified today` (ask first — never a write as a side
-     effect of a read; see § QUERY in the manual).
+     effect of a read; see `.agents/rules/capture-and-query.md`).
    - **Update status** → `brain set <page> status <value>` / `brain done <page>` (it bumps
      `updated` and stamps `started`/`finished`); **`brain unset <page> <field>`** drops an
      optional field (a closed page sheds its `next`/`attention` this way — `set` refuses an empty
@@ -76,7 +83,7 @@ repo's `AGENTS.md` / `.claude/` rules), not here. This skill is the generic mech
      `brain log "…"` (the commit hook reindexes).
    - **Review** → the recurring pass: `brain review`, then re-verify what's gone quiet, resolve
      contradictions, trim `mocs/now.md` down to judgment only, roll the focus pointer. The goals
-     layer rides this same pass at two longer cadences (§ Goals in the manual is the full
+     layer rides this same pass at two longer cadences (`.agents/rules/goals.md` is the full
      procedure): **weekly**, work `review`'s generated Goals rollup — flip `attention` (at most
      1–2 goals in `focus`), triage stalled work as Reschedule / Delegate / Delete, update `next:`
      lines; **quarterly**, judge every goal by the forced trichotomy (rewrite / archive-as-legacy
@@ -89,7 +96,7 @@ repo's `AGENTS.md` / `.claude/` rules), not here. This skill is the generic mech
      no approval needed; `brain reindex`; flag contradictions). Move `done`/`archived` pages with
      **`brain mv <page> archive/<slug>`** — it rewrites every `[[reference]]` (a hand `mv` breaks
      the path-qualified ones). For an oversized page work the
-     ladder in `AGENTS.md` § LINT — delete what a tool now generates, what duplicates a system of
+     ladder in `.agents/rules/review-and-lint.md` — delete what a tool now generates, what duplicates a system of
      record, and superseded body sections; then collapse accumulated status; **only then** split
      into a hub + children (pin the pre-split commit, move **verbatim by line range**, verify by
      diffing heading sets). A child with **its own lifecycle** (a workstream that can close while
@@ -104,6 +111,17 @@ repo's `AGENTS.md` / `.claude/` rules), not here. This skill is the generic mech
      pages where they appear (a bare name-mention is invisible to the projection). Backlinks on
      demand: `brain links --to <page>`. Person pages are excluded from `index.md` by design —
      they are not orphans.
+   - **File a session** ("put this session in the brain") → a conversation, not a template
+     (`.agents/rules/file-a-session.md`): find where it belongs (`brain where`, then the pages the
+     session actually touched), sort what it produced into the store's homes (decisions, state,
+     reference knowledge, new work, dstask tasks, an event page for the occasion, or nothing),
+     **propose a filing plan with your open questions**, discuss it, then write only what was
+     agreed. The session reference the hook gave (`harness:id`) goes on the anchoring page.
+   - **Workspaces** → tracked: offer a one-line update at checkpoints (commit, PR, decision, end
+     of task), write only on a yes; undecided: ask once at a natural pause — track (which page),
+     ignore, or later — and record it with `brain track <page>` / `brain ignore` /
+     `brain snooze`. Identity follows the repo, not the directory, so every worktree and machine
+     agrees.
    - **Organisations** (v16) → the same shape: `mocs/orgs.md` is the directory, a company that
      recurs across pages gets `brain new resource <slug> --org`, its "Where they appear" cell is
      generated, and you `[[link]]` it where it appears. Event and digest pages are also out of
@@ -119,13 +137,19 @@ repo's `AGENTS.md` / `.claude/` rules), not here. This skill is the generic mech
      a `~/brain` page (frontmatter + body). Work that belongs in an external/team tracker → that
      tracker, per the active workspace's own rules (e.g. its `AGENTS.md` / `.claude/` rules); link
      to it, don't duplicate.
-4. **Commit** after any change:
-   `brain check` first, then `git -C ~/brain add -A && git -C ~/brain commit -m "<concise message>"`
-   (no AI attribution). The pre-commit hook regenerates + stages `index.md` and re-runs
-   `brain check --staged`, rejecting malformed pages; a post-commit hook then pushes to the remote
-   if one is configured, **auto-reconciling** a moved remote with `pull --rebase` + retry. It never
-   forces; only real conflicts stop it (the rebase is aborted, the commit stands) — then reconcile
-   by hand with `git -C ~/brain pull --rebase` and push.
+4. **Commit** after any change — **only the files this session wrote**, because other sessions
+   (any harness, either machine) may be editing the store at the same time:
+   `brain check`, then `brain commit -m "<concise message>" --log "<what changed> — [[page]]" <paths…>`
+   (no AI attribution). Track the paths as you go — every writer prints what it wrote, and
+   `brain mv` lists the destination and each file it rewrote (pass both sides of a move). Never
+   `git add -A` / `git commit -a`. The log entry goes through `--log` because `log.md` is shared:
+   it is written into the staged copy too, so other sessions' uncommitted entries stay theirs. If
+   `brain commit` reports other changes already staged, they belong to another session — leave
+   them, tell the user. The pre-commit hook regenerates `index.md` and the directories **from the
+   staged tree** and re-runs `brain check --staged`; a post-commit hook then pushes, rebasing over
+   a moved remote — unless other uncommitted changes are present, in which case it leaves the
+   commit unpushed rather than touch them. It never forces; on real conflicts reconcile by hand
+   with `git -C ~/brain pull --rebase` and push.
 
 ## Governance — the CLI, schema, and hook are Nix-managed
 
@@ -151,8 +175,9 @@ Run when invoked with `--sync` (or `sync`) — brings this machine's existing `~
 latest conventions after a rebuild shipped a new template/CLI.
 
 1. **Run the verb.** `brain sync --dry-run` to show the plan, then **`brain sync`**. The CLI owns
-   the whole mechanical phase — replace `~/brain/AGENTS.md` (and its `CLAUDE.md` import stub) with
-   the canonical manual, create missing bucket dirs / scaffold files (**never overwriting an existing one**), `normalize`,
+   the whole mechanical phase — replace `~/brain/AGENTS.md` (and its `CLAUDE.md` import stub) and
+   the topic rules in `.agents/rules/` with the canonical manual (deleting rule files the template
+   dropped), create missing bucket dirs / scaffold files (**never overwriting an existing one**), `normalize`,
    `reindex`, untrack newly-ignored files — as one tight commit, and then **stamps in a second
    commit if and only if** no version in the gap is registered in its `JUDGMENT_MIGRATIONS`
    table (it refuses on a dirty tree; commit or stash first). If it stamped: verify the hooks are
@@ -187,7 +212,7 @@ latest conventions after a rebuild shipped a new template/CLI.
      and keep a `kind: project` page tracking its rollout/drift — that is the only branch.
      Show each proposed destination and ask. Then, if adopting the
      goals layer, wire it: create the quarter's goal pages (`brain new goal …`) and set `parent`
-     on the live projects that serve them (§ Goals in the manual). Stamp last, as ever.
+     on the live projects that serve them (`.agents/rules/goals.md`). Stamp last, as ever.
    - **v14 specifically:** *pages hold the design, the tracker holds the standings.* Two backfills,
      and only the first gates the stamp.
      **(a) `progress` — required before stamping.** It is now an error on any page whose `links:`
@@ -222,7 +247,16 @@ latest conventions after a rebuild shipped a new template/CLI.
      **Not required before stamping:** digests (`brain review` lists heavy raw files without one;
      write them as they are next relied on, starting with whatever the agent keeps re-reading), a
      `## Wins` section on a career area, and splitting oversized projects into child projects.
-   - `brain check` to confirm the migrated store is schema-valid; commit the backfill on its own.
+   - **v17 specifically:** *workspaces and concurrent sessions.* For each live project or area
+     whose work happens in a repo or directory, propose its claim — `brain track <page> --dir
+     <repo>`; an **area** claims a repo that several of its projects share, and a project can
+     claim just its subfolder with `--subdir` — show the whole list and ask; repos David wants
+     left alone get `brain ignore --dir <repo>`. Then point out the new commit discipline
+     (`brain commit` with explicit paths). The stamp needs the proposal and David's answer, not
+     every repo claimed — anything left out is simply asked about the first time a session
+     starts there.
+   - `brain check` to confirm the migrated store is schema-valid; commit the backfill on its own
+     (with `brain commit` and its paths, like everything else).
 3. **Stamp last:** `brain version --stamp`, on its own commit, so "did the migration complete" is
    a single visible fact. Never stamp before the backfill lands — `brain sync` refusing to do this
    step itself when judgment was pending is by design, not a failure.

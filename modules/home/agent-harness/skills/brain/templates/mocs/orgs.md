@@ -11,8 +11,8 @@ tags: [orgs]
 
 # Organisations
 
-Directory of organisations this store keeps coming back to — see the People and
-organisations section of `AGENTS.md`. Columns are suggested, not required; empty cells are fine.
+Directory of organisations this store keeps coming back to — see
+`.agents/rules/people-and-orgs.md`. Columns are suggested, not required; empty cells are fine.
 The **Where they appear** column is **generated** by `brain reindex` for every row
 whose first cell links an `[[org-page]]` — don't hand-edit those cells. A row for an
 organisation without a page keeps whatever is typed.

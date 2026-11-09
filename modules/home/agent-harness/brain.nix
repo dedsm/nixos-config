@@ -27,6 +27,8 @@ let
 
   # `brain health`'s one line, plus what the agent should do about it. Shared
   # by both harnesses' SessionStart hooks; only the skill's invocation differs.
+  # (The other half of each hook, `brain where --hook`, is plain text the CLI
+  # writes itself — nothing harness-specific lives in it.)
   healthContext =
     syncHint:
     ''"~/brain store health (from `brain health`): " + $m + "\nOffer its remedy (e.g. \"run brain sync\" -> offer ${syncHint}; oversized log -> offer brain rotate-log) in your first reply, even if the user asked about something else. If they decline or ignore it, drop it for the rest of the session - never nag twice."'';
@@ -40,24 +42,16 @@ in
   # lives in the CLI, so the hook files themselves never need to change.
   #
   # pre-commit gate: regenerate index.md + the directories' generated column
-  # (mocs/people.md, and mocs/orgs.md since v16 — brain.py's DIRECTORIES) from
-  # frontmatter and stage them (so none can drift in a commit — no reliance
-  # on anyone remembering to reindex), then validate the staged pages. Unlike
-  # index.md, a directory is mostly hand-maintained judgment content, so it is
-  # staged only when it had no unstaged edits BEFORE the reindex — an
-  # in-progress hand edit must not be swept into an unrelated commit (and
-  # auto-pushed); the column refresh rides the next clean commit instead.
-  # Separate `git add`s: a store without a directory must still stage index.md.
+  # (mocs/people.md, mocs/orgs.md — brain.py's DIRECTORIES) from the STAGED
+  # tree and stage them (none can drift in a commit), then validate what is
+  # staged. Since v17 the regeneration is `brain reindex --staged`: several
+  # agent sessions may be writing the store at once, and regenerating from the
+  # working tree pulled another session's unsaved pages into this commit's
+  # catalog (where the link gate then rejected them). It updates a working
+  # copy only where that copy had no unstaged edits, so an in-progress hand
+  # edit is never overwritten either.
   preCommitHook = pkgs.writeShellScript "brain-pre-commit" ''
-    clean=
-    for dir in mocs/people.md mocs/orgs.md; do
-      ${git} diff --quiet -- "$dir" 2>/dev/null && clean="$clean $dir"
-    done
-    ${cli}/bin/brain reindex >/dev/null 2>&1 || true
-    ${git} add -- index.md >/dev/null 2>&1 || true
-    for dir in $clean; do
-      ${git} add -- "$dir" >/dev/null 2>&1 || true
-    done
+    ${cli}/bin/brain reindex --staged >/dev/null 2>&1 || true
     exec ${cli}/bin/brain check --staged
   '';
 
@@ -82,7 +76,13 @@ in
     $git remote get-url origin >/dev/null 2>&1 || exit 0
     branch=$($git symbolic-ref --short HEAD 2>/dev/null) || exit 0
     $git push --quiet origin "$branch" 2>/dev/null && exit 0
-    # Push rejected: the remote likely moved. Rebase on top of it and retry.
+    # Push rejected: the remote likely moved. Rebasing needs a clean tree, and
+    # uncommitted changes here are usually ANOTHER session's work in progress
+    # (v17): never stash or touch them — leave the commit for a later push.
+    if ! { $git diff --quiet && $git diff --cached --quiet; }; then
+      echo 'brain: not pushed — the remote moved, and the store has other uncommitted changes (another session?). The next commit made with a clean tree pushes it; `brain health` shows it as unpushed meanwhile.' >&2
+      exit 0
+    fi
     if $git pull --rebase --quiet origin "$branch" >/dev/null 2>&1 \
         && $git push --quiet origin "$branch" 2>/dev/null; then
       echo 'brain: remote had moved — rebased local commit(s) on top and pushed.' >&2
@@ -106,29 +106,51 @@ in
   # `hookSpecificOutput.additionalContext` carries the context injection — so
   # the flag lands in both places from one run. `brain health`'s line is
   # arbitrary text, so jq builds the object rather than string interpolation.
+  #
+  # Since v17 the hook also tells the session which brain page its workspace
+  # belongs to (`brain where --hook`): the hook input's `cwd` is resolved to a
+  # repo identity shared by every worktree and machine, and `session_id` is
+  # passed along as `claude-code:<id>` so the session can be filed later. That
+  # text goes to the context only — it is instructions for the agent, not news
+  # for the user. The script keeps its name: the claude-code module's settings
+  # merge keys on its path.
   claudeHealthHook = pkgs.writeShellScript "claude-brain-health" ''
+    input=
+    [ -t 0 ] || input=$(cat 2>/dev/null) || true
+    dir=$(printf '%s' "$input" | ${jq} -r '.cwd // empty' 2>/dev/null) || true
+    sid=$(printf '%s' "$input" | ${jq} -r '.session_id // empty' 2>/dev/null) || true
+    [ -n "$dir" ] || dir=$PWD
     out=$(${cli}/bin/brain health 2>/dev/null) || true
-    if [ -n "$out" ]; then
-      ${jq} -n --arg m "$out" '{
-        systemMessage: ("brain health: " + $m),
-        hookSpecificOutput: {
-          hookEventName: "SessionStart",
-          additionalContext: (${healthContext "/brain --sync"})
-        }
-      }'
+    ws=$(${cli}/bin/brain where --hook --dir "$dir" ''${sid:+--session "claude-code:$sid"} 2>/dev/null) || true
+    if [ -n "$out$ws" ]; then
+      ${jq} -n --arg m "$out" --arg w "$ws" '
+        ([ (if $m != "" then (${healthContext "/brain --sync"}) else empty end),
+           (if $w != "" then $w else empty end) ] | join("\n\n")) as $ctx
+        | (if $m != "" then { systemMessage: ("brain health: " + $m) } else {} end)
+        + { hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: $ctx } }'
     fi
     exit 0
   '';
 
-  # The same line for Antigravity, whose SessionStart contract is a JSON object
-  # on stdout (`{}` when there is nothing to say) with the text as a step to
-  # inject. Same fail-open, always-exit-0 behaviour.
+  # The same for Antigravity, whose SessionStart contract is a JSON object on
+  # stdout (`{}` when there is nothing to say) with the text as a step to
+  # inject. Same fail-open, always-exit-0 behaviour. What its hook input
+  # carries is not documented here, so the directory and session id are read
+  # from the likely fields and the directory falls back to the hook's own
+  # working directory (UNVERIFIED — see docs/agent-harness.md).
   antigravityHealthHook = pkgs.writeShellScript "antigravity-brain-health" ''
+    input=
+    [ -t 0 ] || input=$(cat 2>/dev/null) || true
+    dir=$(printf '%s' "$input" | ${jq} -r '.cwd // .workspaceRoot // .workspace_root // .workspacePath // empty' 2>/dev/null) || true
+    sid=$(printf '%s' "$input" | ${jq} -r '.sessionId // .session_id // .conversationId // .conversation_id // empty' 2>/dev/null) || true
+    [ -n "$dir" ] || dir=$PWD
     out=$(${cli}/bin/brain health 2>/dev/null) || true
-    if [ -n "$out" ]; then
-      ${jq} -n --arg m "$out" '{
-        injectSteps: [{ systemMessage: { systemMessage: (${healthContext "to run the brain skill with --sync"}) } }]
-      }'
+    ws=$(${cli}/bin/brain where --hook --dir "$dir" ''${sid:+--session "antigravity:$sid"} 2>/dev/null) || true
+    if [ -n "$out$ws" ]; then
+      ${jq} -n --arg m "$out" --arg w "$ws" '{ injectSteps: (
+        [ (if $m != "" then (${healthContext "to run the brain skill with --sync"}) else empty end),
+          (if $w != "" then $w else empty end) ]
+        | map({ systemMessage: { systemMessage: . } })) }'
     else
       echo '{}'
     fi

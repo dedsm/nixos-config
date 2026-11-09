@@ -11,7 +11,7 @@ tags: [people]
 
 # People
 
-Directory of people this store knows about — see the People and organisations section of `AGENTS.md`.
+Directory of people this store knows about — see `.agents/rules/people-and-orgs.md`.
 Only people actually interacted with. Columns are suggested, not required; empty
 cells are fine. The **Where they appear** column is **generated** by `brain reindex`
 for every row whose first cell links a `[[person-page]]` — don't hand-edit those

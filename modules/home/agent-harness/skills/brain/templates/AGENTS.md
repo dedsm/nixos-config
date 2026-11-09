@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v16 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v18 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -19,7 +19,7 @@ openable directly in Obsidian with zero changes.
 Pattern: agent-compiled knowledge base (Karpathy "LLM-wiki"). Moving parts: raw inputs →
 compiled pages → a **generated** `index.md`, plus an append-only `log.md` and a periodic
 self-reorganization (`lint`) pass. A small Nix-managed CLI (`brain`) owns the schema, so
-frontmatter is deterministic instead of hand-typed — see **Tooling** below.
+frontmatter is deterministic instead of hand-typed — see **Tooling** below and `.agents/rules/tooling.md`.
 
 ## Systems of record (do not duplicate)
 
@@ -31,53 +31,10 @@ frontmatter is deterministic instead of hand-typed — see **Tooling** below.
 - **This store** — the narrative and overall status that neither of the above captures: why an
   initiative exists, its rollout state, decisions, and cross-cutting maps.
 
-### Pages hold the design; the tracker holds the standings
-
-The sharp edge of the rule above, and **enforced** since v14. A page stops restating external
-state: no story counts, no project statuses, no PR ledgers, no `progress` mirroring a tracker
-number. What stays is what no other system holds — invariants, decisions and their reasoning,
-counting rules, orderings that are unrecoverable if got wrong, and cross-system correspondences
-neither system can answer alone.
-
-Why it is worth a gate rather than a good intention: a tracker reorganisation can invalidate a
-dozen carefully-verified readings across six pages in one afternoon. A page that mirrors a tracker
-is wrong from the next merge onward, and a **recent `verified:` stamp makes it more dangerous, not
-less**, because the stamp invites trust. On a page written this way `verified:` comes to mean *the
-design still holds* — a question measured in months rather than merges.
-
-**The rule in one sentence: outside `## Tracker`, `## Decisions`, `## Drift`,
-`## Execution log` and `## Wins`, do not put a status word next to an issue key.** Cite the identifier alone and
-the sentence stays true forever.
-
-- **`## Tracker` is the sanctioned home for tracker references: links and stable identifiers only,
-  never status.** The shape:
-  > Initiative `Foundation · Platform & IaC Kit` · five milestone projects named `IaC Kit · …` ·
-  > stories PLT-42–PLT-63 under epics PLT-134–PLT-153. Structure: [[kits-structure]].
-- **What makes ID-only citation safe** — this is the load-bearing assumption, so know it: Linear
-  guarantees **identifiers never change on a move**. Renaming a project or initiative preserves
-  both the id and the URL (a renamed project still resolves from its old slug). A tracker without
-  that guarantee needs its own convention before this rule can be trusted there.
-- **How it is enforced.** `brain check --staged` (the commit gate) rejects a state reading on a
-  line the commit **adds**, and only there — the pre-existing backlog is a `brain check --strict`
-  warning for the LINT pass to work down, because a gate that blocks every commit until a backlog
-  clears is a gate that gets switched off. It reads page **bodies**; `progress` has its own rule,
-  `summary` its length warning, and `next` is exempt as judgment.
-- **Its blind spot, stated rather than discovered later: it catches tokens, not claims.** Prose
-  that restates a tracker with no issue key, PR number, status word or tally — "the kit is filed
-  and the platform team has picked it up" — passes by construction. Catching *that* is the LINT
-  and REVIEW passes' job, below; the gate is deliberately mechanical because it runs in a
-  pre-commit hook, where a model would be slow, non-deterministic, cost money per commit and fail
-  open offline — and a gate that passes for unreproducible reasons is worse than none, because it
-  still looks green.
-- **The escape, for a citation the rules misread** (a third-party issue whose state is the fact
-  itself, a PR cited as evidence for a design claim): end the line with `<!-- state-ok -->`. It is
-  greppable on purpose, so the LINT pass can audit every use. Reach for it after checking that the
-  line is not simply a standings copy.
-
 ## Structure (PARA + Maps of Content)
 
 - `goals/` — the quarter's 3–5 outcome goals: the pages that explain why everything below them
-  exists, catalogued first in `index.md`. See **Goals** below.
+  exists, catalogued first in `index.md`. See `.agents/rules/goals.md`.
 - `projects/` — initiatives with an end state and a finish line.
 - `areas/` — ongoing responsibilities with no end (a job, a career, a homelab, admin/finance,
   standards to maintain). **The durable layer:** every live goal names its area in `parent`, and
@@ -86,7 +43,7 @@ the sentence stays true forever.
   not a hunt). An area nobody would ever open isn't worth creating.
 - `resources/` — reference material, not actionable. Four tagged shapes live here too, each
   with its own skeleton and **out of `index.md`**: people and organisations (cataloged by
-  `mocs/people.md` / `mocs/orgs.md`, see **People and organisations**), and **events** and
+  `mocs/people.md` / `mocs/orgs.md`, see `.agents/rules/people-and-orgs.md`), and **events** and
   **digests** (reached from their `parent`):
   - an **event** is a dated note you wrote for yourself about one occasion — a call script,
     meeting notes, prep for a conversation. `brain new resource <slug> --event --parent <page>` (the filename
@@ -140,7 +97,7 @@ title: Human title
 kind: goal | initiative | project | area | resource | moc
 status: idea | planned | active | blocked | done | archived
 attention: focus | tracking  # optional — omit for ordinary active work
-progress: "optional — and ONLY on a page with no tracker: see the rule below"
+progress: "optional — and ONLY on a page with no tracker: see .agents/rules/tracker-standings.md"
 next: "optional — the single next concrete move"
 owner: me
 created: YYYY-MM-DD          # ISO date — set once on creation, never changed
@@ -154,6 +111,8 @@ parent: "[[parent-page]]"    # optional — nests this page under another in ind
                              #   names its area, a project's its goal (or area)
 source: "[[raw/2026-11-03-x]]"  # digests only — the raw/ file compiled (written by --digest-of)
 sha256: <64 hex>             # digests only — the source's hash when it was digested
+repos:                       # optional — the workspaces this page owns (written by `brain track`)
+  - github.com/owner/repo    #   see .agents/rules/workspaces.md: a remote, git:<root-commit>, ~/path, or repo//subfolder
 tags: [example, tag]
 links:                       # cross-references
   - "[[other-page]]"
@@ -165,78 +124,8 @@ links:                       # cross-references
 - **Required** (enforced, commit-blocking if missing/invalid): `title`, `kind`, `status`,
   `created`, `updated`. `kind`/`status` must be from the sets above; date fields must be ISO
   `YYYY-MM-DD`. Everything else is optional.
-- `status` is the kanban state — the field a GUI (Obsidian Bases/Kanban) or a query reads. Keep
-  it accurate.
-- `attention` is **not** a priority ladder — deliberately three states. `focus` = hands-on right
-  now; `tracking` = watching work that is someone else's; **absent** = ordinary active work. A
-  finer ladder rots faster than it informs. `brain review` groups on this.
-- `summary` is what `brain reindex` prints for the page in `index.md` (falls back to `title` if
-  absent). **One crisp line** — `brain check` warns past 200 characters, because at that point it
-  has become a changelog. The next move belongs in `next`, detail in the body — and a tally
-  belongs in the tracker, not in `summary` and not in `progress` (see the rule below).
-- `progress` is **an error on any page whose `links:` name a tracker** — `brain check` rejects it,
-  and `brain set` refuses to write it. A tally is a reading of someone else's system, so a copy of
-  it here is wrong from the next merge onward. It survives only on a page with no system of record
-  for its standings ("first sweep reclaimed 3.5 TB, flat for 27d"). What counts as a tracker link:
-  a URL on a tracker host, a forge URL on an `/issues/`, `/pull/` or `/milestone/` path, or a
-  `links:` entry in the `ISSUE-123 https://…` form. The CLI holds the list (`TRACKER_HOSTS`).
-- `next` is the single next concrete move, in one line, and it's what makes `brain review`
-  actionable rather than a status dump. Distinguish it from its neighbours: `next` = the next move
-  ("start STO-496"), **dstask** = actions you will personally do. A `next` may well be someone
-  else's action or a decision, which is why it isn't a task. `next` is judgment, so it may name an
-  issue key — it is the one frontmatter field the state-reading rule below does not read.
-- `verified` is **when this page's claims were last checked against reality** — code read, tracker
-  reconciled, person asked. It is not `updated`, which moves on a typo fix. This is the field
-  staleness should be judged on, so a page nobody edited but that you re-checked yesterday doesn't
-  read as rotten. Mirror it in the body where you record what you checked
-  ("verified against the code 2026-07-26").
-- **The link model — internal vs external is the load-bearing distinction:**
-  - **Internal** links are `[[wikilinks]]` (Obsidian-native): a bare slug (`[[page]]`, resolved
-    store-wide by filename) or a store path for a page in a subdirectory
-    (`[[resources/scripts/README]]`, which is what `reindex` emits). This is the **only**
-    sanctioned internal form, and therefore checkable: `brain links` lints them, and a broken or
-    ambiguous one is an **error the commit gate rejects**. Move/rename pages with **`brain mv`**,
-    which rewrites references — never by hand, which breaks them. Filename stems are
-    **store-unique**: `new` and `mv` both refuse to mint a second page with an existing stem, so
-    a bare `[[slug]]` can never silently change meaning.
-  - **External** links carry a scheme (`https://…`, `dstask:6`, `mailto:`) — plain full URLs.
-    Never checked, never rewritten.
-  - A **relative markdown path** (`[text](../repo/doc.md)`) is neither and always **warns**: it
-    breaks silently when either side moves. Make it a `[[wikilink]]` (if it's a store page) or an
-    explicit external form — a full URL, or an inline-code path like `` `repo/docs/adr.md` ``
-    (code spans and code blocks are never treated as links).
-- **Dates** are ISO `YYYY-MM-DD`. `created` is set once and never changes; `updated` tracks the
-  last edit. `started`/`finished`/`due` apply mainly to `goal`/`project`/`initiative` pages and
-  drive time-range queries — set `started` when `status` → `active`, `finished` when `status` → `done`.
 
-### Decisions — where does the record live?
-
-Not here. A decision's record belongs in its **external system of record** — the ADR/RFC doc in
-the repo it governs, or the tracker document — and what this store holds is `kind: project`:
-tracking the decision's rollout, its gaps, or its drift. Link the document, don't restate it,
-and use the project template's optional `## Drift` section for where the doc, the tracker and
-the code disagree — copying the decision content in would break "link, don't duplicate" above.
-A decision with no external home **gets one** (record it in the repo it governs); it does not
-become a brain page.
-
-### Where knowledge lives — page, or section?
-
-The split ladder (LINT) cures pages that grew too big; this rule prevents the opposite failure,
-minting a page per stray thought. A topic earns its **own page** when:
-
-1. **two or more existing pages need to `[[link]]` it**, or
-2. **it has an independent lifecycle** — its status can change while its would-be parent's doesn't.
-
-Otherwise it is a **section on the page that owns it**. Two corollaries:
-
-- **Never write a `[[link]]` to a page that doesn't exist** — create the target properly
-  (`brain new`, real frontmatter) or don't link it.
-- **Don't force-merge broader material into a narrower page.** If new material outgrows the
-  page's slug, create a sibling and cross-link rather than stretching a page past its title.
-
-Durable **reference knowledge** — a how-to, a learned fact, a worked-out explanation that no
-other system of record holds — lives as a `resources/` page (see the CAPTURE routing), not
-crammed into a project body where the LINT ladder will later delete it as superseded analysis.
+Field-by-field meanings, the link model, and page-vs-section: `.agents/rules/schema.md`.
 
 ## Tooling — the `brain` CLI (prefer it over hand-editing frontmatter)
 
@@ -282,375 +171,67 @@ brain sync [--dry-run]             # mechanical template refresh + stamp; stops 
                                    # when the version gap needs a judgment backfill (/brain --sync)
 brain version [--stamp]            # CLI vs store template version; --stamp writes .brain-version
 brain today                        # today's date from the system clock — never infer it
+brain commit -m "<msg>" [--log "<entry>"] <paths…>
+                                   # commit ONLY these paths (+ your log entry) — see Committing
+brain where [--dir D] [--json | --all]   # which page this directory's project belongs to
+brain track <page> [--dir D] [--subdir]  # claim this repo (or its subfolder) for <page>
+brain ignore [--dir D] | brain snooze [--dir D] [--days N]
+                                   # never ask about this workspace / ask again in N days (30)
 ```
 
-- **Writers** (`new`/`set`/`unset`/`done`) are the reason frontmatter stays clean: they only ever
-  emit legal enum values and ISO dates, and stamp `updated`/`started`/`finished` for you. Reach for
-  them instead of typing YAML — including `unset` to drop an optional field (it refuses required
-  ones), rather than hand-deleting a line.
-- **Dates come from the clock, never from the corpus.** The writers and `brain log` date
-  everything from the system clock; `brain today` is the authoritative "now". **Never read a date
-  out of `log.md`, git history, or a page and treat it as today** — those are recorded facts, not
-  the current date. If you must write a date by hand (e.g. a relative `due` like "next Friday"),
-  get today from `brain today` (or `date +%F`) and compute from it.
-- **`review` writes nothing.** It is the generated half of a "now" page — the goals rollup
-  (children, milestones, orphaned/stalled), focus, work grouped by `attention`, blocked, overdue,
-  what's gone quiet, oversized pages, recent log, open dstask, pending inbox. Start any session
-  on this store with it. Because it produces that picture on demand and always current, there is
-  no reason left to hand-maintain a copy of it anywhere.
-- **`capture` is the zero-friction path in.** One line from any terminal, no session, no schema —
-  which matters because second brains die at capture, not at retrieval. Substantial material
-  (`- --title <slug>`) lands as its own immutable `raw/` file instead of an inbox line.
-- **`reindex`** makes `index.md` — and the people directory's "Where they appear" column — a
-  projection of the pages. You rarely call it by hand: the pre-commit hook regenerates and stages
-  both on every commit. Run it explicitly only to preview the catalog, or use
-  `brain reindex --check` (exits non-zero if stale) as a drift detector.
-- **The gate**: a `pre-commit` hook in `~/brain/.git/hooks` regenerates `index.md` and
-  `people.md`'s generated column, stages them, then runs `brain check --staged` — so a commit with
-  a malformed page is **rejected**, and the catalog is always fresh, for LLM edits, hand edits, and
-  Obsidian edits alike. (`people.md` is staged only when it carried no unstaged hand edits before
-  the reindex — an in-progress edit is never swept into an unrelated commit; the column refresh
-  rides the next clean one.) Run `brain check` yourself before committing for fast feedback.
-  `check` reports enum / required-field / date-format problems **and broken/ambiguous internal
-  links** (a whole-store link pass — a staged deletion can break another file's inbound links;
-  under `--staged` links resolve against the *git index*, so an untracked draft can't satisfy
-  one) as **errors** (blocking), and softer issues (done without `finished`, relative markdown
-  paths, etc.) as **warnings** (non-blocking). Two consequences: **create a page before linking
-  it** (`brain new`, then link), and **stage a new page together with the pages that link it**.
-  It also rejects a **state reading** (a status word beside an issue key, a PR ledger, an issue
-  tally) — but under `--staged`, only on the lines the commit **adds**, so an existing page's
-  backlog never blocks unrelated work; the whole store is a `--strict` warning instead. See
-  **Pages hold the design; the tracker holds the standings** above for the rule, its five exempt
-  sections, its blind spot and the `<!-- state-ok -->` escape.
-  Link errors **always** block, including in the rebuild→sync window: every store is link-clean, so
-  the deferral that once softened them there is gone. Deferrals now cover exactly what a pending
-  migration is *about* — a `kind` the schema no longer knows (v12), and `progress` plus the state
-  readings (v14) — each demoting to a warning until the store is stamped, because otherwise
-  `brain sync`'s own mechanical commit could not pass its own gate.
-- **Auto-push**: a `post-commit` hook pushes the store to its remote when one is configured, so a
-  commit is also a backup and multi-machine sync — no reliance on remembering `git push`. If the
-  push is rejected because the remote moved (another machine pushed first), the hook **reconciles
-  automatically**: `pull --rebase`, then push again. Only real conflicts stop it — the rebase is
-  aborted (the store stays exactly as committed) and it prints a hint to reconcile by hand with
-  `git -C ~/brain pull --rebase`. It **never force-pushes**, and an unreachable remote is non-fatal
-  (the commit stands; `health` will report unpushed commits). **Both hooks are Nix-managed** — the
-  nixos-config activation installs them on every rebuild; the CLI has no install verb (so they
-  can't drift).
-- **Ambient vitals — `brain health`**: every detector above is pull-only; `health` compresses them
-  (version drift, overdue, stalled/orphaned goals, gone-quiet, never-verified, aged inbox, quiet
-  or oversized log, broken links, `now.md` rot, ahead/behind the remote) into **one line**,
-  printing nothing and exiting 0 when all is well.
-  It is surfaced without anyone asking: each agent harness's SessionStart hook injects the line into new
-  sessions, and a weekly timer raises a desktop notification — covering the weeks when no session
-  happens at all. React
-  to it: oversized log → `brain rotate-log` and commit (mechanical, no approval needed); behind the
-  remote → `git -C ~/brain pull --rebase` **before** writing anything; the rest → the REVIEW pass.
+What each command guarantees, the gate, auto-push and `brain health`: `.agents/rules/tooling.md`.
 
-### ⚠️ Governance — the CLI, schema, and hook are Nix-managed (do not edit here)
+## Committing — other sessions may be writing too
 
-`brain.py`, the schema it enforces, and the pre-commit hook are **canonical artifacts shipped
-from nixos-config** (`~/Develop/personal/nixos-config`, at
-`modules/home/agent-harness/skills/brain/`). The copies on this machine are
-Nix-store deployments.
+Assume another agent session — another terminal, another harness, the other machine's clone
+after a pull — may be editing this store right now. So:
 
-**If a check, the schema, or a hook needs to change** — a new `status`/`kind` value, a new field,
-a relaxed rule, a different hook — **STOP and ask David to update the skill in nixos-config**, then
-rebuild and run `/brain --sync`. Never:
+- **Commit only the files you wrote, with `brain commit`.** Keep a list as you go: every writer
+  prints the path it wrote (`brain new`, `set`, `done`, `track`, `ignore`/`snooze` →
+  `workspaces.md`), `brain mv` prints the destination and every file whose links it rewrote, and
+  pages you hand-edit are yours too. For a move, pass both sides — the old path stages the
+  deletion. Then: `brain commit -m "<msg>" --log "<what changed> — [[page]]" <paths…>`.
+- **Never `git add -A`, `git add .` or `git commit -a`** — they commit other sessions' half-done
+  work, and the auto-push publishes it.
+- **Your log entry goes through `--log`, not `brain log` + commit.** `log.md` is shared: every
+  session prepends to it. `--log` writes your entry into the staged version as well as the working
+  file, so other sessions' uncommitted entries stay theirs. Wherever this manual says "`brain log`
+  …, then commit", do it as one `brain commit --log`. (`brain log` alone is for a store no one
+  else is touching — and `log.md` is passed as a path only after `brain rotate-log`.)
+- **If `brain commit` says other changes are already staged**, they are not yours: don't commit,
+  unstage or "clean up" them. Tell the user, and commit once that session has.
+- **`brain sync` refuses a dirty tree** — with concurrent sessions that is a feature: wait, or ask.
 
-- hand-edit the deployed `brain` binary or the `pre-commit` hook,
-- work around a failing `brain check` by loosening/deleting the rule locally, or
-- `git commit --no-verify` to bypass the gate to force a malformed page in.
+## Topic rules — read the matching one before acting
 
-A failing gate means either the page is wrong (fix the page) or the schema should change (a
-nixos-config change David makes) — never a local workaround.
+This file is the always-loaded core. The rest of the manual is split by topic under
+`.agents/rules/` (Antigravity's rules convention: each file carries a `trigger` and a
+`description`, and its body is loaded when the task matches). **Whatever the harness: before
+doing one of the things below, read that file** — `~/brain/.agents/rules/<file>`.
 
-There is deliberately **no test suite for `brain` — real usage is the test**. The flip side of
-that deal is a duty to notice: if the CLI itself ever misbehaves — mangled frontmatter after a
-write, a wrong date, a corrupted index or log, an exit code that contradicts what actually
-happened — **treat it as a bug, not as something to work around**. Stop, tell David exactly what
-you observed (command, input, expected vs actual), and propose the fix as a `brain.py` change in
-nixos-config. Never silently hand-repair what a writer got wrong without flagging it.
+| Before you… | Read |
+|---|---|
+| capture or ingest information, answer a question about the store, update a status | `capture-and-query.md` |
+| run a review, trim `now.md`, archive, or reorganise / split pages | `review-and-lint.md` |
+| put a session in the brain ("save this session") | `file-a-session.md` |
+| create a page, change a field, add links, or decide page vs. section | `schema.md` |
+| write a page body | `page-bodies.md` |
+| write anything citing issues, PRs or tracker projects | `tracker-standings.md` |
+| create, review or change goals | `goals.md` |
+| add or edit a person or a company | `people-and-orgs.md` |
+| act on a session-start workspace message, or run `brain track`/`ignore`/`snooze` | `workspaces.md` |
+| need to know why a command, the gate or a health flag behaves as it does | `tooling.md` |
+| want a rule, the schema or a hook changed — or the CLI misbehaves | `maintaining.md` |
 
-## Workflows
+**The one rule you need before reading any of them:** outside `## Tracker`, `## Decisions`,
+`## Drift`, `## Execution log` and `## Wins`, do not put a status word next to an issue key — the
+tracker holds the standings, this store holds the design (`tracker-standings.md`; the commit gate
+enforces it on the lines you add).
 
-### 1. CAPTURE / INGEST — "track this", "remember", an info dump
-
-0. **Process the inbox first if it has entries.** `raw/inbox.md` holds one-line captures made
-   outside a session with **`brain capture`**. For each: route it (update an existing page, create
-   one, file a dstask, reference an external issue, save it as reference knowledge in `resources/`,
-   or drop it), then **delete that line** — the pending count is the backlog, so nothing else needs
-   tracking.
-1. If the input is substantial source material, save it verbatim to `raw/YYYY-MM-DD-slug.md`
-   (**`brain capture - --title <slug>`** does this from stdin) — skip for trivial one-liners.
-2. Create or update the page: **`brain new <kind> <slug> --summary "…" [--status …]`** for a new
-   page, or **`brain set <page> <field> <value>`** to update fields on an existing one. Edit the
-   page **body** by hand. The writers set `created`/`updated`/`started`/`finished` for you.
-3. Wire cross-references: add `[[links]]` in the body, and add the page to every relevant MOC.
-4. If the input implies a personal next-action → create a dstask task and link it. If it is an
-   issue that belongs in a team tracker → reference it there (per the active workspace's rules);
-   do not duplicate. If it is **durable reference knowledge** — a how-to, a learned fact, a
-   worked-out explanation with no other system of record — give it a `resources/` page
-   (`brain new resource <slug>`; tag it something queryable like `howto`), or an APPEND section on
-   the single page that owns it when it's small. The systems-of-record rule already admits
-   anything neither dstask nor a tracker captures; don't drop it just because it isn't status.
-   A **goal idea** ("this should be a quarterly goal") → `brain new goal <slug> --status idea` —
-   it queues for the quarterly pass, findable via `brain q --kind goal --status idea`.
-5. Record it: **`brain log "<what changed> — [[page]]"`** (it dates the entry from the clock —
-   don't hand-type the date). (`index.md` is refreshed by the commit hook; run `brain reindex`
-   first only if you want to read the updated catalog now.)
-6. **`brain check`**, then commit: `git -C ~/brain add -A && git -C ~/brain commit -m "<msg>"`
-   (the pre-commit hook reindexes + re-checks; a clean `check` means it passes).
-
-### 2. QUERY — "what's the state of X", "what am I tracking"
-
-For "what's going on" as a whole, run **`brain review`** — that's the question it answers.
-
-For a specific thing: read `index.md` first, then the relevant page(s)/MOC; use **`brain q …`** for structured cuts
-(`--status`, `--kind`, `--tag`, `--overdue`, `--due-before`, `--stale DAYS`) and `grep`/`rg` for
-free-text. Pull open dstask tasks and referenced external issues when relevant. Answer with
-current status. Never invent — if a field is stale, say so and offer to refresh.
-
-**Time-range queries** ("what did I work on in the past 3 months", "what shipped in Q1", "what's
-overdue") — start with `brain q --overdue` / `--stale`, then the dated `log.md` (+ `log-archive/`)
-and the `created`/`started`/`finished`/`due` frontmatter filtered to the window, with
-`git -C ~/brain log --since=…` and dstask's resolved-task dates as backstops.
-
-**File the answer back when it earned it.** If producing an answer required synthesizing across
-3+ pages or external systems (code, trackers, dstask) and the result is durable knowledge recorded
-on no single page, **offer** to file it — ask first, never as a side effect of a read:
-`brain new resource <slug> --summary "…"`, the body carrying the synthesis plus an "Informed by"
-list of `[[page]]` links and external references; then `brain set <slug> verified today` (earned —
-the claims were just checked to produce the answer), `brain log`, commit. An expensive cross-page
-synthesis that vanishes into chat history is compounding lost. Trivia doesn't qualify.
-
-### 3. UPDATE STATUS
-
-**`brain set <page> status <value>`** (or `brain done <page>`) — it bumps `updated` and stamps
-`started`/`finished` as the status crosses `active`/`done`. Edit the body for narrative, record it
-with **`brain log "…"`**, `brain check`, commit.
-
-### 4. REVIEW — the recurring pass ("what's the state of things", start of a work session)
-
-Read-only detection, then judgment. Nothing here is automatic: `brain review` finds, you decide.
-
-1. **`brain review`** (or `--since 7` for the weekly cut). Then work the signals:
-   - **Gone quiet / never verified** → for each, ask *is this still true?* Re-check the claims,
-     update the body, and **`brain set <page> verified today`**. If it's genuinely dormant, say so
-     — change `status`, or `attention: tracking`, rather than leaving it looking live.
-   - **Blocked** → is it still blocked, and on what? A blocker with no named owner is a task.
-   - **Orphaned / stalled goals** → the weekly touch in **Goals** below: wire `parent` on the
-     work that serves an orphaned goal (or admit nothing does), and triage a stalled one as
-     Reschedule / Delegate / Delete.
-   - **Contradictions** → where two pages disagree, or a page disagrees with its own `## Drift`
-     section, flag it in the body and to the user. Resolve by rewriting the stale one, not by
-     appending a newer paragraph beside it.
-   - **Oversized pages** → propose a split (see the LINT pass).
-2. **Trim `mocs/now.md` (and `mocs/goals.md` — same rule).** Anything `review` now generates —
-   per-page status, tier listings, a copied dstask snapshot, dates — is dead weight there and
-   rots within days. Sort its content into *generated* (delete), *judgment* (keep: why this
-   ordering, what you're deliberately not doing), and *obsolete* (delete). Show the proposed deletions and ask before applying.
-3. Roll `index.md`'s `▶ Current focus:` pointer if it has moved; re-set `attention` where the
-   real answer changed.
-4. **`brain log`** a one-line summary of what the review changed, `brain check`, commit.
-
-### 5. LINT / REORG — the self-reorganization pass (on request or when the store has grown)
-
-Run a health pass and fix:
-
-- **`brain check --strict`** for schema/consistency issues (warnings become actionable here);
-  stale `updated` dates vs `log.md`; over-long `summary` fields that have become changelogs; and
-  the whole-store **state-reading** report (step 2 below is where you work it down).
-- Oversized pages → work the ladder below, cheapest first. **Splitting is the last resort, not the
-  first move** — most oversized pages are carrying weight they should not be carrying at all, and
-  three of these four steps only delete.
-  1. **Delete what a tool now generates.** Hand-maintained status prose, "next action" lists and
-     link inventories are superseded by the `next` frontmatter, `brain review`, and
-     `links:`. Keeping a copy guarantees it goes stale.
-  2. **Delete what duplicates a system of record.** A section restating a Notion page, a tracker
-     issue or a repo doc is drift waiting to happen — link it and cut the copy. This is the step
-     **Pages hold the design; the tracker holds the standings** (above) sharpens: strip the status
-     words and the tallies, keep the identifiers, and move the references into `## Tracker`. The
-     backlog is enumerated for you — `brain check --strict` lists every state reading in the store,
-     which is the half the commit gate deliberately does not block. Work a page at a time and
-     re-run it. Its blind spot is yours to cover here: **prose** that restates a tracker without
-     an issue key or a status word passes the check and still has to go.
-  3. **Delete superseded body sections**, noting the asymmetry: a superseded *decision* stays in
-     `## Decisions`, struck through, pointing at what replaced it — that trail is the point. A
-     superseded *analysis* in the body goes, because the section that superseded it already
-     carries the conclusion.
-  4. **Collapse accumulated status.** Two "where it stands" sections, one per month, become one
-     rewritten `## Current state`; the history moves to `## Decisions` or `log.md`.
-  5. **Split into a hub + children** (below) — only if it is *still* oversized, which means the
-     page holds several different **kinds** of content rather than too much of one.
-- Orphan pages (in no MOC and no index line) → file them. **Person and org pages are not
-  orphans** (their directory MOC catalogs them), and neither are events or digests that carry a
-  `parent` — `check` warns on one that doesn't.
-- `raw/` files that are notes you wrote for yourself → `brain mv … --event` (see Structure). Heavy raw
-  files `review` lists as undigested → digest the ones the agent keeps re-reading.
-- **`brain links`** for anything the gate predates (broken/ambiguous wikilinks, relative-path
-  warnings); pages whose `status` is `done`/`archived` → **`brain mv <page> archive/<slug>`**
-  (it rewrites every `[[reference]]`, including path-qualified ones, and reindexes).
-- Contradictions between pages → flag in the body and to the user.
-- `log.md` past ~400 lines → run **`brain rotate-log`** (mechanical, verbatim, no approval needed;
-  `health` flags this too — react to the flag by running it, don't wait for a lint pass).
-- **`brain reindex`**; append a summary of changes to `log.md`; commit.
-
-Prefer mechanical, reversible edits. Ask before destructive merges. Git is the safety net.
-
-#### Splitting a page into a hub + children
-
-For a page that stays oversized after steps 1–4 above — it has become a project's whole filing
-cabinet. Do the deletions first: they are cheaper, they are not destructive of anything the store
-still needs, and they often make the split unnecessary. The goal is a **hub** that answers "what is true now" in one screen, with the
-reference material behind it. Propose the split before doing it; this deletes from a page you cannot
-reconstruct from memory.
-
-1. **Pin a restore point.** `git -C ~/brain rev-parse --short HEAD` *before* touching anything. It
-   goes in the hub, with the command to read the old page:
-   `git -C ~/brain show <sha>:projects/<page>.md`. Nothing summarised is ever actually lost.
-2. **Classify sections by nature, not by date.** Three buckets: *live* (status, open, decisions —
-   stays on the hub), *reference* (the worked-out design, invariants, runbooks — moves to a child),
-   *event narrative* (meetings, reviews, one-off passes — gets summarised).
-3. **Move verbatim, by line range.** Extract with `sed -n 'A,Bp'` and concatenate; never rewrite a
-   section in the same step as relocating it. Rewriting while moving is how content goes missing
-   without anyone noticing.
-4. **Children carry `parent: "[[hub]]"`, and their kind follows their lifecycle.** A workstream
-   that can close while the hub stays open (the equity terms of a negotiation, say) is a
-   `kind: project`: it nests under the hub in `index.md`, and `review` tracks its freshness and
-   `next` on their own. Reference material is a `kind: resource`; `reindex` groups by bucket, so it
-   does **not** nest under a `project` hub — the hub's `## Sub-pages` section is its directory.
-   Never pick a kind to game the index. `brain q --under <hub>` lists every child either way.
-5. **Summarise only what is genuinely spent.** An event narrative whose rulings already live in
-   `## Decisions` or a child page compresses to a paragraph; keep whatever it alone records. Link
-   the restore commit from the summary.
-6. **Verify nothing was lost.** Diff the heading sets:
-   `git show <sha>:<page> | grep -E '^#{2,3} ' | sort` against the same over the hub plus every
-   child. The only headings that may disappear are the ones you deliberately summarised — anything
-   else is an extraction bug.
-7. **Commit in stages** (mechanical → collapse → split), so a bad step reverts on its own.
-
-**Abandon a merge that stops making sense.** Sections whose titles look redundant often are not —
-"the invariants" and "the worked-out design" cover the same ground at different altitudes and for
-different readers. If reading them shows a merge would cost content for a cosmetic gain, say so and
-stop, rather than completing an approved plan you no longer believe in.
-
-## Page bodies — rewrite vs. append
-
-`brain new` writes a skeleton for the page's kind. The section comments are not decoration: each
-says whether it is **rewritten in place** or **appended to**, and that distinction is the whole
-point. Without it, "current state" sections accumulate — a page ends up carrying both
-`## Where it stands (June)` and `## Where it stands (July)`, and grows without bound.
-
-The recurring shape, across kinds:
-
-- **An orienting paragraph** under the H1 — what this is, why it matters, what "done" looks like.
-  Rewritten. Priority does **not** belong here as bold prose; that's what `attention` is for.
-- **Why this exists / Context / The line I hold** — the rationale, written once **so it isn't
-  re-litigated**. This is the highest-value thing a page does. Touch it only if the premise changes.
-- **Current state** — *rewritten in place*, with a stamp of what you actually checked and when
-  (mirrored into `verified`).
-- **Decisions** — *appended*, dated, each with its reasoning and consequences. Superseded entries
-  stay, struck through, pointing at what replaced them.
-- **Open** — questions, risks, blockers. This section should **shrink**; delete lines as they close.
-- **Tracker** (optional) — the external issues this page follows: **links and stable identifiers
-  only, never status**. See the stanza shape under **Pages hold the design** above. One of the four
-  sections where naming a status is permitted, because quoting the tracker is the section's job.
-- **Drift** (projects tracking an external doc) — where the doc, the tracker and the code disagree.
-  Exempt from the state-reading rule for the same reason: the disagreement cannot be recorded
-  without quoting both sides.
-- **Execution log** (optional) — *appended*, dated: a record of operations **actually performed**
-  ("2026-09-17 — steps 2 and 4 done; nothing else touched"). A past action, not a present reading,
-  which is why it is exempt from the state-reading rule and why it is never rewritten. Keep it for
-  a page driving a multi-step change through another system; delete it when the change is over.
-- **Milestones** (goals) — *appended and checked off*: `- [ ]` lines that `review` counts at read
-  time and never writes back.
-- **Wins** (optional, on an area page — a career area, typically) — *appended*, dated, each with
-  its evidence link: what you delivered, written while it's fresh, for the review or negotiation
-  where you'll need it. Exempt from the state-reading rule: "merged PR #812" is the record itself.
-
-Delete the sections a page doesn't need. An unfilled section is worse than an absent one.
-
-## Goals
-
-The quarterly layer — the top of the work hierarchy, built from fields that already exist. A
-goal is a **quarterly outcome**: 3–5 live at a time, `due` set to quarter end, falsifiable
-success criteria and milestone checkboxes in the body. **`brain new goal <slug>`** files it in
-`goals/` — catalogued first in `index.md` — with the goal skeleton (Why this goal / Success
-criteria / Milestones / Decisions / Open).
-
-- **Linkage is `parent`, both ways:** a project's or initiative's `parent` names the goal it
-  serves; a goal's `parent` names its area (`check` warns on a live goal without one).
-  `review` shows each goal's area on its line. Tasks stay in dstask, referenced via
-  `links: dstask:<id>` — never duplicated onto the goal page.
-- **Weekly focus is `attention`** — the same three states. No priority ladder here either.
-- **Success criteria are falsifiable** — checkable at quarter end, not aspirations. Milestones
-  are `- [ ]` lines under `## Milestones`, checked off in supervised body edits; `review` counts
-  them at read time and **never writes them back** — no stored progress percentage exists.
-- **The rollup is generated.** `brain review` opens with a Goals section computed per live goal:
-  its live children (the pages whose `parent` resolves to it), the milestone count, and two
-  flags — **orphaned** (zero live children) and **stalled** (goal and every live child untouched,
-  `verified` else `updated`, for more than 14 days). `health` carries one token for these. Never
-  hand-maintain any of it; `mocs/goals.md` holds only the judgment.
-- A live goal without a `due` can never trip the overdue detector, so `check` warns on one.
-
-**The quarterly pass** — the REVIEW pass at a longer cadence, not a new ceremony:
-
-1. **`brain review --since 90`** for the quarter cut — what started, finished, went quiet, per goal.
-2. Work the captured backlog — **`brain q --kind goal --status idea`** — promoting or archiving
-   each candidate, with a reason.
-3. Judge **every** current goal — the forced trichotomy: **rewrite** (still right — restate the
-   success criteria), **archive as legacy** (`brain set <goal> status archived` plus a dated
-   closing decision in the body), or **surgical edit**. Skipping a goal is not an option; that
-   is the anti-rot mechanism.
-4. Set the quarter: 3–5 goals worked backwards from impact — falsifiable criteria and milestones
-   in the body, `due` = quarter end, `parent` = area. Wire `parent` on the live projects that
-   serve them (`review` shows what's left orphaned). The NOT-doing list, with reasons, goes to
-   `mocs/goals.md`.
-5. **`brain log`** the plan, `brain check`, commit — the plan is queryable state, not a document.
-
-**The weekly touch:** read `review`'s Goals section; flip `attention` so at most 1–2 goals carry
-`focus`; triage anything flagged stalled — each gets **Reschedule** (new `next:` + `due`),
-**Delegate** (link the owner, `attention: tracking`), or **Delete** (archive, with a reason);
-update `next:` lines. No weekly file is written — the plan is the store's state, and the diff is
-the artifact.
-
-**Mid-quarter refinement:** when reality disagrees with a goal, apply the same moves the day you
-know it, not at the boundary — restate `## Success criteria` in place, append a dated entry to
-`## Decisions` recording the cut and why, adjust `next:`/`due` via `brain set`. A goal that no
-longer deserves the quarter is archived with a closing decision now, not at the next pass.
-
-## People and organisations
-
-A **directory of people you know** — not a work roster. This is a personal store: it will hold
-people with no Slack handle, no work email, and no job title.
-
-- **`mocs/people.md`** is the directory: a table by default. Columns are **suggested, never
-  required** — a name, a contact handle *if one exists*, and where they appear in this brain.
-  Add or drop columns per store; empty cells are fine. Grouping (by team, by context, or not at
-  all) is likewise store-local. The one generated part: for every row whose first cell links a
-  `[[person-page]]`, **`reindex` rewrites the "Where they appear" cell** from the link graph (the
-  pages that `[[link]]` that person) — hand-maintained reverse indexes rot, so don't edit those
-  cells; a row for someone *without* a page keeps whatever is typed. Don't put piped
-  `[[links|labels]]` in this table — the pipe fights the table syntax.
-- **Promote to a page** when someone accumulates narrative that won't fit in a cell — decisions
-  they own, positions they hold, history worth not re-deriving. Until then a table row is enough.
-- A person page is **`brain new resource <slug> --person`**: `kind: resource`, `tags: [person]`,
-  filed in `resources/`, with the person body skeleton.
-- **They are excluded from `index.md`.** `reindex` skips `tags: [person]`, so the catalog carries
-  exactly one line — the people MOC — whether you know 2 people or 200. Index → MOC → person page.
-  They remain fully in the system: `brain check` validates them and `brain q --tag person` finds
-  them. Excluded from the catalog is not excluded from the gate.
-- **Maintenance rule:** whenever a person appears in a page, make sure they're in the directory,
-  and — if they have a page — **`[[link]]` them from the page where they appear**: the generated
-  where-they-appear column reflects the link graph, so a bare name-mention is invisible to it.
-  Do this on every brain update, not only on meeting captures.
-- **Organisations work the same way** (since v16): `mocs/orgs.md` is the directory table, a
-  company that recurs across pages gets **`brain new resource <slug> --org`** (`tags: [org]`,
-  org skeleton: context, the current relationship, a dated history), its "Where they appear" cell
-  is generated, and you `[[link]]` it where it appears instead of re-explaining it on every page.
-- **PII:** keep to what you actually need in order to work with them. A personal directory is the
-  place in this store where the "no PII you don't need" guardrail actually bites — addresses,
-  phone numbers, birthdays, health details.
+**Governance, in one line:** the CLI, schema and hooks are Nix-managed in nixos-config — if a
+check or rule should change, stop and ask David; never edit the deployed copies, loosen a check
+locally or `--no-verify` past the gate. If the CLI itself misbehaves, report it as a bug
+(`maintaining.md`).
 
 ## Guardrails
 
@@ -659,11 +240,11 @@ people with no Slack handle, no work email, and no job title.
 - **Never write a `[[link]]` to a page that doesn't exist** (the gate rejects it), and **move or
   rename pages only with `brain mv`** — a hand `mv` breaks every path-qualified reference.
 - **Write frontmatter through the `brain` CLI**, not by hand — that's what keeps it schema-valid.
-- **Don't restate the tracker.** Cite the identifier, never the status — see **Pages hold the
-  design; the tracker holds the standings**. `<!-- state-ok -->` silences the check for one line;
+- **Don't restate the tracker.** Cite the identifier, never the status — see `tracker-standings.md` (**Pages hold the
+  design; the tracker holds the standings**). `<!-- state-ok -->` silences the check for one line;
   it is not a way to keep a ledger, and every use is greppable for the LINT pass.
 - **Run `brain check` before committing**; never bypass the pre-commit gate (`--no-verify`) or
-  loosen a rule locally. To change a rule, see Governance above (ask David → change nixos-config).
+  loosen a rule locally. To change a rule, see `maintaining.md` (ask David → change nixos-config).
 - **The store auto-pushes** to its remote (post-commit hook) when one exists, auto-reconciling a
   moved remote (`pull --rebase` + retry, never force). If it reports real conflicts, reconcile by
   hand with `git -C ~/brain pull --rebase`, resolve, push — never force-push, and never disable
@@ -675,43 +256,7 @@ people with no Slack handle, no work email, and no job title.
   splitting an oversized page, or resolving a contradiction is a supervised edit you propose and
   the user approves — never a side effect of a read.
 - Never fabricate status. Mark gaps with `<!-- TODO: fill -->`.
-- Commit after every change set. No AI attribution in commit messages.
+- Commit after every change set — **only your own files, with `brain commit`**, never
+  `git add -A` (other sessions may be mid-edit; see **Committing** above). No AI attribution in commit
+  messages.
 - Never store secrets, credentials, or PII you don't need.
-
-## Maintaining the conventions (keep machines in sync)
-
-This manual, the `brain` CLI, and the store scaffold are the **canonical brain template**,
-version-controlled with the skill in the nixos-config repo (`~/Develop/personal/nixos-config`):
-
-- **Template (canonical):** `modules/home/agent-harness/skills/brain/templates/`
-  — this manual (`AGENTS.md`, plus the `CLAUDE.md` stub that imports it for Claude Code) + the
-  empty scaffold. Deployed read-only as the skill's `templates/` in each agent harness.
-- **CLI + schema (mechanism):** `modules/home/agent-harness/skills/brain/brain.py`
-  — packaged to `PATH` as `brain`. The commit hooks (pre-commit gate + post-commit auto-push) are
-  defined in the agent-harness module's `brain.nix` and installed by its activation on rebuild — Nix is their sole
-  installer.
-- **Skill (mechanism):** `modules/home/agent-harness/skills/brain/SKILL.md`
-
-The store's **content** (pages, `index.md`, `log.md`) is never templated — only the
-scaffold/manual/CLI.
-
-**To change the conventions** — buckets, page schema/frontmatter, the `brain` CLI or its checks,
-the hook, workflows, guardrails, or the skill's behavior:
-
-1. Edit the template/CLI/`SKILL.md` here; bump the `brain-template` version comment at the top of
-   this file **and `TEMPLATE_VERSION` in `brain.py`** (they must match); commit nixos-config.
-2. Rebuild each machine — Nix propagates the updated template + CLI and reinstalls the hooks everywhere.
-3. On each machine, run **`brain sync`** — the CLI refreshes the store mechanically (this manual,
-   missing buckets/scaffold, normalize, reindex, untrack) and stamps, **unless** the version gap
-   crosses a registered judgment migration, in which case it stops before stamping and
-   **`/brain --sync`** finishes the job (diff-and-ask frontmatter backfill, then stamp last).
-   (The rebuild in step 2 — not sync — installs/refreshes the hooks.)
-
-`brain check` prints a note whenever the store's `.brain-version` is behind the CLI, so a machine
-that has rebuilt but not synced says so on every commit. The stamp is written **last**, after the
-migration succeeds — an interrupted sync therefore leaves the store visibly behind rather than
-silently claiming to be current (which would make the next sync skip it).
-
-The bootstrap only *creates* a missing store (and installs the hooks); it never updates an existing
-store's content — `brain sync` (plus `/brain --sync` when a judgment backfill is pending) is how
-existing stores catch up. Pure content edits (adding/updating pages) need none of this.

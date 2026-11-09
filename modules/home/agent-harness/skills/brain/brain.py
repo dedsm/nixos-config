@@ -31,6 +31,13 @@ Subcommands:
             registered judgment migration is pending — finish via /brain --sync)
   version   print CLI/store template version; --stamp writes .brain-version
   today     print today's date from the system clock (never infer it from the corpus)
+  where     which page a directory's project belongs to (tracked / ignored /
+            snoozed / undecided); --hook prints what a session should be told
+  track     claim the current repo/directory for a page (`repos:` frontmatter)
+  ignore    never ask about this repo/directory again (workspaces.md)
+  snooze    ask again about this repo/directory in N days (workspaces.md)
+  commit    commit ONLY the given paths (+ this session's log entry) — several
+            agent sessions may be editing the store at once
 
 The commit hooks (pre-commit gate + post-commit auto-push) are Nix-managed: the
 nixos-config activation installs them into ~/brain/.git/hooks on every rebuild.
@@ -45,11 +52,15 @@ Stdlib only, on purpose: no runtime dependencies to wire through Nix.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime
+import io
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # --------------------------------------------------------------------------
@@ -58,7 +69,7 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 16     # bump with templates/AGENTS.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 18     # bump with templates/AGENTS.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 # `goal` is the quarterly outcomes layer: 3-5 live at a time, due = quarter
@@ -73,12 +84,12 @@ STATUSES = ["idea", "planned", "active", "blocked", "done", "archived"]
 ATTENTIONS = ["focus", "tracking"]
 REQUIRED = ["title", "kind", "status", "created", "updated"]
 DATE_FIELDS = ["created", "updated", "started", "finished", "due", "verified"]
-LIST_FIELDS = ["tags", "links"]
+LIST_FIELDS = ["tags", "links", "repos"]
 # Canonical serialisation order. Unknown keys are preserved and emitted after.
 FIELD_ORDER = [
     "title", "kind", "status", "attention", "progress", "next", "owner",
     "created", "updated", "verified", "started", "finished", "due",
-    "summary", "parent", "source", "sha256", "tags", "links",
+    "summary", "parent", "source", "sha256", "repos", "tags", "links",
 ]
 
 # Kinds with a timeline: only these warn about missing started/finished. An
@@ -220,8 +231,10 @@ class Page:
         return slug_of(self.path)
 
 
-def parse_page(path: Path) -> Page:
-    text = path.read_text(encoding="utf-8")
+def parse_page(path: Path, text: str | None = None) -> Page:
+    """`text` overrides the file's content — the gate passes the staged blob."""
+    if text is None:
+        text = path.read_text(encoding="utf-8")
     if not text.startswith("---\n"):
         return Page(path, {}, [], text, has_fm=False)
     end = text.find("\n---", 3)
@@ -559,7 +572,12 @@ def _staged_universe() -> list | None:
             capture_output=True, text=True, check=True).stdout
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         return None
-    return [ln for ln in out.splitlines() if ln]
+    # Same universe as _store_md_files: hidden directories (.agents/rules — the
+    # manual's topic files, v18 — .obsidian, .trash) are not pages. Without
+    # this, .agents/rules/goals.md made every [[goals]] ambiguous at commit
+    # time while the working-tree check stayed clean.
+    return [ln for ln in out.splitlines()
+            if ln and not any(part.startswith(".") for part in ln.split("/")[:-1])]
 
 
 def _has_tracker_link(fields: dict) -> bool:
@@ -875,6 +893,10 @@ def validate_page(page: Page, required_fm: bool) -> tuple:
     for lf in LIST_FIELDS:
         if lf in f and not isinstance(f[lf], list):
             errors.append(f"{r}: {lf} must be a list")
+    for claim in (f.get("repos") or []) if isinstance(f.get("repos"), list) else []:
+        why = _claim_problem(str(claim))
+        if why:
+            errors.append(f"{r}: repos entry '{claim}' {why}")
     # v14: `progress` is the one field that is pure state reading, and on a page
     # whose `links:` name a tracker it is a hand-maintained copy of a number
     # the tracker already owns — wrong from the next merge onward. A page with
@@ -962,7 +984,10 @@ def cmd_check(args) -> int:
         # Nested material (resources/scripts/README.md) is validated when it has
         # frontmatter, but never required to — a subdirectory may hold non-pages.
         nested = len(relp.parts) != 2
-        page = parse_page(path)
+        # Under --staged, judge what the commit records, not the working file
+        # (which another session may have moved on since it was staged).
+        blob = _staged_blob(str(relp)) if args.staged else None
+        page = parse_page(path, blob)
         errs, warns = validate_page(
             page, required_fm=(bucket in required_buckets and not nested))
         # Errors a pending migration is *about* demote to warnings until the
@@ -1014,6 +1039,15 @@ def cmd_check(args) -> int:
         lerrs, lwarns = _link_lint(_staged_universe() if args.staged else None)
         all_errors += lerrs
         all_warnings += lwarns
+        # v17: one workspace, one page — otherwise `brain where` would have to
+        # guess which page a session belongs to.
+        claimed = _claims([pg for pg in (parse_page(x) for x in all_pages()) if pg.has_fm])
+        for key, owners in sorted(claimed.items()):
+            if len(owners) > 1:
+                all_errors.append(
+                    f"repos: '{key}' is claimed by {', '.join(page_ref(o) for o in owners)} — "
+                    f"one live page per workspace (an area can claim a repo several "
+                    f"projects share; a project can claim a subfolder with //path)")
 
     for w in all_warnings:
         print(f"warning: {w}", file=sys.stderr)
@@ -1130,6 +1164,8 @@ def _index_line(page: Page, indent: int = 0,
 
 
 def cmd_reindex(args) -> int:
+    if getattr(args, "staged", False):
+        return _reindex_staged()
     index = brain_dir() / "index.md"
     pages_by_bucket = {b: [parse_page(p) for p in bucket_pages(b)] for b in
                        REQUIRED_BUCKETS + OPTIONAL_BUCKETS}
@@ -2613,15 +2649,13 @@ def cmd_today(args) -> int:
     return 0
 
 
-def _append_log_entry(message: str) -> str:
-    """Prepend a dated entry (newest first), dating it from the system clock."""
-    log = brain_dir() / "log.md"
-    entry = f"- {today()} — {message}"
-    if not log.exists():
-        log.write_text(f"# Log\n\nAppend-only activity log. Newest first.\n\n{entry}\n",
-                       encoding="utf-8")
-        return entry
-    lines = log.read_text(encoding="utf-8").splitlines()
+def _log_insert(text: str | None, entry: str) -> str:
+    """log.md's text with `entry` placed newest-first. Pure, so `brain commit`
+    can apply the same entry to the working file AND to the staged version —
+    which is what keeps another session's uncommitted entries out of a commit."""
+    if text is None:
+        return f"# Log\n\nAppend-only activity log. Newest first.\n\n{entry}\n"
+    lines = text.splitlines()
     idx = next((i for i, ln in enumerate(lines) if ln.startswith("- ")), None)
     if idx is None:
         while lines and not lines[-1].strip():
@@ -2629,7 +2663,15 @@ def _append_log_entry(message: str) -> str:
         lines += ["", entry]
     else:
         lines.insert(idx, entry)  # newest first, above existing entries
-    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return "\n".join(lines) + "\n"
+
+
+def _append_log_entry(message: str) -> str:
+    """Prepend a dated entry (newest first), dating it from the system clock."""
+    log = brain_dir() / "log.md"
+    entry = f"- {today()} — {message}"
+    old = log.read_text(encoding="utf-8") if log.exists() else None
+    log.write_text(_log_insert(old, entry), encoding="utf-8")
     return entry
 
 
@@ -2920,6 +2962,519 @@ def cmd_health(args) -> int:
 
 
 # --------------------------------------------------------------------------
+# commit (v17) — concurrent sessions
+#
+# Several agent sessions (any harness, any machine's clone) can be writing to
+# the store at once, so "commit everything" means committing someone else's
+# half-done work — and auto-pushing it. Three leaks, three fixes:
+#   * `git add -A` stages every session's files  → `brain commit` stages only
+#     the paths it is given, and refuses when foreign paths are already staged;
+#   * log.md is shared: every session prepends to it → the session's entry is
+#     passed as --log and written into the STAGED log.md as well as the
+#     working one, so other sessions' uncommitted entries stay uncommitted;
+#   * index.md and the directories are regenerated from the working tree,
+#     which includes other sessions' unsaved pages → `reindex --staged`
+#     (the pre-commit hook) regenerates them from the staged tree instead.
+# --------------------------------------------------------------------------
+
+# Regenerated from the staged tree by the pre-commit hook, so they may be
+# staged without anyone having asked.
+def _generated_files() -> set:
+    return {"index.md"} | {m for m, _ in DIRECTORIES}
+
+
+def _git_store(*args, input_text: str | None = None, check: bool = False):
+    return subprocess.run(["git", "-C", str(brain_dir()), *args], input=input_text,
+                          capture_output=True, text=True, check=check)
+
+
+def _store_relpath(raw: str) -> str:
+    p = Path(raw).expanduser()
+    store = brain_dir().resolve()
+    if p.is_absolute():
+        try:
+            return str(p.resolve().relative_to(store))
+        except ValueError:
+            die(f"{raw} is outside {store}")
+    return str(Path(raw))
+
+
+def _stage_text(relp: str, text: str) -> None:
+    sha = _git_store("hash-object", "-w", "--stdin", input_text=text, check=True).stdout.strip()
+    _git_store("update-index", "--add", "--cacheinfo", f"100644,{sha},{relp}", check=True)
+
+
+def cmd_commit(args) -> int:
+    store = brain_dir()
+    if not (store / ".git").is_dir():
+        die(f"{store} is not a git repository")
+    paths = sorted(dict.fromkeys(_store_relpath(x) for x in args.paths))
+    if "log.md" in paths and args.log:
+        die("pass log.md OR --log, not both")
+    staged = [ln for ln in _git_store("diff", "--cached", "--name-only").stdout.splitlines() if ln]
+    foreign = [f for f in staged if f not in paths and f not in _generated_files()]
+    if foreign:
+        die("other changes are already staged — most likely another session's, so they "
+            "are not yours to commit:\n  " + "\n  ".join(foreign) + "\nLeave them alone; "
+            "tell the user, and commit once that session has committed (or with their go-ahead).")
+    if paths:
+        r = _git_store("add", "-A", "--", *paths)
+        if r.returncode != 0:
+            die("staging failed:\n" + (r.stderr or r.stdout).strip())
+    if args.log:
+        entry = f"- {today()} — {args.log}"
+        wt = store / "log.md"
+        wt.write_text(_log_insert(wt.read_text(encoding="utf-8") if wt.exists() else None,
+                                  entry), encoding="utf-8")
+        cur = _git_store("show", ":log.md")
+        _stage_text("log.md", _log_insert(cur.stdout if cur.returncode == 0 else None, entry))
+    if _git_store("diff", "--cached", "--quiet").returncode == 0:
+        die("nothing to commit — none of the given paths changed")
+    r = _git_store("commit", "-m", args.message)
+    sys.stdout.write(r.stdout)
+    sys.stderr.write(r.stderr)
+    if r.returncode != 0:
+        # Leave the session's own paths staged for the retry; nothing else was touched.
+        die("commit failed (pre-commit gate?) — fix and rerun `brain commit`", r.returncode)
+    return 0
+
+
+def _reindex_staged() -> int:
+    """The pre-commit hook's reindex: regenerate index.md and the directory
+    columns from the STAGED tree, stage the results, and update a working copy
+    only where it had no unstaged edits. Another session's unsaved page can
+    then neither appear in this commit's catalog nor trip its link gate."""
+    store = brain_dir()
+    tmp = Path(tempfile.mkdtemp(prefix="brain-reindex-", dir=store / ".git"))
+    try:
+        _git_store("checkout-index", "--all", f"--prefix={tmp}/", check=True)
+        before = os.environ.get("BRAIN_DIR")
+        os.environ["BRAIN_DIR"] = str(tmp)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                cmd_reindex(argparse.Namespace(check=False, staged=False))
+        finally:
+            if before is None:
+                os.environ.pop("BRAIN_DIR", None)
+            else:
+                os.environ["BRAIN_DIR"] = before
+        for relp in sorted(_generated_files()):
+            gen = tmp / relp
+            if not gen.exists():
+                continue
+            new = gen.read_text(encoding="utf-8")
+            cur = _git_store("show", f":{relp}")
+            staged_text = cur.stdout if cur.returncode == 0 else None
+            if staged_text == new:
+                continue
+            _stage_text(relp, new)
+            wt = store / relp
+            wt_text = wt.read_text(encoding="utf-8") if wt.exists() else None
+            if wt_text == staged_text:
+                wt.write_text(new, encoding="utf-8")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return 0
+
+
+# --------------------------------------------------------------------------
+# workspaces (v17) — which repo or directory belongs to which page
+#
+# A session starts in a directory; this answers "which page is that work
+# about?" so the agent can offer brain updates at the right place, ask once
+# about a project the brain doesn't know, and stay silent where told to.
+#
+# Identity is machine-independent on purpose — the store syncs between
+# machines whose home directories differ (/home/david vs /Users/…), and every
+# worktree of a repo must resolve to the same project:
+#   git repo with a remote   the normalised remote URL   github.com/owner/repo
+#   git repo, no remote      its root commit's hash      git:3f9c2a1b0c4d
+#   anything else            the path relative to $HOME  ~/Documents/taxes
+# A claim may add a subfolder (github.com/x/mono//services/api) and the most
+# specific claim wins, which is how one repo can hold several projects.
+#
+# Tracked = a live page lists the identity in `repos:` (so archiving the page
+# releases it). Ignored / snoozed = workspaces.md, written by `brain ignore` /
+# `brain snooze`. Everything else is undecided, and the agent asks once.
+# All of it is plain text the store already syncs; no harness is assumed —
+# each harness's SessionStart wrapper only passes a directory in and wraps
+# `brain where --hook`'s text in its own format.
+# --------------------------------------------------------------------------
+
+WORKSPACES_FILE = "workspaces.md"
+SNOOZE_DAYS = 30
+_WS_SECTIONS = ("Ignored", "Snoozed")
+_WS_ITEM = re.compile(r"^- `([^`]+)`(?:.*?(\d{4}-\d{2}-\d{2}))?")
+_WS_SCAFFOLD = """# Workspaces
+
+Which repositories and directories this brain tracks, ignores, or will ask about
+later — see `.agents/rules/workspaces.md`. Tracked ones are not listed here: a
+page claims a workspace in its `repos:` frontmatter (`brain track <page>`), and
+`brain where --all` prints every claim. The two sections below are written by
+`brain ignore` and `brain snooze`; keep them last and edit them only through the CLI.
+"""
+
+
+def _git(d, *args) -> str | None:
+    try:
+        r = subprocess.run(["git", "-C", str(d), *args], capture_output=True,
+                           text=True, timeout=5)
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def normalize_remote(url: str) -> str | None:
+    """git@github.com:x/y.git, https://github.com/x/y, ssh://git@host:22/x/y.git
+    → host/x/y. None for a local-path remote, which names a place on one
+    machine rather than a project."""
+    u = url.strip()
+    if re.match(r"^(file://|/|\.|~)", u):
+        return None
+    u = re.sub(r"^[A-Za-z][A-Za-z0-9+.-]*://", "", u)   # scheme
+    u = re.sub(r"^[^@/]+@", "", u)                         # user@
+    u = re.sub(r"^([^/:]+):\d+/", r"\1/", u)               # host:port/
+    m = re.match(r"^([^/:]+):(.+)$", u)                    # scp-like host:path
+    if m:
+        u = f"{m.group(1)}/{m.group(2)}"
+    u = u.rstrip("/").removesuffix(".git").rstrip("/")
+    host, _, path = u.partition("/")
+    return f"{host.lower()}/{path}" if host and path else None
+
+
+def workspace_of(d: Path) -> dict:
+    """{key, sub, root, kind} for a directory — see the section comment."""
+    d = d.expanduser().resolve()
+    top = _git(d, "rev-parse", "--show-toplevel")
+    # A bare-repo-plus-worktrees layout (repo/ is the bare repository, its
+    # worktrees live in repo/work/*) has no toplevel at repo/ itself, but it is
+    # still that repo: identify it by the git dir so the remote lookup runs.
+    if not top and _git(d, "rev-parse", "--is-bare-repository") == "true":
+        top = _git(d, "rev-parse", "--absolute-git-dir")
+    if top:
+        root = Path(top).resolve()
+        sub = "" if d == root else str(d.relative_to(root)) if d.is_relative_to(root) else ""
+        remotes = (_git(d, "remote") or "").split()
+        key = None
+        for name in sorted(remotes, key=lambda n: (n != "origin", n)):
+            key = normalize_remote(_git(d, "remote", "get-url", name) or "")
+            if key:
+                break
+        if key is None:
+            roots = sorted((_git(d, "rev-list", "--max-parents=0", "HEAD") or "").split())
+            if roots:
+                key = "git:" + roots[0][:12]
+        if key:
+            return {"key": key, "sub": sub, "root": str(root), "kind": "git"}
+    home = Path.home().resolve()
+    if d == home:
+        key = "~"
+    elif d.is_relative_to(home):
+        key = "~/" + str(d.relative_to(home))
+    else:
+        key = str(d)
+    return {"key": key, "sub": "", "root": str(d), "kind": "path"}
+
+
+def _ws_candidates(ws: dict) -> list:
+    """Claim keys that would cover this workspace, most specific first."""
+    if ws["kind"] == "git":
+        parts = Path(ws["sub"]).parts if ws["sub"] else ()
+        return [ws["key"] + "//" + "/".join(parts[:i])
+                for i in range(len(parts), 0, -1)] + [ws["key"]]
+    out, p = [], ws["key"]
+    while p not in ("~", "/", ".", ""):
+        out.append(p)
+        p = str(Path(p).parent)
+    return out
+
+
+def _claim_problem(claim: str) -> str | None:
+    """Why a `repos:` entry is malformed, or None. Absolute paths are refused
+    because they name a place on one machine — the store is shared."""
+    c = claim.strip()
+    if c.startswith("/"):
+        return "is an absolute path, which only means something on one machine — use ~/…"
+    if re.fullmatch(r"~(/[^/].*)?", c) or re.fullmatch(r"git:[0-9a-f]{7,40}(//.+)?", c) \
+            or re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+/[^/\s].*", c):
+        return None
+    return ("is not a workspace identity — use host/owner/repo, git:<root-commit>, "
+            "or ~/path (`brain track` writes the right form)")
+
+
+def _claims(pages: list) -> dict:
+    """identity -> [live pages claiming it]. Done/archived pages and anything
+    under archive/ claim nothing: finishing a project releases its repo."""
+    out: dict = {}
+    for p in pages:
+        if p.fields.get("status") in ("done", "archived") or rel(p.path).startswith("archive/"):
+            continue
+        repos = p.fields.get("repos")
+        for k in repos if isinstance(repos, list) else []:
+            out.setdefault(str(k).strip().rstrip("/"), []).append(p)
+    return out
+
+
+def _ws_read() -> tuple:
+    """(text, {section: {key: date}}) of workspaces.md; scaffold if missing."""
+    path = brain_dir() / WORKSPACES_FILE
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (FileNotFoundError, OSError, UnicodeDecodeError):
+        text = _WS_SCAFFOLD
+    lists, section = {s: {} for s in _WS_SECTIONS}, None
+    for line in text.splitlines():
+        m = re.match(r"^##\s+(.+?)\s*$", line)
+        if m:
+            section = m.group(1) if m.group(1) in _WS_SECTIONS else None
+            continue
+        m = _WS_ITEM.match(line)
+        if section and m:
+            lists[section][m.group(1)] = m.group(2) or ""
+    return text, lists
+
+
+def _ws_write(text: str, lists: dict) -> None:
+    """Rewrite the Ignored/Snoozed sections in place (appending any that are
+    missing); everything else in the file is kept verbatim."""
+    def body(name):
+        items = lists[name]
+        if not items:
+            return ["", "_(none)_", ""]
+        fmt = (lambda k, d: f"- `{k}` — until {d}") if name == "Snoozed" \
+            else (lambda k, d: f"- `{k}` — {d}" if d else f"- `{k}`")
+        return [""] + [fmt(k, d) for k, d in sorted(items.items())] + [""]
+    out, skipping, seen = [], False, set()
+    for line in text.rstrip("\n").split("\n"):
+        m = re.match(r"^##\s+(.+?)\s*$", line)
+        if m:
+            skipping = m.group(1) in _WS_SECTIONS
+            if skipping:
+                seen.add(m.group(1))
+                out += [line] + body(m.group(1))
+                continue
+        if not skipping:
+            out.append(line)
+    for name in _WS_SECTIONS:
+        if name not in seen:
+            out += ["", f"## {name}"] + body(name)
+    (brain_dir() / WORKSPACES_FILE).write_text(
+        re.sub(r"\n{3,}", "\n\n", "\n".join(out)).rstrip("\n") + "\n", encoding="utf-8")
+
+
+def _ws_suggest(ws: dict, pages: list) -> list:
+    """Live pages that look like the workspace's home, best first: the repo's
+    name in the slug or title beats it in `links:`, which beats the body."""
+    base = ws["key"].split("//")[0].rstrip("/").rsplit("/", 1)[-1]
+    if ws["kind"] == "git" and ws["key"].startswith("git:"):
+        base = Path(ws["root"]).name
+    base = base.lower()
+    if len(base) < 3:
+        return []
+    word = re.compile(r"(?<![a-z0-9])" + re.escape(base) + r"(?![a-z0-9])", re.I)
+    scored = []
+    for p in pages:
+        f = p.fields
+        if f.get("status") in ("done", "archived") or rel(p.path).startswith("archive/") \
+                or is_catalogued_elsewhere(p) or f.get("kind") == "moc":
+            continue
+        score = 0
+        if word.search(p.slug) or word.search(str(f.get("title") or "")):
+            score += 10
+        if any(word.search(str(x)) or ws["key"] in str(x) for x in (f.get("links") or [])):
+            score += 5
+        score += min(len(word.findall(p.body)), 4)
+        if score >= 2:  # one passing mention of a common word is not a lead
+            scored.append((-score, page_ref(p)))
+    return [r for _, r in sorted(scored)[:5]]
+
+
+def _where(d: Path) -> dict:
+    d = d.expanduser().resolve()
+    store = brain_dir().resolve()
+    if d == store or d.is_relative_to(store):
+        return {"state": "store", "dir": str(d)}
+    ws = workspace_of(d)
+    pages = [pg for pg in (parse_page(x) for x in all_pages()) if pg.has_fm]
+    cands = _ws_candidates(ws)
+    res = {"dir": str(d), "workspace": ws["key"], "sub": ws["sub"],
+           "kind": ws["kind"], "root": ws["root"]}
+    claims = _claims(pages)
+    for c in cands:
+        if c in claims:
+            owner = claims[c][0]
+            f = owner.fields
+            return dict(res, state="tracked", claim=c, page=page_ref(owner),
+                        status=f.get("status"), next=f.get("next"),
+                        others=[page_ref(o) for o in claims[c][1:]])
+    _, lists = _ws_read()
+    for c in cands:
+        if c in lists["Ignored"]:
+            return dict(res, state="ignored", claim=c)
+        until = lists["Snoozed"].get(c)
+        if until and is_valid_date(until) and until >= today():
+            return dict(res, state="snoozed", claim=c, until=until)
+    areas = [page_ref(p) for p in pages if p.fields.get("kind") == "area"
+             and p.fields.get("status") in LIVE_STATUSES]
+    return dict(res, state="undecided", candidates=_ws_suggest(ws, pages), areas=areas)
+
+
+def _where_hook(res: dict, session: str | None) -> str:
+    """What a session in this workspace should be told — or "" for nothing.
+    Plain text: each harness's wrapper puts it in that harness's channel."""
+    st = res["state"]
+    if st in ("store", "ignored", "snoozed"):
+        return ""
+    ref = f"\nSession reference, for filing this session later: {session}" if session else ""
+    filing = ("If the user asks to put this session in the brain, follow "
+              "~/brain/.agents/rules/file-a-session.md: find where it belongs, propose a "
+              "filing plan, discuss it, and write only what they agree to.")
+    if st == "tracked":
+        nxt = f"; next: {res['next']}" if res.get("next") else ""
+        return (f"~/brain: this workspace ({res['claim']}) is tracked by [[{res['page']}]] "
+                f"({res['status']}{nxt}). At natural checkpoints — a commit, a PR, a "
+                f"decision, the end of a task — offer the user a one-line brain update "
+                f"(a `brain log` entry, a new `next`, `verified today`, a decision for "
+                f"the page) and write it only if they say yes. Never mid-task, never "
+                f"unasked, at most once per checkpoint. " + filing + ref)
+    cands = ", ".join(f"[[{c}]]" for c in res.get("candidates") or []) or "none found"
+    areas = ", ".join(f"[[{a}]]" for a in res.get("areas") or []) or "none"
+    return (f"~/brain: this workspace ({res['workspace']}) is not tracked yet. Once, at "
+            f"the first natural pause after the user's request is handled (never "
+            f"before), ask whether the brain should track it: under which page (likely "
+            f"pages: {cands}; areas: {areas}; or a new project), ignore it for good, or "
+            f"decide later. Record the answer with `brain track <page>`, `brain ignore` "
+            f"or `brain snooze` (asks again in {SNOOZE_DAYS} days) and commit ~/brain. "
+            f"If they don't answer, drop it for this session. " + filing + ref)
+
+
+def cmd_where(args) -> int:
+    if not brain_dir().is_dir():
+        return 0  # no store on this machine: say nothing, fail nothing
+    if args.all:
+        pages = [pg for pg in (parse_page(x) for x in all_pages()) if pg.has_fm]
+        for key, owners in sorted(_claims(pages).items()):
+            print(f"tracked   {key}  → {', '.join(page_ref(o) for o in owners)}")
+        _, lists = _ws_read()
+        for key, d in sorted(lists["Ignored"].items()):
+            print(f"ignored   {key}" + (f"  (since {d})" if d else ""))
+        for key, d in sorted(lists["Snoozed"].items()):
+            print(f"snoozed   {key}  until {d}")
+        return 0
+    d = Path(args.dir or os.getcwd())
+    if not d.is_dir():
+        return 0
+    try:
+        res = _where(d)
+    except Exception:  # noqa: BLE001 — a hook must never break a session
+        if args.hook:
+            return 0
+        raise
+    if args.hook:
+        text = _where_hook(res, args.session)
+        if text:
+            print(text)
+        return 0
+    if args.json:
+        import json  # noqa: PLC0415
+        print(json.dumps(res, indent=2))
+        return 0
+    if res["state"] == "store":
+        print("inside ~/brain itself")
+        return 0
+    print(f"workspace  {res['workspace']}" + (f"  (subfolder {res['sub']})" if res["sub"] else ""))
+    st = res["state"]
+    if st == "tracked":
+        print(f"tracked    by {res['page']} ({res['status']}) via '{res['claim']}'")
+    elif st == "ignored":
+        print(f"ignored    via '{res['claim']}' (workspaces.md)")
+    elif st == "snoozed":
+        print(f"snoozed    until {res['until']} via '{res['claim']}'")
+    else:
+        print("undecided  — brain track <page> | brain ignore | brain snooze")
+        if res["candidates"]:
+            print(f"likely     {', '.join(res['candidates'])}")
+    return 0
+
+
+def _ws_key(args) -> tuple:
+    d = Path(args.dir or os.getcwd())
+    if not d.is_dir():
+        die(f"not a directory: {d}")
+    ws = workspace_of(d)
+    if getattr(args, "subdir", False):
+        if ws["kind"] != "git" or not ws["sub"]:
+            die("--subdir needs to be run from a subfolder of a git repo")
+        return ws["key"] + "//" + ws["sub"], ws
+    return ws["key"], ws
+
+
+def _ws_forget(lists: dict, key: str) -> None:
+    for name in _WS_SECTIONS:
+        lists[name].pop(key, None)
+
+
+def cmd_track(args) -> int:
+    key, _ = _ws_key(args)
+    path = resolve_page(args.page)
+    page = parse_page(path)
+    if not page.has_fm:
+        die(f"{rel(path)} has no frontmatter")
+    if page.fields.get("status") in ("done", "archived") or rel(path).startswith("archive/"):
+        die(f"{rel(path)} is {page.fields.get('status')} — a finished page claims nothing")
+    others = [pg for pg in (parse_page(x) for x in all_pages())
+              if pg.has_fm and pg.path.resolve() != path.resolve()]
+    owner = _claims(others).get(key)
+    if owner:
+        die(f"'{key}' is already claimed by {page_ref(owner[0])} — one page per "
+            f"workspace; claim a subfolder with --subdir, or move the claim")
+    repos = list(page.fields.get("repos") or [])
+    if key in repos:
+        print(f"{rel(path)}: already claims {key}")
+        return 0
+    page.fields["repos"] = repos + [key]
+    page.fields["updated"] = today()
+    errs, _ = validate_page(page, required_fm=True)
+    if errs:
+        die("refusing to write invalid page:\n  " + "\n  ".join(errs))
+    write_page(page)
+    text, lists = _ws_read()
+    if any(key in lists[n] for n in _WS_SECTIONS):
+        _ws_forget(lists, key)
+        _ws_write(text, lists)
+    print(f"{rel(path)}: repos += {key}")
+    return 0
+
+
+def cmd_ignore(args) -> int:
+    key, _ = _ws_key(args)
+    pages = [pg for pg in (parse_page(x) for x in all_pages()) if pg.has_fm]
+    owner = _claims(pages).get(key)
+    if owner:
+        die(f"'{key}' is tracked by {page_ref(owner[0])} — remove it from that "
+            f"page's `repos:` first")
+    text, lists = _ws_read()
+    _ws_forget(lists, key)
+    lists["Ignored"][key] = today()
+    _ws_write(text, lists)
+    print(f"{WORKSPACES_FILE}: ignoring {key}")
+    return 0
+
+
+def cmd_snooze(args) -> int:
+    key, _ = _ws_key(args)
+    if args.days < 1:
+        die("--days must be at least 1")
+    until = (datetime.date.today() + datetime.timedelta(days=args.days)).isoformat()
+    text, lists = _ws_read()
+    _ws_forget(lists, key)
+    lists["Snoozed"][key] = until
+    _ws_write(text, lists)
+    print(f"{WORKSPACES_FILE}: {key} snoozed until {until}")
+    return 0
+
+
+# --------------------------------------------------------------------------
 # sync — THE migration behavior: mechanical refresh, then stamp when safe
 #
 # The original design kept every migration a model-executed procedure ("no
@@ -2935,10 +3490,20 @@ def cmd_health(args) -> int:
 
 _TEMPLATE_DIR = "@brainTemplateDir@"  # substituted with the Nix store path at build
 
-# The operating manual: AGENTS.md is the text every harness reads; CLAUDE.md is
-# a one-line `@AGENTS.md` import, because Claude Code reads only CLAUDE.md.
+# The operating manual: AGENTS.md is the always-loaded core every harness
+# reads; CLAUDE.md is a one-line `@AGENTS.md` import, because Claude Code reads
+# only CLAUDE.md. Since v18 the rest of the manual is topic files in
+# .agents/rules/ (Antigravity's rules convention: `trigger: model_decision`,
+# loaded when the description matches; other harnesses follow the core's index).
+# That directory is canonical as a whole: sync replaces what differs, adds
+# what's new, and deletes rule files the template no longer has.
 # Both are canonical, so sync replaces either whenever it differs.
 MANUAL_FILES = ("AGENTS.md", "CLAUDE.md")
+MANUAL_DIRS = (".agents/rules",)
+
+
+def _is_manual(relp: str) -> bool:
+    return relp in MANUAL_FILES or any(relp.startswith(d + "/") for d in MANUAL_DIRS)
 
 # Versions whose upgrade needs judgment — a model-executed, diff-and-ask
 # backfill per the skill's sync procedure. `sync` stops before stamping when
@@ -2968,6 +3533,13 @@ JUDGMENT_MIGRATIONS = {
         "readings in page bodies — work that backlog down in a LINT pass. "
         "The gate itself blocks only NEW ones, so (b) need not finish before "
         "the stamp; (a) must",
+    17: "workspaces (see the skill's v17 notes): for each live project or "
+        "area whose work happens in a repo or directory, propose the claim — "
+        "`brain track <page> --dir <repo>` (an area when several projects share "
+        "one repo, or --subdir for a project that owns a subfolder) — show the "
+        "list, ask, then apply. Repos David says to ignore get `brain ignore "
+        "--dir <repo>`. Nothing has to be claimed for the stamp; the proposal "
+        "and David's answer do",
     16: "the organisation pass (see the skill's v16 notes). Propose, ask, then "
         "apply: (a) areas — create the store's durable areas, set every live "
         "goal's `parent` to its area and every live project's to a goal or, "
@@ -3020,11 +3592,18 @@ def cmd_sync(args) -> int:
         if src.is_dir():
             if not dst.is_dir():
                 plan.append(("mkdir", str(relp)))
-        elif str(relp) in MANUAL_FILES:
-            if not dst.exists() or dst.read_bytes() != src.read_bytes():
+        elif _is_manual(str(relp)):
+            if not dst.exists():
+                plan.append(("create", str(relp)))
+            elif dst.read_bytes() != src.read_bytes():
                 plan.append(("replace", str(relp)))
         elif not dst.exists():
             plan.append(("create", str(relp)))
+    for d in MANUAL_DIRS:
+        if (store / d).is_dir():
+            for old in sorted((store / d).rglob("*")):
+                if old.is_file() and not (tpl / old.relative_to(store)).exists():
+                    plan.append(("remove", str(old.relative_to(store))))
 
     if args.dry_run:
         print(f"brain sync (dry run, {gap}):")
@@ -3039,14 +3618,18 @@ def cmd_sync(args) -> int:
     dirty = [ln for ln in git("status", "--porcelain").stdout.splitlines()
              if ln and not ln.startswith("??")]
     if dirty:
-        die("store has uncommitted changes — commit them first so the sync "
-            "commits stay tight and revertible:\n  " + "\n  ".join(dirty))
+        die("store has uncommitted changes — commit yours first (brain commit) so the "
+            "sync commits stay tight and revertible; if they belong to another session, "
+            "wait for it to commit:\n  " + "\n  ".join(dirty))
 
     changed = []
     for action, relp in plan:
         dst = store / relp
         if action == "mkdir":
             dst.mkdir(parents=True, exist_ok=True)
+        elif action == "remove":
+            dst.unlink()
+            changed.append(relp)
         else:
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_bytes((tpl / relp).read_bytes())
@@ -3064,7 +3647,7 @@ def cmd_sync(args) -> int:
         # the directories' generated column may have been refreshed by the reindex
         # above; adding a path that doesn't exist is a harmless no-op here.
         for f in changed + ["log.md", "index.md"] + [m for m, _ in DIRECTORIES]:
-            git("add", "--", f)
+            git("add", "-A", "--", f)
         r = git("commit", "-m", f"brain sync: mechanical refresh ({gap})")
         if r.returncode != 0:
             die("mechanical commit failed (pre-commit gate?):\n"
@@ -3118,6 +3701,9 @@ def main() -> int:
     r = sub.add_parser("reindex", help="regenerate index.md's generated region "
                                        "+ people.md's generated column")
     r.add_argument("--check", action="store_true", help="exit non-zero if stale, don't write")
+    r.add_argument("--staged", action="store_true",
+                   help="regenerate from the staged tree and stage the result (the "
+                        "pre-commit hook; keeps other sessions' unsaved pages out)")
     r.set_defaults(func=cmd_reindex)
 
     lk = sub.add_parser("links", help="lint internal links; --to lists backlinks")
@@ -3252,6 +3838,46 @@ def main() -> int:
 
     td = sub.add_parser("today", help="print today's date (system clock) — don't infer it")
     td.set_defaults(func=cmd_today)
+
+    cm = sub.add_parser("commit", help="commit only the given paths (+ --log entry)")
+    cm.add_argument("-m", "--message", required=True)
+    cm.add_argument("--log", metavar="ENTRY",
+                    help="this session's log.md entry (dated from the clock), committed "
+                         "without anyone else's uncommitted entries")
+    cm.add_argument("paths", nargs="*",
+                    help="the files this session wrote or moved (both sides of a move)")
+    cm.set_defaults(func=cmd_commit)
+
+    wh = sub.add_parser("where", help="which page this directory's project belongs to")
+    wh.add_argument("--dir", help="directory to resolve (default: the current one)")
+    wh.add_argument("--json", action="store_true")
+    wh.add_argument("--hook", action="store_true",
+                    help="print what a session here should be told, or nothing "
+                         "(for harness SessionStart wrappers; never fails)")
+    wh.add_argument("--session", metavar="HARNESS:ID",
+                    help="with --hook: the session's reference, for filing it later")
+    wh.add_argument("--all", action="store_true",
+                    help="list every tracked, ignored and snoozed workspace")
+    wh.set_defaults(func=cmd_where)
+
+    tr = sub.add_parser("track", help="claim this repo/directory for a page")
+    tr.add_argument("page")
+    tr.add_argument("--dir", help="directory to resolve (default: the current one)")
+    tr.add_argument("--subdir", action="store_true",
+                    help="claim only this subfolder of the repo (repo//path)")
+    tr.set_defaults(func=cmd_track)
+
+    ig = sub.add_parser("ignore", help="never ask about this repo/directory again")
+    ig.add_argument("--dir")
+    ig.add_argument("--subdir", action="store_true")
+    ig.set_defaults(func=cmd_ignore)
+
+    sn = sub.add_parser("snooze", help="ask about this repo/directory again later")
+    sn.add_argument("--dir")
+    sn.add_argument("--subdir", action="store_true")
+    sn.add_argument("--days", type=int, default=SNOOZE_DAYS,
+                    help=f"how long until the agent asks again (default {SNOOZE_DAYS})")
+    sn.set_defaults(func=cmd_snooze)
 
     args = p.parse_args()
     return args.func(args)
