@@ -39,22 +39,25 @@ in
   # exactly one definition of each hook and no way for it to drift. All real logic
   # lives in the CLI, so the hook files themselves never need to change.
   #
-  # pre-commit gate: regenerate index.md + people.md's generated column from
-  # frontmatter and stage them (so neither can drift in a commit — no reliance
+  # pre-commit gate: regenerate index.md + the directories' generated column
+  # (mocs/people.md, and mocs/orgs.md since v16 — brain.py's DIRECTORIES) from
+  # frontmatter and stage them (so none can drift in a commit — no reliance
   # on anyone remembering to reindex), then validate the staged pages. Unlike
-  # index.md, people.md is mostly hand-maintained judgment content, so it is
+  # index.md, a directory is mostly hand-maintained judgment content, so it is
   # staged only when it had no unstaged edits BEFORE the reindex — an
   # in-progress hand edit must not be swept into an unrelated commit (and
   # auto-pushed); the column refresh rides the next clean commit instead.
-  # Separate `git add`s: a store without people.md must still stage index.md.
+  # Separate `git add`s: a store without a directory must still stage index.md.
   preCommitHook = pkgs.writeShellScript "brain-pre-commit" ''
-    people_clean=
-    ${git} diff --quiet -- mocs/people.md 2>/dev/null && people_clean=1
+    clean=
+    for dir in mocs/people.md mocs/orgs.md; do
+      ${git} diff --quiet -- "$dir" 2>/dev/null && clean="$clean $dir"
+    done
     ${cli}/bin/brain reindex >/dev/null 2>&1 || true
     ${git} add -- index.md >/dev/null 2>&1 || true
-    if [ -n "$people_clean" ]; then
-      ${git} add -- mocs/people.md >/dev/null 2>&1 || true
-    fi
+    for dir in $clean; do
+      ${git} add -- "$dir" >/dev/null 2>&1 || true
+    done
     exec ${cli}/bin/brain check --staged
   '';
 

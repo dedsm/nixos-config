@@ -9,12 +9,14 @@ governance note in ~/brain/AGENTS.md before changing any rule here.
 Subcommands:
   check     validate frontmatter + internal links + state readings (exits
             non-zero on errors; --staged gates only the lines a commit adds)
-  reindex   regenerate index.md's generated region and the people directory's
-            generated "Where they appear" column from the pages
-  q         structured query over frontmatter (status/overdue/stale/tag/kind)
+  reindex   regenerate index.md's generated region and the people/orgs
+            directories' generated "Where they appear" column from the pages
+  q         structured query over frontmatter (status/overdue/stale/tag/kind,
+            --under PAGE for everything below a page through `parent`)
   links     lint internal links (broken/ambiguous wikilinks are errors, relative
             markdown paths warn); --to PAGE lists the pages linking to PAGE
   mv        move/rename a page and rewrite [[references]] across the store
+            (--event adopts an authored note filed in raw/ as an event page)
   review    read-only briefing: goals, focus, attention, blocked, overdue, unverified, dstask
   new       create a schema-perfect page in the right bucket
   set       set one frontmatter field (validated), stamping dates
@@ -56,7 +58,7 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 15     # bump with templates/AGENTS.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 16     # bump with templates/AGENTS.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 # `goal` is the quarterly outcomes layer: 3-5 live at a time, due = quarter
@@ -76,7 +78,7 @@ LIST_FIELDS = ["tags", "links"]
 FIELD_ORDER = [
     "title", "kind", "status", "attention", "progress", "next", "owner",
     "created", "updated", "verified", "started", "finished", "due",
-    "summary", "parent", "tags", "links",
+    "summary", "parent", "source", "sha256", "tags", "links",
 ]
 
 # Kinds with a timeline: only these warn about missing started/finished. An
@@ -89,6 +91,24 @@ LIVE_STATUSES = {"active", "blocked"}
 # Pages tagged this are cataloged by the people MOC, not by index.md — see the
 # People section of AGENTS.md. They are still validated and still queryable.
 PERSON_TAG = "person"
+# v16: the same treatment for three more page shapes, each a `kind: resource`
+# with a tag and its own skeleton (`brain new resource <slug> --<shape>`):
+#   org     a company/organisation — cataloged by mocs/orgs.md, whose "Where
+#           they appear" column is generated exactly like people.md's;
+#   event   a dated, point-in-time note you wrote for yourself (a call script,
+#           meeting notes, negotiation prep) — reached from its `parent`, never
+#           from the index;
+#   digest  the compiled reading of one heavy raw/ file, pinned to it by
+#           `source` + `sha256`, so the agent reads a page instead of 190 KB.
+# All four are out of index.md (it would otherwise grow by one line per
+# person, company, call and document) and remain validated and queryable.
+ORG_TAG = "org"
+EVENT_TAG = "event"
+DIGEST_TAG = "digest"
+CATALOGUED_ELSEWHERE = {PERSON_TAG, ORG_TAG, EVENT_TAG, DIGEST_TAG}
+# A raw/ markdown file at least this big wants a digest page: below it, reading
+# the source is cheaper than maintaining a second copy of its meaning.
+DIGEST_MIN_BYTES = 16 * 1024
 # `summary` is a one-line catalog description; past this it has become a changelog.
 SUMMARY_MAX = 200
 # Scaffold pages ship from the Nix template with this sentinel where a real date
@@ -333,8 +353,42 @@ def _dup_stems() -> frozenset:
     return frozenset(s for s, n in seen.items() if n > 1)
 
 
-def is_person(page: "Page") -> bool:
-    return PERSON_TAG in (page.fields.get("tags") or [])
+def has_tag(page: "Page", tag: str) -> bool:
+    return tag in (page.fields.get("tags") or [])
+
+
+def is_catalogued_elsewhere(page: "Page") -> bool:
+    """Person, org, event and digest pages: out of index.md, see CATALOGUED_ELSEWHERE."""
+    return bool(CATALOGUED_ELSEWHERE & set(page.fields.get("tags") or []))
+
+
+def _ref_target(value: str) -> str:
+    """The target of a single-reference field ("[[x]]", "[[a/b|label]]", bare)."""
+    v = str(value or "").strip().strip("[]").strip()
+    return v.split("#")[0].split("|")[0].strip()
+
+
+def _raw_file(ref: str) -> Path | None:
+    """The raw/ markdown file a `source` ref names, or None. Path form
+    ("raw/2026-11-03-x") or a bare stem looked up inside raw/ only."""
+    t = _ref_target(ref).removesuffix(".md")
+    if not t:
+        return None
+    raw = brain_dir() / "raw"
+    if "/" in t:
+        cand = brain_dir() / (t + ".md")
+        try:
+            cand.resolve().relative_to(raw.resolve())
+        except ValueError:
+            return None
+        return cand if cand.is_file() else None
+    hits = [p for p in raw.rglob(f"{t}.md") if p.is_file()] if raw.is_dir() else []
+    return hits[0] if len(hits) == 1 else None
+
+
+def sha256_of(path: Path) -> str:
+    import hashlib  # noqa: PLC0415 — only the digest paths pay the import
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def days_since(iso: str) -> int | None:
@@ -460,9 +514,10 @@ def _sub_outside_verbatim(pat, repl: str, text: str) -> tuple:
 
 
 def _page_wiki_targets(page: Page) -> set:
-    """Every wikilink target a page carries: `parent`, `links` items, body."""
+    """Every wikilink target a page carries: `parent`, `source`, `links`
+    items, body."""
     parent = str(page.fields.get("parent") or "").strip()
-    text = parent + "\n"
+    text = parent + "\n" + str(page.fields.get("source") or "") + "\n"
     text += "\n".join(str(x) for x in (page.fields.get("links") or []))
     text += "\n" + _lintable(page.body)
     targets = {t for m in WIKILINK_RE.finditer(text) if (t := m.group(1).strip())}
@@ -588,9 +643,11 @@ _SL_SINGLE = [
 #   Tracker        the sanctioned home for tracker references (ids + links).
 #   Execution log  the dated record of operations actually performed — a past
 #                  action, not a present reading, and never rewritten.
-# All four are documented in the manual. Adding a name here without adding it
+#   Wins           (v16, area pages) dated things you delivered, with their
+#                  evidence — "merged PR #812" IS the record, not a reading.
+# All five are documented in the manual. Adding a name here without adding it
 # there would be an undocumented escape hatch, which is worse than no gate.
-_SL_EXEMPT_SECTIONS = {"decisions", "drift", "tracker", "execution log"}
+_SL_EXEMPT_SECTIONS = {"decisions", "drift", "tracker", "execution log", "wins"}
 # The struck-through supersession trail the manual explicitly wants kept.
 _SL_STRIKETHROUGH = "~~"
 # Per-line escape for a genuine citation the rules misread (a third-party
@@ -841,6 +898,34 @@ def validate_page(page: Page, required_fm: bool) -> tuple:
     if f.get("kind") == "goal" and f.get("status") in LIVE_STATUSES and not f.get("due"):
         warnings.append(f"{r}: live goal with no 'due' — a goal is a quarterly "
                         f"outcome; due is the quarter end")
+    # v16: areas are the durable layer above goals. A goal that names no area
+    # can't be found by `brain q --under <area>` — which is how leaving a job
+    # or dropping a responsibility becomes one query instead of a hunt.
+    if f.get("kind") == "goal" and f.get("status") in LIVE_STATUSES and not f.get("parent"):
+        warnings.append(f"{r}: live goal with no 'parent' — name the area it "
+                        f"serves (brain set {slug_of(page.path)} parent <area>)")
+    # v16: a digest is pinned to the raw file it compiles. The pin is schema
+    # (errors); a source that changed after digesting is drift (a warning —
+    # raw/ is immutable and the gate refuses edits there, so this only fires
+    # after a --no-verify or a hand edit outside git).
+    tags = set(f.get("tags") or [])
+    if DIGEST_TAG in tags:
+        src = _raw_file(str(f.get("source") or ""))
+        if not f.get("source"):
+            errors.append(f"{r}: digest without 'source' — the raw/ file it compiles")
+        elif src is None:
+            errors.append(f"{r}: digest source {f['source']} is not a raw/ markdown file")
+        digest = str(f.get("sha256") or "")
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            errors.append(f"{r}: digest without a valid 'sha256' of its source")
+        elif src is not None and sha256_of(src) != digest:
+            warnings.append(f"{r}: {rel(src)} changed since it was digested — raw/ "
+                            f"is immutable: restore it from git, or capture the new "
+                            f"version as its own raw file and digest that")
+    if tags & {DIGEST_TAG, EVENT_TAG} and not f.get("parent"):
+        warnings.append(f"{r}: {'digest' if DIGEST_TAG in tags else 'event'} with no "
+                        f"'parent' — it is out of index.md, so its parent is the only "
+                        f"way to reach it")
     summary = str(f.get("summary") or "")
     if len(summary) > SUMMARY_MAX:
         warnings.append(f"{r}: summary is {len(summary)} chars (>{SUMMARY_MAX}) — "
@@ -907,6 +992,16 @@ def cmd_check(args) -> int:
         all_errors += errs
         all_warnings += warns
 
+    # v16: raw/ is immutable — the manual said so from the start, and nothing
+    # enforced it. In-place modification is refused; adding a capture and
+    # moving a mis-filed note OUT (brain mv … --event: a delete here) are not.
+    # raw/inbox.md is the documented exception (lines are deleted as processed).
+    if args.staged:
+        all_errors += [
+            f"{m}: raw/ is immutable — captured inputs are never edited. Restore "
+            f"it (git -C ~/brain restore --staged --worktree {m}) and record the "
+            f"correction on the page that compiles it"
+            for m in _staged_raw_modifications()]
     # Link integrity rides the same gate. Always whole-store (even --staged):
     # a staged deletion or rename breaks OTHER files' inbound links, so a
     # staged-only pass could never vouch for anything. Skipped only when the
@@ -963,6 +1058,18 @@ def cmd_version(args) -> int:
     sv = store_version()
     print(f"cli v{TEMPLATE_VERSION}, store {'unstamped' if sv is None else f'v{sv}'}")
     return 0 if sv == TEMPLATE_VERSION else 1
+
+
+def _staged_raw_modifications() -> list:
+    """Store-relative raw/ paths the staged diff modifies in place."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(brain_dir()), "diff", "--cached", "--name-only",
+             "--diff-filter=M", "--", "raw/"],
+            capture_output=True, text=True, check=True).stdout
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return []
+    return [ln for ln in out.splitlines() if ln and ln != "raw/inbox.md"]
 
 
 def _staged_pages() -> list:
@@ -1031,10 +1138,11 @@ def cmd_reindex(args) -> int:
     def in_section(page, statuses, bucket):
         if not page.has_fm:
             return False
-        # Person pages are cataloged by the people MOC, so the index stays one
-        # line long whether you know 2 people or 200. They remain fully in the
-        # system — `check` validates them, `q --tag person` finds them.
-        if is_person(page):
+        # Person and org pages are cataloged by their directory MOC, events and
+        # digests by their parent — so the index stays one line long whether
+        # you know 2 people or 200. They remain fully in the system: `check`
+        # validates them, `q --tag person|org|event|digest` finds them.
+        if is_catalogued_elsewhere(page):
             return False
         st = page.fields.get("status", "")
         if statuses is not None:
@@ -1084,14 +1192,15 @@ def cmd_reindex(args) -> int:
         new = text.rstrip("\n") + "\n\n" + generated + "\n"
 
     all_parsed = [pg for pages in pages_by_bucket.values() for pg in pages]
-    people = _people_render(all_parsed, dup)
+    directories = [d for moc, tag in DIRECTORIES
+                   if (d := _directory_render(all_parsed, moc, tag, dup))
+                   and d[1] != d[2]]
 
     if args.check:
         stale = []
         if not (index.exists() and index.read_text(encoding="utf-8") == new):
             stale.append("index.md")
-        if people and people[1] != people[2]:
-            stale.append("mocs/people.md")
+        stale += [rel(d[0]) for d in directories]
         if not stale:
             print("index.md is up to date")
             return 0
@@ -1101,9 +1210,9 @@ def cmd_reindex(args) -> int:
 
     index.write_text(new, encoding="utf-8")
     print(f"reindexed {rel(index)}")
-    if people and people[1] != people[2]:
-        people[0].write_text(people[1], encoding="utf-8")
-        print("refreshed 'Where they appear' in mocs/people.md")
+    for path, text, _ in directories:
+        path.write_text(text, encoding="utf-8")
+        print(f"refreshed 'Where they appear' in {rel(path)}")
     if missing_summary:
         print(f"note: {len(missing_summary)} page(s) have no 'summary' "
               f"(used title as fallback): {', '.join(sorted(set(missing_summary)))}",
@@ -1112,14 +1221,19 @@ def cmd_reindex(args) -> int:
 
 
 # --------------------------------------------------------------------------
-# people.md — the generated half of the directory
+# people.md / orgs.md — the generated half of each directory
 #
 # The table itself is judgment (who's listed, their role, how to reach them);
 # the "Where they appear" column is a pure projection of the link graph, and
 # hand-maintained reverse indexes rot. `reindex` regenerates that one column
-# for every row whose first cell is a [[person-page]] link — a row for someone
-# without a page keeps whatever is typed (there is no page to compute from).
+# for every row whose first cell is a [[page]] link to a page carrying the
+# directory's tag — a row without a page keeps whatever is typed (there is no
+# page to compute from). v16 added orgs.md; the mechanism is shared.
 # --------------------------------------------------------------------------
+
+# (directory MOC, tag its rows' pages carry). The pre-commit hook in brain.nix
+# stages exactly these files — keep the two lists in step.
+DIRECTORIES = (("mocs/people.md", PERSON_TAG), ("mocs/orgs.md", ORG_TAG))
 
 PEOPLE_COL_RE = re.compile(r"where\s+they\s+appear", re.I)
 _TABLE_SEP_RE = re.compile(r"^[\s|:-]+$")
@@ -1135,12 +1249,13 @@ def _table_cells(row: str) -> list:
             for c in masked.split("|")]
 
 
-def _people_render(pages: list, ambiguous: frozenset = frozenset()) -> tuple | None:
-    """(path, new_text, old_text) for mocs/people.md with the 'Where they
+def _directory_render(pages: list, moc: str, tag: str,
+                      ambiguous: frozenset = frozenset()) -> tuple | None:
+    """(path, new_text, old_text) for a directory MOC with the 'Where they
     appear' column recomputed — in EVERY table that carries one, since the
-    manual sanctions grouping people into several tables. None when there is
-    nothing to do (no people.md, no such column, or an unreadable file)."""
-    ppath = brain_dir() / "mocs" / "people.md"
+    manual sanctions grouping entries into several tables. None when there is
+    nothing to do (no such file, no such column, or an unreadable file)."""
+    ppath = brain_dir() / moc
     try:
         old = ppath.read_text(encoding="utf-8")
     except (FileNotFoundError, UnicodeDecodeError, OSError):
@@ -1152,11 +1267,16 @@ def _people_render(pages: list, ambiguous: frozenset = frozenset()) -> tuple | N
     persons: dict = {}
     by_stem: dict = {}
     for p in pages:
-        if is_person(p):
+        if has_tag(p, tag):
             ref = rel(p.path)[: -len(".md")]
             persons[ref] = p
             by_stem.setdefault(p.slug, []).append(ref)
-    sources = [q for q in pages if rel(q.path) != "mocs/people.md"]
+    # No directory counts as an appearance in any directory: each one's
+    # generated column links the pages of the other's entries (a company's row in
+    # orgs.md lists its people's pages), so counting it would put [[orgs]] in every
+    # person's row — one projection feeding another, not a real appearance.
+    directory_mocs = {m for m, _ in DIRECTORIES}
+    sources = [q for q in pages if rel(q.path) not in directory_mocs]
     targets = [(q, _page_wiki_targets(q)) for q in sources]
     appearances = {
         ref: sorted(page_ref(q, ambiguous) for q, ts in targets
@@ -1180,7 +1300,7 @@ def _people_render(pages: list, ambiguous: frozenset = frozenset()) -> tuple | N
             continue
         m = WIKILINK_RE.search(cells[1])  # cells[0] is before the leading |
         if not m:
-            continue  # a row without a person page stays hand-maintained
+            continue  # a row without a page stays hand-maintained
         target = m.group(1).strip()
         if "/" in target:
             ref = target if target in persons else None
@@ -1226,8 +1346,16 @@ def cmd_query(args) -> int:
         cutoff = datetime.date.fromisoformat(now) - datetime.timedelta(days=args.stale)
         stale_before = cutoff.isoformat()
 
+    under = None
+    if args.under:
+        root = parse_page(resolve_page(args.under))
+        parsed = [pg for pg in (parse_page(x) for x in all_pages()) if pg.has_fm]
+        under = {pg.path for pg in _descendants(root, parsed)}
+
     rows = []
     for path in all_pages():
+        if under is not None and path not in under:
+            continue
         page = parse_page(path)
         if not page.has_fm:
             continue
@@ -1380,6 +1508,11 @@ _AREA_BODY = """
 
 <!-- APPEND. -->
 
+## Wins
+
+<!-- Optional (a career area, say). APPEND: `- <date> — <what you delivered> — <evidence link>`.
+     The proof you'll want at review or negotiation time, written while it's fresh. -->
+
 ## Links & sources
 """
 
@@ -1440,6 +1573,73 @@ _PERSON_BODY = """
 Part of [[people]].
 """
 
+# An organisation: same idea as a person page, cataloged by mocs/orgs.md.
+_ORG_BODY = """
+<!-- Who they are in one line, and your relationship (employer, client, vendor, counterparty). -->
+<!-- TODO: fill -->
+
+## Context
+
+<!-- The facts you keep re-deriving: what they do, legal entity, size, how
+     they're organised, key people ([[person]] links). REWRITE IN PLACE. -->
+
+## Relationship
+
+<!-- REWRITE IN PLACE. Your current terms with them, and since when. -->
+
+## History
+
+<!-- APPEND. `- <date> — <event> — [[page]]`, one line each; the page holds the detail. -->
+
+Part of [[orgs]].
+"""
+
+# A dated note you wrote for yourself about one occasion. Frozen once the occasion is over.
+_EVENT_BODY = """
+<!-- One line: what this occasion is, when, with whom — and what it serves (the `parent`). -->
+<!-- TODO: fill -->
+
+## Before
+
+<!-- Optional. Prep: the questions, the script, the positions going in. -->
+
+## What happened
+
+<!-- What was said and decided, as recorded at the time. Don't rewrite the record later —
+     a correction gets its own dated line. -->
+
+## Follow-ups
+
+<!-- Actions → dstask; decisions → the parent's ## Decisions. Delete each line once it has moved. -->
+"""
+
+# The compiled reading of one raw/ file, pinned to it by `source` + `sha256`.
+_DIGEST_BODY = """
+<!-- What the source is, who produced it, and why it was kept. -->
+<!-- TODO: fill -->
+
+## Key facts
+
+<!-- The load-bearing content with locators (§, page, clause, timestamp), so any claim can be
+     checked against the source without reading all of it. Numbers, dates and terms verbatim. -->
+
+## What it means here
+
+<!-- How it bears on the parent page: the judgment the source itself doesn't hold. -->
+
+## Not covered
+
+<!-- Optional. What the source is silent on, so nobody assumes it answered. -->
+"""
+
+# tag -> skeleton for the tagged resource shapes (`new resource --person` etc.)
+TAG_TEMPLATES = {
+    PERSON_TAG: _PERSON_BODY,
+    ORG_TAG: _ORG_BODY,
+    EVENT_TAG: _EVENT_BODY,
+    DIGEST_TAG: _DIGEST_BODY,
+}
+
 BODY_TEMPLATES = {
     "goal": _GOAL_BODY,
     "project": _PROJECT_BODY,
@@ -1458,7 +1658,9 @@ def cmd_new(args) -> int:
     kind = args.kind
     if kind not in KINDS:
         die(f"kind must be one of {KINDS}")
-    status = args.status or "idea"
+    # An event note is usually written about something that already happened;
+    # prep for an upcoming one passes --status planned.
+    status = args.status or ("done" if getattr(args, "event", False) else "idea")
     if status not in STATUSES:
         die(f"status must be one of {STATUSES}")
     bucket = KIND_BUCKET[kind]
@@ -1475,6 +1677,12 @@ def cmd_new(args) -> int:
     # files should never become page filenames either.
     if not parts or not all(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", s) for s in parts):
         die(f"invalid slug '{args.slug}'")
+    # Event notes are point-in-time, so their filename carries the date (from
+    # the clock): a living page's name must not, or the date would read as its
+    # freshness. A slug already dated is kept as given.
+    if getattr(args, "event", False) and not re.match(r"\d{4}-\d{2}-\d{2}-", parts[-1]):
+        parts = parts[:-1] + (f"{today()}-{parts[-1]}",)
+        slug = "/".join(parts)
     path = brain_dir() / bucket / f"{slug}.md"
     if path.exists():
         die(f"page already exists: {path.relative_to(brain_dir())}")
@@ -1488,7 +1696,8 @@ def cmd_new(args) -> int:
                 f"({', '.join(clash)}) — bare [[{parts[-1]}]] links would be "
                 f"ambiguous; pick another slug, or `brain mv` the old page first")
     path.parent.mkdir(parents=True, exist_ok=True)
-    title = args.title or parts[-1].replace("-", " ").title()
+    # The date prefix an event slug carries is the filename's job, not the title's.
+    title = args.title or re.sub(r"^\d{4}-\d{2}-\d{2}-", "", parts[-1]).replace("-", " ").title()
     fields = {
         "title": title, "kind": kind, "status": status, "owner": "me",
         "created": today(), "updated": today(),
@@ -1504,11 +1713,27 @@ def cmd_new(args) -> int:
                 v = f"[[{v}]]"  # a parent is a reference — the gate must see it
             fields[opt] = v
     tags = [t.strip() for t in (args.tags or "").split(",") if t.strip()]
-    if getattr(args, "person", False):
+    shape = next((t for t, on in ((PERSON_TAG, getattr(args, "person", False)),
+                                  (ORG_TAG, getattr(args, "org", False)),
+                                  (EVENT_TAG, getattr(args, "event", False)),
+                                  (DIGEST_TAG, bool(getattr(args, "digest_of", None))))
+                  if on), None)
+    if shape:
+        flag = "--digest-of" if shape == DIGEST_TAG else f"--{shape}"
         if kind != "resource":
-            die("--person applies to `new resource` (a person page is a resource)")
-        if PERSON_TAG not in tags:
-            tags.append(PERSON_TAG)
+            die(f"{flag} applies to `new resource` (a{'n' if shape[0] in 'aeiou' else ''} "
+                f"{shape} page is a resource)")
+        if shape not in tags:
+            tags.append(shape)
+    if shape == DIGEST_TAG:
+        src = _raw_file(args.digest_of)
+        if src is not None and src.name == "inbox.md":
+            die("raw/inbox.md is a queue, not a source — process its lines instead")
+        if src is None:
+            die(f"--digest-of '{args.digest_of}': not a raw/ markdown file "
+                f"(a PDF is digested through its -fulltext.md sibling)")
+        fields["source"] = f"[[{rel(src)[: -len('.md')]}]]"
+        fields["sha256"] = sha256_of(src)
     if getattr(args, "attention", None):
         if args.attention not in ATTENTIONS:
             die(f"attention must be one of {ATTENTIONS}")
@@ -1517,7 +1742,9 @@ def cmd_new(args) -> int:
         fields["next"] = args.next
     if tags:
         fields["tags"] = sorted(dict.fromkeys(tags))
-    skeleton = _PERSON_BODY if PERSON_TAG in tags else BODY_TEMPLATES.get(kind, "\n<!-- TODO: fill -->\n")
+    # `--tags person` without the flag still gets the person shape, as before v16.
+    shaped = shape or next((t for t in (PERSON_TAG, ORG_TAG, EVENT_TAG) if t in tags), None)
+    skeleton = TAG_TEMPLATES.get(shaped) or BODY_TEMPLATES.get(kind, "\n<!-- TODO: fill -->\n")
     body = f"# {title}\n{skeleton}"
     page = Page(path, fields, list(fields.keys()), body, has_fm=True)
     errs, _ = validate_page(page, required_fm=True)
@@ -1686,11 +1913,52 @@ def cmd_normalize(args) -> int:
 # the caller: mv never changes status/kind — it warns on the mismatch instead.
 # --------------------------------------------------------------------------
 
+def _adopt_event(page: Page, parent: str | None) -> None:
+    """Give a note moved out of raw/ the event shape's frontmatter. Its date is
+    the capture date in its filename (the day it was written), else today;
+    an existing frontmatter block keeps its fields and gains the tag."""
+    m = re.match(r"(\d{4}-\d{2}-\d{2})-", page.slug)
+    written = m.group(1) if m and is_valid_date(m.group(1)) else today()
+    if not page.has_fm:
+        h1 = re.search(r"^#\s+(.+?)\s*$", page.body, re.M)
+        page.fields = {
+            "title": h1.group(1) if h1 else page.slug.replace("-", " ").title(),
+            "kind": "resource", "status": "done", "owner": "me",
+            "created": written, "updated": today(),
+        }
+        page.order = list(page.fields)
+        page.has_fm = True
+    tags = list(page.fields.get("tags") or [])
+    page.fields["tags"] = sorted(dict.fromkeys(tags + [EVENT_TAG]))
+    if parent:
+        page.fields["parent"] = parent if "[[" in parent else f"[[{parent}]]"
+    errs, _ = validate_page(page, required_fm=True)
+    if errs:
+        die(f"moved, but the adopted frontmatter is invalid (fix by hand, then "
+            f"brain check):\n  " + "\n  ".join(errs))
+    write_page(page)
+
+
 def cmd_mv(args) -> int:
     buckets = REQUIRED_BUCKETS + OPTIONAL_BUCKETS
     src = resolve_page(args.page)
     srel = rel(src)
-    if len(Path(srel).parts) < 2 or Path(srel).parts[0] not in buckets:
+    # v16: the one way out of raw/. raw/ holds what was EXCHANGED (received,
+    # or sent and frozen as sent); a note you wrote for yourself (prep, a call
+    # script) filed there by mistake is adopted as an event page: moved to
+    # resources/, links rewritten, frontmatter stamped. Exchanged documents
+    # never leave raw/.
+    adopting = srel.startswith("raw/")
+    if adopting:
+        if not args.event:
+            die(f"'{srel}' is in raw/, which is immutable — only a note you wrote "
+                f"for yourself may leave it, as an event page: add --event")
+        if srel == "raw/inbox.md":
+            die("raw/inbox.md stays put — process its lines instead")
+    elif args.event or args.parent:
+        die("--event/--parent apply only when moving a note out of raw/ "
+            "(use `brain set <page> parent …` on a page that is already one)")
+    if not adopting and (len(Path(srel).parts) < 2 or Path(srel).parts[0] not in buckets):
         die(f"'{srel}' is not a bucket page — only pages under "
             f"{'/'.join(sorted(buckets))} can move (index/log/raw stay put)")
 
@@ -1705,6 +1973,8 @@ def cmd_mv(args) -> int:
             f"e.g. archive/{src.stem}")
     if dparts[0] not in buckets:
         die(f"destination bucket '{dparts[0]}' must be one of {sorted(buckets)}")
+    if adopting and dparts[0] != "resources":
+        die("an event page lives in resources/ — use resources/<slug>")
     dst = brain_dir() / (dest + ".md")
     if dst.exists():
         die(f"destination already exists: {dest}.md")
@@ -1765,6 +2035,9 @@ def cmd_mv(args) -> int:
             total += n
 
     moved = parse_page(dst)
+    if adopting:
+        _adopt_event(moved, args.parent)
+        moved = parse_page(dst)
     if moved.has_fm:
         moved.fields["updated"] = today()
         write_page(moved)
@@ -1886,15 +2159,29 @@ def _milestones(page: Page) -> tuple | None:
     return sum(1 for b in boxes if b.strip()), len(boxes)
 
 
-def _goal_parent_match(child, goal) -> bool:
-    """A bare `parent` ref matches this goal by stem, but a path-form ref
-    (mv's rewrite) must match the goal's real path: stems collide across
-    buckets, and a goals/x page must not claim work pointed at areas/x."""
-    v = str(child.fields.get("parent") or "").strip().strip("[]").strip()
-    v = v.split("#")[0].split("|")[0].strip()
+def _parent_match(child, page) -> bool:
+    """Whether `child`'s `parent` names `page`. A bare ref matches by stem,
+    but a path-form ref (mv's rewrite) must match the page's real path: stems
+    collide across buckets, and a goals/x page must not claim work pointed at
+    areas/x."""
+    v = _ref_target(str(child.fields.get("parent") or ""))
     if "/" in v:
-        return v.removesuffix(".md") == rel(goal.path).removesuffix(".md")
-    return v == goal.slug
+        return v.removesuffix(".md") == rel(page.path).removesuffix(".md")
+    return v == page.slug
+
+
+def _descendants(root, pages: list) -> list:
+    """Every page whose `parent` chain reaches `root` — the area → goal →
+    project → event/digest tree, walked breadth-first. Cycle-safe."""
+    seen, out, frontier = {root.path}, [], [root]
+    while frontier:
+        nxt = [p for p in pages if p.path not in seen
+               and any(_parent_match(p, f) for f in frontier)]
+        for p in nxt:
+            seen.add(p.path)
+        out += nxt
+        frontier = nxt
+    return out
 
 
 def _goal_rollup(pages: list) -> list:
@@ -1908,7 +2195,7 @@ def _goal_rollup(pages: list) -> list:
     for g in (p for p in live if p.fields.get("kind") == "goal"):
         children = [c for c in live
                     if c is not g and c.fields.get("kind") in WORK_KINDS
-                    and _goal_parent_match(c, g)]
+                    and _parent_match(c, g)]
         # A page without a usable date can't vouch for movement, so it counts
         # as untouched rather than shielding the goal from the flag.
         stalled = all((q := _quiet_days(p)) is None or q > GOAL_STALL_DAYS
@@ -1931,6 +2218,34 @@ def _goal_json(g: dict) -> dict:
                   for c in g["children"]])
 
 
+def _raw_digests(pages: list) -> tuple:
+    """(undigested, drifted). `undigested`: (raw path, KiB, days since its
+    filename's capture date or None) for each raw/ markdown file of at least
+    DIGEST_MIN_BYTES that no digest page's `source` names. `drifted`: digest
+    pages whose source no longer matches the pinned sha256."""
+    digested, drifted = set(), []
+    for p in pages:
+        if not has_tag(p, DIGEST_TAG):
+            continue
+        src = _raw_file(str(p.fields.get("source") or ""))
+        if src is None:
+            continue
+        digested.add(src.resolve())
+        if p.fields.get("sha256") and sha256_of(src) != p.fields["sha256"]:
+            drifted.append(p)
+    raw = brain_dir() / "raw"
+    undigested = []
+    for f in sorted(raw.rglob("*.md")) if raw.is_dir() else []:
+        if f.name == "inbox.md" or f.resolve() in digested:
+            continue
+        size = f.stat().st_size
+        if size < DIGEST_MIN_BYTES:
+            continue
+        m = re.match(r"(\d{4}-\d{2}-\d{2})-", f.name)
+        undigested.append((rel(f), size // 1024, days_since(m.group(1)) if m else None))
+    return undigested, drifted
+
+
 def _collect(stale_days: int) -> dict:
     # One unreadable file (a non-UTF-8 export dropped into resources/, say)
     # must not take review/health down with a traceback: health runs
@@ -1947,8 +2262,11 @@ def _collect(stale_days: int) -> dict:
             pages.append(pg)
     live = [p for p in pages if is_live_work(p)]
     now = today()
+    undigested, drifted = _raw_digests(pages)
 
     return {
+        "undigested": undigested,
+        "digest_drift": drifted,
         "focus_pointer": _read_focus(),
         "goals": _goal_rollup(pages),
         "focus": [p for p in live if p.fields.get("attention") == "focus"],
@@ -2090,6 +2408,8 @@ def _fmt_goal(g: dict, width: int) -> str:
     bits = f"{page_ref(p):{width}} {f.get('status',''):8}"
     if f.get("attention"):
         bits += f" · `{f['attention']}`"
+    if f.get("parent"):
+        bits += f" · ↑ {_ref_target(f['parent']).rsplit('/', 1)[-1]}"
     if f.get("due"):
         bits += f" · due {f['due']}"
     q = g["quiet"]
@@ -2130,6 +2450,9 @@ def cmd_review(args) -> int:
             "quiet": [dict(page_json(p), quiet_days=n) for p, n in d["quiet"]],
             "oversized": [dict(page_json(p), lines=n) for p, n in d["oversized"]],
             "unreadable": d["unreadable"],
+            "undigested": [{"path": r, "kib": k, "age_days": a}
+                           for r, k, a in d["undigested"]],
+            "digest_drift": [page_json(p) for p in d["digest_drift"]],
             "dstask_open": len(_dstask_open()),
             "inbox_pending": _inbox_count(),
         }, indent=2))
@@ -2169,6 +2492,15 @@ def cmd_review(args) -> int:
     if d["unreadable"]:
         out += ["", f"Unreadable ({len(d['unreadable'])})",
                 "  " + ", ".join(d["unreadable"])]
+    if d["undigested"]:
+        out += ["", f"Undigested raw ≥ {DIGEST_MIN_BYTES // 1024} KiB "
+                    f"({len(d['undigested'])}) — brain new resource <slug> "
+                    f"--digest-of <file> --parent <page>"]
+        out += [f"  {r} ({k} KiB)" for r, k, _ in d["undigested"]]
+    if d["digest_drift"]:
+        out += ["", f"Digest source changed ({len(d['digest_drift'])}) — raw/ is "
+                    f"immutable; see brain check"]
+        out += [f"  {page_ref(p)}" for p in d["digest_drift"]]
 
     nw = _now_warning()
     if nw:
@@ -2428,6 +2760,7 @@ def cmd_rotate_log(args) -> int:
 
 HEALTH_LOG_QUIET_DAYS = 7   # days without a log entry before health mentions it
 HEALTH_INBOX_AGE_DAYS = 3   # a pending capture older than this is a breach
+HEALTH_DIGEST_AGE_DAYS = 7  # a heavy raw file undigested longer than this is flagged
 
 
 def _inbox_oldest_days() -> int | None:
@@ -2538,6 +2871,17 @@ def cmd_health(args) -> int:
             issues.append(("log_size",
                            f"log.md {len(loglines)} lines — run brain rotate-log"))
 
+    # Fresh captures get a week to be digested, like the inbox gets three days:
+    # the flag is for material that is being re-read raw, not for today's paste.
+    old_raw = [r for r, _, age in d["undigested"]
+               if age is None or age > HEALTH_DIGEST_AGE_DAYS]
+    if old_raw:
+        issues.append(("undigested", f"{len(old_raw)} heavy raw file(s) undigested "
+                                     f"(see brain review)"))
+    if d["digest_drift"]:
+        issues.append(("digest_drift",
+                       f"{len(d['digest_drift'])} digest source(s) changed — run brain check"))
+
     if d["unreadable"]:
         issues.append(("unreadable",
                        f"{len(d['unreadable'])} unreadable page(s): "
@@ -2624,6 +2968,18 @@ JUDGMENT_MIGRATIONS = {
         "readings in page bodies — work that backlog down in a LINT pass. "
         "The gate itself blocks only NEW ones, so (b) need not finish before "
         "the stamp; (a) must",
+    16: "the organisation pass (see the skill's v16 notes). Propose, ask, then "
+        "apply: (a) areas — create the store's durable areas, set every live "
+        "goal's `parent` to its area and every live project's to a goal or, "
+        "when no goal covers it, an area; (b) orgs — an --org page for each "
+        "company that recurs across pages, linked from where it appears, rows "
+        "in mocs/orgs.md; (c) events — `brain mv raw/<file> resources/<slug> "
+        "--event --parent <page>` for each raw/ file that is a note written "
+        "for yourself (prep, call scripts, meeting notes) — what was received "
+        "or sent stays. (a)-(c) must land "
+        "before the stamp. Digests of heavy raw files (`brain review` lists "
+        "them) and splitting oversized projects into child projects can be "
+        "worked down over later passes",
 }
 
 
@@ -2705,9 +3061,9 @@ def cmd_sync(args) -> int:
 
     if plan or changed or ignored:
         _append_log_entry(f"brain sync: mechanical refresh, {gap}")
-        # people.md's generated column may have been refreshed by the reindex
+        # the directories' generated column may have been refreshed by the reindex
         # above; adding a path that doesn't exist is a harmless no-op here.
-        for f in changed + ["log.md", "index.md", "mocs/people.md"]:
+        for f in changed + ["log.md", "index.md"] + [m for m, _ in DIRECTORIES]:
             git("add", "--", f)
         r = git("commit", "-m", f"brain sync: mechanical refresh ({gap})")
         if r.returncode != 0:
@@ -2775,6 +3131,9 @@ def main() -> int:
     mv = sub.add_parser("mv", help="move/rename a page, rewriting [[links]] store-wide")
     mv.add_argument("page")
     mv.add_argument("dest", help="<bucket>/<slug> (e.g. archive/foo); .md optional")
+    mv.add_argument("--event", action="store_true",
+                    help="adopt a note you wrote for yourself, mis-filed in raw/, as an event page")
+    mv.add_argument("--parent", help="with --event: the page it serves")
     mv.set_defaults(func=cmd_mv)
 
     q = sub.add_parser("q", help="structured query over frontmatter")
@@ -2790,6 +3149,9 @@ def main() -> int:
                    help="live work not verified within DAYS (default: ever)")
     q.add_argument("--all", action="store_true",
                    help="with --stale, don't restrict to live work")
+    q.add_argument("--under", metavar="PAGE",
+                   help="only pages whose parent chain reaches PAGE (an area's "
+                        "goals, their projects, and those projects' children)")
     q.add_argument("--json", action="store_true")
     q.set_defaults(func=cmd_query)
 
@@ -2814,8 +3176,17 @@ def main() -> int:
     n.add_argument("--due")
     n.add_argument("--parent")
     n.add_argument("--tags", help="comma-separated")
-    n.add_argument("--person", action="store_true",
-                   help="a person page (resource + tags:[person], person skeleton)")
+    shape = n.add_mutually_exclusive_group()
+    shape.add_argument("--person", action="store_true",
+                       help="a person page (resource + tags:[person], person skeleton)")
+    shape.add_argument("--org", action="store_true",
+                       help="an organisation page (resource + tags:[org]; mocs/orgs.md)")
+    shape.add_argument("--event", action="store_true",
+                       help="a dated note you wrote for yourself (resource + "
+                            "tags:[event]; filename gets today's date; default status done)")
+    shape.add_argument("--digest-of", metavar="RAW_FILE",
+                       help="the compiled reading of a raw/ file (resource + "
+                            "tags:[digest], source + sha256 pinned)")
     n.set_defaults(func=cmd_new)
 
     s = sub.add_parser("set", help="set one frontmatter field (validated)")

@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v15 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v16 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -45,8 +45,8 @@ is wrong from the next merge onward, and a **recent `verified:` stamp makes it m
 less**, because the stamp invites trust. On a page written this way `verified:` comes to mean *the
 design still holds* — a question measured in months rather than merges.
 
-**The rule in one sentence: outside `## Tracker`, `## Decisions`, `## Drift` and
-`## Execution log`, do not put a status word next to an issue key.** Cite the identifier alone and
+**The rule in one sentence: outside `## Tracker`, `## Decisions`, `## Drift`,
+`## Execution log` and `## Wins`, do not put a status word next to an issue key.** Cite the identifier alone and
 the sentence stays true forever.
 
 - **`## Tracker` is the sanctioned home for tracker references: links and stable identifiers only,
@@ -79,13 +79,35 @@ the sentence stays true forever.
 - `goals/` — the quarter's 3–5 outcome goals: the pages that explain why everything below them
   exists, catalogued first in `index.md`. See **Goals** below.
 - `projects/` — initiatives with an end state and a finish line.
-- `areas/` — ongoing responsibilities with no end (perpetual rollouts, standards to maintain).
-- `resources/` — reference material, not actionable.
+- `areas/` — ongoing responsibilities with no end (a job, a career, a homelab, admin/finance,
+  standards to maintain). **The durable layer:** every live goal names its area in `parent`, and
+  every live project names the goal it serves — or its area when no goal covers it — so
+  `brain q --under <area>` returns a responsibility's whole tree (leaving a job is one query,
+  not a hunt). An area nobody would ever open isn't worth creating.
+- `resources/` — reference material, not actionable. Four tagged shapes live here too, each
+  with its own skeleton and **out of `index.md`**: people and organisations (cataloged by
+  `mocs/people.md` / `mocs/orgs.md`, see **People and organisations**), and **events** and
+  **digests** (reached from their `parent`):
+  - an **event** is a dated note you wrote for yourself about one occasion — a call script,
+    meeting notes, prep for a conversation. `brain new resource <slug> --event --parent <page>` (the filename
+    gets the date; `status: done`, or `--status planned` for prep). Point-in-time, so it is
+    frozen once the occasion is over; its decisions move to the parent's `## Decisions`.
+  - a **digest** is the compiled reading of one heavy `raw/` file: key facts with locators
+    (§, clause, page), and what they mean for the parent. `brain new resource <slug>
+    --digest-of raw/<file> --parent <page>` pins `source` + `sha256`, so `check` notices if
+    the source ever changed. Read the digest, and open the source only to verify a claim.
 - `archive/` — completed or dormant items moved out of the buckets above.
 - `mocs/` — Maps of Content: index notes linking a topic's pages. Use for **cross-cutting**
   themes that span many pages (one page may belong to several MOCs — folders cannot express this).
-- `raw/` — immutable captured inputs (pasted text, links) before compilation. Never edit; compile
-  from here into pages. `raw/inbox.md` is the one exception: an append-only list of one-line
+- `raw/` — immutable records of what was **exchanged**: what you received (documents,
+  transcripts, exports, research output, pasted text) and what you sent, frozen as sent (the
+  questions another party then answers). Never edit — **the commit gate refuses an in-place
+  edit** (since v16); compile from here into pages. A note you wrote **for yourself** — prep, a
+  call script, meeting notes — is not raw: it is an event page. A note mis-filed here leaves
+  only via **`brain mv raw/<file> resources/<slug> --event --parent <page>`**. A PDF is kept beside
+  its `-fulltext.md` extraction, which is what links and digests point at. Any raw markdown file of
+  16 KiB or more without a digest is listed by `brain review` (and by `health` after a week).
+  `raw/inbox.md` is the one exception: an append-only list of one-line
   captures written by **`brain capture`**, from which lines are *deleted* as they're processed.
 - `mocs/now.md` — the **judgment** behind the current ordering. The generated view (what's live,
   blocked, overdue, gone quiet, open tasks) is **`brain review`** — never hand-maintain that here.
@@ -128,7 +150,10 @@ started: YYYY-MM-DD          # optional — set when status → active
 finished: YYYY-MM-DD         # optional — set when status → done
 due: YYYY-MM-DD              # optional — target date, if any
 summary: "one-line catalog description — what index.md shows for this page"
-parent: "[[parent-page]]"    # optional — nests this page under another in index.md
+parent: "[[parent-page]]"    # optional — nests this page under another in index.md; a goal's
+                             #   names its area, a project's its goal (or area)
+source: "[[raw/2026-11-03-x]]"  # digests only — the raw/ file compiled (written by --digest-of)
+sha256: <64 hex>             # digests only — the source's hash when it was digested
 tags: [example, tag]
 links:                       # cross-references
   - "[[other-page]]"
@@ -221,9 +246,11 @@ query; only drop to hand-editing page **bodies** (prose below the frontmatter).
 
 ```bash
 brain new <kind> <slug> [--title T --status S --attention A --summary "…" --next "…"
-                         --due D --parent P --tags a,b --person]
+                         --due D --parent P --tags a,b
+                         --person | --org | --event | --digest-of raw/<file>]
                               # create a schema-perfect page, with a body skeleton for its kind;
-                              # <slug> may carry subdirectories (new resource scripts/deploy)
+                              # <slug> may carry subdirectories (new resource scripts/deploy);
+                              # the four shape flags are `new resource` only
 brain set <page> <field> <value>   # set one field, validated; stamps updated (+ started/finished)
                                    # date fields accept `today` so you never hand-type one
 brain unset <page> <field>         # remove one optional field (never a required one); stamps updated
@@ -235,10 +262,13 @@ brain links [--strict] [--json]    # lint internal links — broken/ambiguous [[
 brain links --to <page>            # backlinks: list the pages that link to <page>
 brain mv <page> <bucket>/<slug>    # move/rename a page, rewriting [[references]] store-wide
                                    # (the archive lifecycle: brain mv <page> archive/<slug>)
+brain mv raw/<file> resources/<slug> --event [--parent P]
+                                   # adopt a note for yourself, mis-filed in raw/, as an event page
 brain review [--since DAYS] [--stale DAYS] [--log N] [--json]
                                    # READ-ONLY briefing; --since gives the window ("what moved")
 brain q [--status S | --kind K | --tag T | --attention A | --overdue | --due-before D
-         | --stale DAYS [--all] | --unverified [DAYS]] [--json]
+         | --stale DAYS [--all] | --unverified [DAYS] | --under PAGE] [--json]
+                                   # --under: everything whose parent chain reaches PAGE
 brain check [--staged] [--strict]  # validate frontmatter + links + state readings (the gate);
                                    # --staged judges state readings only on the lines a commit
                                    # ADDS; --strict promotes the whole-store backlog to errors
@@ -290,7 +320,7 @@ brain today                        # today's date from the system clock — neve
   It also rejects a **state reading** (a status word beside an issue key, a PR ledger, an issue
   tally) — but under `--staged`, only on the lines the commit **adds**, so an existing page's
   backlog never blocks unrelated work; the whole store is a `--strict` warning instead. See
-  **Pages hold the design; the tracker holds the standings** above for the rule, its four exempt
+  **Pages hold the design; the tracker holds the standings** above for the rule, its five exempt
   sections, its blind spot and the `<!-- state-ok -->` escape.
   Link errors **always** block, including in the rebuild→sync window: every store is link-clean, so
   the deferral that once softened them there is gone. Deferrals now cover exactly what a pending
@@ -452,8 +482,11 @@ Run a health pass and fix:
      rewritten `## Current state`; the history moves to `## Decisions` or `log.md`.
   5. **Split into a hub + children** (below) — only if it is *still* oversized, which means the
      page holds several different **kinds** of content rather than too much of one.
-- Orphan pages (in no MOC and no index line) → file them. **Person pages are not orphans**: they
-  are deliberately absent from `index.md` and cataloged by the people MOC instead.
+- Orphan pages (in no MOC and no index line) → file them. **Person and org pages are not
+  orphans** (their directory MOC catalogs them), and neither are events or digests that carry a
+  `parent` — `check` warns on one that doesn't.
+- `raw/` files that are notes you wrote for yourself → `brain mv … --event` (see Structure). Heavy raw
+  files `review` lists as undigested → digest the ones the agent keeps re-reading.
 - **`brain links`** for anything the gate predates (broken/ambiguous wikilinks, relative-path
   warnings); pages whose `status` is `done`/`archived` → **`brain mv <page> archive/<slug>`**
   (it rewrites every `[[reference]]`, including path-qualified ones, and reindexes).
@@ -481,10 +514,12 @@ reconstruct from memory.
 3. **Move verbatim, by line range.** Extract with `sed -n 'A,Bp'` and concatenate; never rewrite a
    section in the same step as relocating it. Rewriting while moving is how content goes missing
    without anyone noticing.
-4. **Children are `kind: resource` with `parent: "[[hub]]"`.** Note that `reindex` groups by bucket,
-   so a `resource` child does **not** nest under a `project` parent in `index.md` — the hub needs its
-   own `## Sub-pages` section, which is the actual directory. Do not promote a child to
-   `kind: project` just to game the index; it is reference material, not an initiative.
+4. **Children carry `parent: "[[hub]]"`, and their kind follows their lifecycle.** A workstream
+   that can close while the hub stays open (the equity terms of a negotiation, say) is a
+   `kind: project`: it nests under the hub in `index.md`, and `review` tracks its freshness and
+   `next` on their own. Reference material is a `kind: resource`; `reindex` groups by bucket, so it
+   does **not** nest under a `project` hub — the hub's `## Sub-pages` section is its directory.
+   Never pick a kind to game the index. `brain q --under <hub>` lists every child either way.
 5. **Summarise only what is genuinely spent.** An event narrative whose rulings already live in
    `## Decisions` or a child page compresses to a paragraph; keep whatever it alone records. Link
    the restore commit from the summary.
@@ -529,6 +564,9 @@ The recurring shape, across kinds:
   a page driving a multi-step change through another system; delete it when the change is over.
 - **Milestones** (goals) — *appended and checked off*: `- [ ]` lines that `review` counts at read
   time and never writes back.
+- **Wins** (optional, on an area page — a career area, typically) — *appended*, dated, each with
+  its evidence link: what you delivered, written while it's fresh, for the review or negotiation
+  where you'll need it. Exempt from the state-reading rule: "merged PR #812" is the record itself.
 
 Delete the sections a page doesn't need. An unfilled section is worse than an absent one.
 
@@ -541,7 +579,8 @@ success criteria and milestone checkboxes in the body. **`brain new goal <slug>`
 criteria / Milestones / Decisions / Open).
 
 - **Linkage is `parent`, both ways:** a project's or initiative's `parent` names the goal it
-  serves; a goal's optional `parent` names its area. Tasks stay in dstask, referenced via
+  serves; a goal's `parent` names its area (`check` warns on a live goal without one).
+  `review` shows each goal's area on its line. Tasks stay in dstask, referenced via
   `links: dstask:<id>` — never duplicated onto the goal page.
 - **Weekly focus is `attention`** — the same three states. No priority ladder here either.
 - **Success criteria are falsifiable** — checkable at quarter end, not aspirations. Milestones
@@ -580,7 +619,7 @@ know it, not at the boundary — restate `## Success criteria` in place, append 
 `## Decisions` recording the cut and why, adjust `next:`/`due` via `brain set`. A goal that no
 longer deserves the quarter is archived with a closing decision now, not at the next pass.
 
-## People
+## People and organisations
 
 A **directory of people you know** — not a work roster. This is a personal store: it will hold
 people with no Slack handle, no work email, and no job title.
@@ -605,6 +644,10 @@ people with no Slack handle, no work email, and no job title.
   and — if they have a page — **`[[link]]` them from the page where they appear**: the generated
   where-they-appear column reflects the link graph, so a bare name-mention is invisible to it.
   Do this on every brain update, not only on meeting captures.
+- **Organisations work the same way** (since v16): `mocs/orgs.md` is the directory table, a
+  company that recurs across pages gets **`brain new resource <slug> --org`** (`tags: [org]`,
+  org skeleton: context, the current relationship, a dated history), its "Where they appear" cell
+  is generated, and you `[[link]]` it where it appears instead of re-explaining it on every page.
 - **PII:** keep to what you actually need in order to work with them. A personal directory is the
   place in this store where the "no PII you don't need" guardrail actually bites — addresses,
   phone numbers, birthdays, health details.
