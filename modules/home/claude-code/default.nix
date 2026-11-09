@@ -108,11 +108,6 @@ let
       # Raises the per-session WebSearch cap so long research sessions don't
       # hit it. See docs/claude-code.md § Web search cap.
       CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION = "10000";
-      # Opts out of usage metrics and error reports to Anthropic. Also turns
-      # off feature-flag evaluation, which can make Remote Control
-      # unavailable. See docs/claude-code.md § Telemetry.
-      DISABLE_TELEMETRY = "1";
-      DISABLE_ERROR_REPORTING = "1";
     };
   }
   // cfg.extraSettings;
@@ -129,6 +124,18 @@ let
   # user-installed entries survive (minus any stale copy of the managed one,
   # matched by its command path), and the managed entry is appended.
   brainHealthHookPath = agentHarness.claudeCode.brainHealthCommand;
+
+  # env keys this module used to set and no longer does. The deep merge would
+  # leave a dropped key in settings.json forever, so the merge deletes these
+  # explicitly. Telemetry was opted out until 2026-11 (docs/claude-code.md
+  # § Telemetry); keep the entries so any machine still carrying them is
+  # cleaned up on its next switch.
+  retiredEnvKeys = [
+    "DISABLE_TELEMETRY"
+    "DISABLE_ERROR_REPORTING"
+  ];
+  delRetiredEnv = lib.concatMapStringsSep ", " (k: ".env[${builtins.toJSON k}]") retiredEnvKeys;
+
   mergeScript = pkgs.writeShellScript "merge-claude-settings" ''
     SETTINGS="$HOME/.claude/settings.json"
     ${mkdir} -p "$HOME/.claude"
@@ -140,6 +147,7 @@ let
             ((($user.hooks.SessionStart // [])
               | map(select(([.hooks[]?.command] | index("${brainHealthHookPath}")) | not)))
              + ($managed.hooks.SessionStart // []))
+        | del(${delRetiredEnv})
       ' "$SETTINGS" ${managedSettingsFile} > "$SETTINGS.tmp" && ${mv} "$SETTINGS.tmp" "$SETTINGS"
     else
       ${cp} ${managedSettingsFile} "$SETTINGS"

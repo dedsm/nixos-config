@@ -47,7 +47,7 @@ runs.
 
 ## Managed settings, not owned settings
 
-`~/.claude/settings.json` is user-editable (slash commands, project state, etc.), so this module never overwrites it wholesale. Instead `default.nix` defines a `managedSettings` attrset (hooks, status line, file-suggestion command, `alwaysThinkingEnabled`, attribution, and an `env` block — see [Task tools](#task-tools), [Web search cap](#web-search-cap) and [Telemetry](#telemetry)) and a `home.activation.mergeClaudeSettings` step that JSON-merges it into the existing file (`jq -s '.[0] * .[1]'`) on every `home-manager switch`. Anything Claude Code itself writes into `settings.json` survives; anything under `managedSettings` gets reasserted every rebuild. Extend it via the `dedsm.claude-code.extraSettings` option instead of editing the merge logic. One key is special-cased: `hooks.SessionStart` is **array-merged** rather than replaced, because herdr's integration installs its own entry there (see [`herdr.md`](./herdr.md)) — user entries survive every switch, and the managed brain-health entry is appended (deduped by command path).
+`~/.claude/settings.json` is user-editable (slash commands, project state, etc.), so this module never overwrites it wholesale. Instead `default.nix` defines a `managedSettings` attrset (hooks, status line, file-suggestion command, `alwaysThinkingEnabled`, attribution, and an `env` block — see [Task tools](#task-tools) and [Web search cap](#web-search-cap)), plus the removal of retired `env` keys ([Telemetry](#telemetry)) and a `home.activation.mergeClaudeSettings` step that JSON-merges it into the existing file (`jq -s '.[0] * .[1]'`) on every `home-manager switch`. Anything Claude Code itself writes into `settings.json` survives; anything under `managedSettings` gets reasserted every rebuild. Extend it via the `dedsm.claude-code.extraSettings` option instead of editing the merge logic. One key is special-cased: `hooks.SessionStart` is **array-merged** rather than replaced, because herdr's integration installs its own entry there (see [`herdr.md`](./herdr.md)) — user entries survive every switch, and the managed brain-health entry is appended (deduped by command path).
 
 ## Task tools
 
@@ -76,13 +76,18 @@ so long research sessions aren't cut off partway through.
 
 ## Telemetry
 
-`managedSettings.env` sets `DISABLE_TELEMETRY = "1"` and `DISABLE_ERROR_REPORTING = "1"`, which
-stop Claude Code sending usage metrics and error reports to Anthropic
-([data usage](https://code.claude.com/docs/en/data-usage)). `DISABLE_TELEMETRY` also disables the
-session-quality survey and feature-flag evaluation, so Remote Control (and anything that relies on
-it, such as mobile push) may be unavailable. Prompts and code still go to the model;
-whether Anthropic trains on them is the account toggle at
-<https://claude.ai/settings/data-privacy-controls>, not something this module controls.
+Telemetry is **on** (Claude Code's default): usage metrics and error reports go to Anthropic
+([data usage](https://code.claude.com/docs/en/data-usage)), and feature-flag evaluation, the
+session-quality survey and Remote Control (with what relies on it, such as mobile push) work.
+
+Until 2026-11 `managedSettings.env` opted out with `DISABLE_TELEMETRY = "1"` and
+`DISABLE_ERROR_REPORTING = "1"`. Because the merge is a deep merge, dropping those keys alone would
+have left them in `~/.claude/settings.json`, so the merge script deletes every key in
+`retiredEnvKeys` from `.env` on each switch. To opt out again, set the two keys back in
+`managedSettings.env` **and** remove them from `retiredEnvKeys` (otherwise the merge deletes them
+right after writing them). Prompts and code go to the model either way; whether Anthropic trains on
+them is the account toggle at <https://claude.ai/settings/data-privacy-controls>, not something this
+module controls.
 
 ## Hooks
 
