@@ -330,8 +330,25 @@ with lib;
     # mappings, and falls back to them when $HERDR_PANE_ID is unset, i.e. under
     # tmux. The nvim module links `config/` recursively and has no `after/`,
     # so this is the only thing there.
+    #
+    # Inside a herdr-core terminal ($HC_TERMINAL_ID set, i.e. herdr-desktop)
+    # the same keys belong to herdr-app-edge-nav (modules/home/herdr-desktop).
+    # Its own plugin/ file has mapped them by now, but this file loads later
+    # and would remap them to the tmux fallback, so there it re-runs
+    # edge-nav's setup (which wins as the last mapping) and stops. Outside
+    # herdr-desktop's own terminals edge-nav's setup maps nothing, leaving the
+    # keys as vim-tmux-navigator set them.
     xdg.configFile."nvim/after/plugin/herdr-nav.lua" = mkIf config.dedsm.nvim.enable {
-      source = "${navRoot}/editor/nvim.lua";
+      text = ''
+        if vim.env.HC_TERMINAL_ID and vim.env.HC_TERMINAL_ID ~= "" then
+          local ok, edge_nav = pcall(require, "herdr-app-edge-nav")
+          if ok then
+            edge_nav.setup()
+          end
+          return
+        end
+        dofile("${navRoot}/editor/nvim.lua")
+      '';
     };
 
     # `plugins.json` is deliberately *not* a store symlink: herdr rewrites it

@@ -25,7 +25,9 @@ One file arrives from outside this module: the **herdr** module links
 `~/.config/nvim/after/plugin/herdr-nav.lua` (from `pkgs/vim-herdr-navigation`) whenever both
 `dedsm.nvim.enable` and `dedsm.herdr.enable` are set. It re-maps `<C-h/j/k/l>` so a split edge crosses
 into the neighbouring herdr pane, and defers to `vim-tmux-navigator` when `$HERDR_PANE_ID`
-is unset — `after/plugin` is what lets it win over the plugin's own mappings. This config's
+is unset — `after/plugin` is what lets it win over the plugin's own mappings. Inside a
+herdr-desktop terminal (`$HC_TERMINAL_ID` set) it hands the same keys to
+`herdr-app-edge-nav`, a plugin the **herdr-desktop** module adds. This config's
 `config/` tree has no `after/` of its own. See [`herdr.md`](./herdr.md).
 
 ## Adding a plugin

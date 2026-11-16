@@ -767,3 +767,182 @@ herdr plugin log             # what a plugin action actually ran, and its output
 
 The rendered config lands at `~/.config/herdr/config.toml` as a symlink into the store;
 `herdr --default-config` prints upstream's defaults for comparison.
+
+## herdr-desktop (trial)
+
+Herdr's newer product is two programs: **herdr-core** (`hc`), a headless server that runs
+terminals and agents and keeps them running when no window is open, and **herdr-desktop**
+(`herdr-app`), a GUI window on top of it that draws its own terminals (Ghostty's VT
+engine, on Vulkan). Development has moved there; the terminal herdr above still gets fixes
+but its releases have slowed. Both are on trial on manwe, beside the terminal herdr, not
+instead of it.
+
+Module: [`modules/home/herdr-desktop/default.nix`](../modules/home/herdr-desktop/default.nix).
+Toggle: `dedsm.herdr-desktop.enable`, set in `users/david/nixos.nix` (Linux only). It
+installs `pkgs.unstable.herdr-desktop` and `pkgs.unstable.herdr-core`, carries the terminal
+herdr's keys, theme and font over (below), and adds Neovim-aware pane navigation. nixpkgs
+builds both from source and they are in the binary cache, so nothing compiles locally; the
+cost is lagging upstream's releases by a version or two. nixpkgs patches the app to find its
+own herdr-core; the module also puts `hc` on `PATH` for shells, agents and the navigation
+plugin. Layouts, and every setting and key the module doesn't name, stay the app's own,
+under `~/.config/herdr-app/`.
+
+Workspaces are called *spaces* here, and plugins are replaced by JavaScript *mods*, a
+different API, so `vim-herdr-navigation` does not apply. The app's guide to its own files
+is `~/.config/herdr-app/AGENTS.md`, rewritten on every start; `herdr-app --skill` is the
+short version for agents.
+
+### What the module writes, and how
+
+Everything goes through the `herdrDesktop` activation step, never a store symlink: the app
+watches these files and rewrites some of them.
+
+- **`keys.json` and `settings.json` are merged, the way the Claude Code settings are**
+  ([`claude-code.md`](./claude-code.md)): a `jq` deep merge of a base, then the existing
+  file, then the managed entries, so whatever the app or you change survives and the
+  managed entries are reasserted on every switch. `keys.json` holds every binding, not
+  overrides, and the app only writes its defaults when the file is missing, so the base for
+  it is the app's shipped `keys.json`, taken from the installed version's source. Putting
+  the defaults first also brings new default shortcuts in on an upgrade, which the app
+  itself stops doing once the file has been edited; the cost is that a default you delete
+  comes back on the next switch, so bind it to `"terminal"` instead to hand the key to the
+  program. `settings.json` holds overrides only, so its base is empty. Invalid JSON (a file
+  mid-edit) is left alone with a warning.
+- **Theme files, the `herdr-nav` layout and the edge-nav mod are copied** into `themes/`,
+  `layouts/` and `mods/edge-nav/`, and
+  rewritten only when they change (an identical rewrite still makes the app reload them).
+  The mod folder is replaced whole, keyed on its store path in
+  `~/.local/state/herdr-desktop/edge-nav.source`; the app does not hot-reload a symlinked
+  mod folder.
+
+### Keys
+
+herdr's `ctrl+f` prefix is not carried over: herdr-app's own shortcuts are used instead,
+prefix-free chords that cover nearly everything the prefix did. The module adds only what
+they lack:
+
+- `ctrl+h/j/k/l` → `edge-nav.*`, Neovim-aware pane movement (below). The app's own
+  `alt-h/j/k/l` stay bound to plain `pane.go`.
+- `ctrl+f ctrl+l` → clear screen (`send:` Ctrl+L's byte). `ctrl+l` now moves between
+  panes and no default gives a shell its clear screen back, so herdr's `prefix+ctrl+l`
+  survives as the one key *sequence*: a binding can be several keystrokes, and GPUI holds
+  the first as pending input for up to a second (`PENDING_INPUT_TIMEOUT` in the vendored
+  GPUI), so the second key must follow within that second.
+
+Where herdr's prefixed bindings went, in herdr-app's defaults:
+
+| herdr | herdr-app |
+|---|---|
+| `prefix+v` / `prefix+-` (split) | `ctrl-shift-o` (right) / `ctrl-shift-e` (down) |
+| `prefix+z`, `prefix+x` | `ctrl-shift-z` zoom, `ctrl-shift-x` close pane |
+| `prefix+c`, `prefix+shift+x` | `ctrl-shift-t` new tab, `ctrl-shift-w` close tab |
+| `prefix+shift+t` | `f2` rename tab |
+| `prefix+n` / `prefix+p`, `prefix+1..9` | `ctrl-tab` or `alt-]` / `ctrl-shift-tab` or `alt-[`, `ctrl-1..9` |
+| `prefix+w`, `prefix+g` | `ctrl-shift-k` space picker |
+| `prefix+shift+1..9` | `alt-1..9` |
+| `prefix+shift+n`, `prefix+shift+w` | `ctrl-shift-n` new space, `shift-f2` rename space |
+| `prefix+b` | `ctrl-shift-b` sidebar |
+| `prefix+a` / `prefix+shift+a` | `alt-down` / `alt-up` |
+| `prefix+s`, `prefix+?` | `ctrl-,` settings, `ctrl-?` help |
+| (none) | `ctrl-shift-p` command palette, `alt-shift-h/j/k/l` swap panes |
+
+No default for: closing a space (space menu, or the palette), detaching (closing the
+window does it: herdr-core keeps every terminal), resizing (drag a divider; `layout.resize`
+takes a node and a size, not a direction), cycling panes, jumping to agent N, renaming a
+pane, copy mode and the scrollback-in-`$EDITOR` dump (`ctrl-shift-f` searches
+scrollback), and reloading config (edits apply live). Any of these that has a command can
+be bound through `managedKeys` in the module.
+
+### Settings and look
+
+`settings.json` gets the terminal herdr's theme and foot's font: `solarized` and
+`solarized-light` as a `{light, dark}` pair, which follows the system appearance that DMS
+drives (herdr's `auto_switch`), and InconsolataGo Nerd Font Mono at 16px (foot's 12pt; the
+app sizes in px at zoom 1). The main layout sets no look of its own, so these decide it.
+The two theme files are generated from foot's `colors-dark`/`colors-light`
+(`modules/home/linux-desktop`), so a terminal looks the same as in foot; their selection
+colour is base02/base2, which foot leaves to inversion.
+
+Not carried over: `session.resume_agents_on_restore` (herdr-core gives a lost terminal a
+fresh shell in its last folder, never its old program), the sidebar's row layout and
+`agent_panel_sort` (those are the `spaces`/`agents` mods' own), `ui.toast.delivery =
+"system"` (the app draws its own toasts), and `mouse_capture`/`onboarding`, which have no
+meaning here. Sounds are on by default, as they were.
+
+### Pane navigation: edge-nav
+
+`ctrl+h/j/k/l` move between panes and are Neovim-aware, as in the terminal herdr, through
+[herdr-app-edge-nav](https://github.com/sebcbi1/herdr-app-edge-nav)
+(`pkgs/herdr-app-edge-nav`, MIT): an app mod plus a Neovim plugin in one repo, built as a
+Vim plugin. In a pane running nvim the mod sends the chord in with `hc keys`; nvim moves
+between its windows and, at its edge, calls `herdr-app do edge-nav.cross-<direction>`.
+The other community option, `splits-nav` (TaterDoge/herdr-mods), was passed over: no
+licence, a TCP port opened by nvim, and it symlinks itself into `~/.config/nvim/plugin`
+and rewrites `keys.json` on its own.
+
+- **Stops at the last pane.** Upstream crosses into the adjacent tab (left/right) or space
+  (up/down) at an edge and wraps around; the module turns `TRAVERSE_TABS`,
+  `TRAVERSE_SPACES` and `WRAP` off in the copy it installs, to match the terminal herdr.
+- **Docking, and the `herdr-nav` layout.** The mod draws nothing, but a key bound to
+  `edge-nav.*` reaches it only through a copy docked in the shown layout. The app docks a
+  new mod by itself (where its `mod.json` asks: bottom, 0px) **except into a shipped
+  layout**: `sync_folders` in its `src/window.rs` skips them, in 0.1.13 and upstream's
+  current source alike, so on the shipped `main` every press toasts "unknown command
+  edge-nav.down". The module therefore writes `layouts/herdr-nav.json`: the installed
+  version's shipped `main.json`, generated on every switch (so it follows upstream changes
+  to `main`, unlike a frozen `layout.clone`), with an edge-nav block at 0px at the bottom
+  of the `work` column, which has no divider or gap to give it away. Select it once with
+  `herdr-app do layout.switch --name herdr-nav` (or `ctrl-shift-l`); the app remembers the
+  shown layout in `shared.json`. Another layout of your own needs
+  `{ "id": "edge-nav", "type": "block", "size": { "px": 0 }, "content": { "mod": "edge-nav" } }`
+  somewhere in its tree.
+- **Neovim:** the plugin is added to `programs.neovim.plugins` and maps whatever chords
+  `keys.json` binds to `edge-nav.*`, only inside a terminal herdr-desktop shows. The
+  terminal herdr's `after/plugin/herdr-nav.lua` loads after it and would remap the keys to
+  the tmux fallback, so when `$HC_TERMINAL_ID` is set it re-runs edge-nav's `setup()` and
+  stops.
+- **The core's typing pause is 250 ms, not 3 s.** herdr-core types into a terminal
+  (`hc send`, `hc keys`) only once the person typing there has paused for `HC_QUIET_MS`
+  (default 3000; `quiet()` in its `src/input.rs`), so an agent's input never lands in the
+  middle of yours. edge-nav forwards `ctrl+h/j/k/l` into Neovim with `hc keys`, so at the
+  default the first move after typing (leaving insert mode, say) stalled for up to three
+  seconds. The module sets `HC_QUIET_MS=250` for the core, which reads it from its own
+  environment, i.e. from whatever started it: herdr-app gets it from a wrapper
+  (`--set-default`, so it can be overridden), shells from `home.sessionVariables`. A
+  running core keeps its environment, so a change takes `hc server restart` from a shell
+  that has the variable, and **not one inside a terminal-herdr pane**: the core hands its
+  environment to every terminal it starts, and `HERDR_PANE_ID` and friends would make every
+  herdr-desktop shell claim to be that pane (Claude Code's herdr hook reports sessions to
+  it). The wrapper strips them for app-started cores; with no live terminals, `hc server
+  stop` and reopening the app is the cleanest restart (up to 0.1.18 a restart takes the caller's environment; from
+  0.1.19 it keeps the old one, and the core has to be stopped and started). The cost is a
+  smaller guard against an agent typing while you do; herdr-core 0.1.20 adds a separate
+  draft wait (agent messages hold while unsent text sits at a prompt) that covers the
+  worst case of that, a half-typed line submitted with the agent's message.
+- **Costs:** as in the terminal herdr, `ctrl+l`, `ctrl+k` and `ctrl+j` no longer reach a
+  shell. There is no resize: edge-nav has none, and the app ships no resize keys
+  (`layout.resize` exists, for a binding later).
+
+What the trial has to answer:
+
+- **Agent status for Claude Code: answered, it works.** herdr-core does not detect agents
+  from the screen; an agent has a status only if it reports one through OSC 7501. Claude
+  Code 2.1.325 does: its panes show in the agents sidebar as working, done and idle.
+- **Light/dark.** The theme pair follows the system appearance; whether a DMS transition
+  carries across while the app is open (as it does for Firefox and Slack, through the
+  portal) is still to be seen.
+- **Telemetry** is on by default in upstream releases; for a source build (which is what
+  nixpkgs ships) upstream says it never sends. Settings → Privacy either way.
+
+If it is adopted, notes for doing it properly:
+
+- Upstream publishes `releases.herdr.dev/{app,core}/latest.json` (URL and sha256 per
+  platform), the same shape the Claude Code updater pins from. `hc` is static; `herdr-app`
+  needs `autoPatchelfHook` plus RUNPATH entries for the libraries it dlopens (Vulkan,
+  Wayland, EGL, `libxkbcommon-x11`) — not a wrapper, whose `LD_LIBRARY_PATH` would leak
+  into every terminal.
+- A release build self-updates when its binary sits beside `herdr-app.svg`; keep the icon
+  under `share/icons` so it never tries to write next to a store path.
+- The `keys.json` merge reads the shipped defaults from `pkgs.unstable.herdr-desktop.src`;
+  a prebuilt release has no source, so take them from the matching tag of the herdr-app
+  repo instead.

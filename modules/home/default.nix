@@ -5,6 +5,7 @@
   imports = [
     ./tmux
     ./herdr
+    ./herdr-desktop
     ./nvim
     ./zsh
     ./hyprland

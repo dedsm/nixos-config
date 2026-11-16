@@ -28,7 +28,7 @@ users/                  # Each user's Home Manager config, as modules layered wi
 
 modules/
 ├── common/               # Used by both NixOS and nix-darwin: fonts, nix registry, Home Manager settings
-├── home/                 # Home Manager modules: tmux, herdr, nvim, zsh, hyprland, ghostty, claude-code, ...
+├── home/                 # Home Manager modules: tmux, herdr, herdr-desktop, nvim, zsh, hyprland, ghostty, claude-code, ...
 ├── nixos/                 # NixOS system modules (dedsm.<name>.enable toggles)
 │   ├── core/                # Always-on baseline: networking, audio, xdg, base packages
 │   ├── laptop/               # Power management, lid/sleep behaviour
@@ -43,6 +43,7 @@ pkgs/                    # Custom package overlays (pkgs.local.*)
 ├── cli-notify/            # Native notification helper
 ├── dstask-note/           # pty-wrapped `dstask note`
 ├── vim-herdr-navigation/  # herdr plugin: vim-aware ctrl+h/j/k/l navigation
+├── herdr-app-edge-nav/    # herdr-desktop mod + Neovim plugin: vim-aware ctrl+h/j/k/l navigation
 ├── granola/               # Granola's macOS Electron app, repackaged for Linux (manwe only)
 └── default.nix            # The overlay itself
 
@@ -120,7 +121,7 @@ Deeper dives on the more involved pieces live in [`docs/`](./docs/):
 - [`docs/granola.md`](./docs/granola.md) — Granola (macOS/Windows only upstream) running on nixpkgs' Electron: what's patched and why, the native-module rebuild, system-audio capture (it works, via the default output's monitor), what doesn't work on Linux, and how updates are pulled from Granola's own update feed
 - [`docs/agent-harness.md`](./docs/agent-harness.md) — rtk (including its PostToolUse output compression), direnv and the `brain` skill wired into Claude Code and Antigravity from one module, switchable per agent, with rtk's instructions generated from the pinned rtk so they can't go stale
 - [`docs/nvim.md`](./docs/nvim.md) — the hand-rolled (no plugin manager) Neovim config
-- [`docs/herdr.md`](./docs/herdr.md) — the agent-aware terminal multiplexer running alongside tmux: settings rationale, the local patch that lets pane apps (Claude Code's "auto" theme) follow light/dark switches, restart behaviour, why its activation-time commands are best-effort-with-a-warning, and what is deliberately left unmanaged
+- [`docs/herdr.md`](./docs/herdr.md) — the agent-aware terminal multiplexer running alongside tmux: settings rationale, the local patch that lets pane apps (Claude Code's "auto" theme) follow light/dark switches, restart behaviour, why its activation-time commands are best-effort-with-a-warning, what is deliberately left unmanaged, and the herdr-desktop trial
 - [`docs/brain-skill.md`](./docs/brain-skill.md) — the personal "second brain" agent skill (Claude Code + Antigravity), how its store is bootstrapped/synced, how it is organised (areas → goals → projects, people and organisation directories, event notes, digests of raw sources), how a session knows which page its repo belongs to, and how concurrent sessions commit without picking up each other's work
 - [`docs/dms.md`](./docs/dms.md) — DankMaterialShell (Dux Shell since 2.0): the bar, notifications, control centre, launcher and lock screen, the screenshot and screen-recording pickers, how it is configured declaratively (a read-only `config.d/` drop-in over a writable `settings.json`), and what not to let it manage
 - [`docs/theme.md`](./docs/theme.md) — scheduled dark/light switching, why one owner must have the `color-scheme` dconf key and `gtk-theme` never changes, and how the mode reaches Firefox/Slack, Hyprland, foot and tmux

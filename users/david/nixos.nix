@@ -7,6 +7,8 @@
     dms.enable = true;
     linux-desktop.enable = true;
     antigravity.enable = true;
+    # On trial next to the terminal herdr (docs/herdr.md).
+    herdr-desktop.enable = true;
   };
 
   services.kdeconnect = {
