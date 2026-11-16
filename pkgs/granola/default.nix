@@ -43,14 +43,14 @@ let
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "granola";
-  version = "7.749.1";
+  version = "7.786.3";
 
   # The macOS auto-update payload, which is what the in-app updater installs: a
   # versioned universal .zip (the .dmg on the website is LZFSE-compressed APFS,
   # which needs a recent 7zz). The hash is the feed's own sha512.
   src = fetchurl {
     url = "https://dr2v7l5emb758.cloudfront.net/${finalAttrs.version}/Granola-${finalAttrs.version}-mac-universal.zip";
-    hash = "sha512-gx0aM2cZ3g2sC0UnDTlZgEBLhLj20D1WV+1uRekYBvULpFWgMCv59WcpOXOHzfAVQ+voD7y0e7TgIr83HMyQ8w==";
+    hash = "sha512-YFrMa6vFL/Ycaog/AdfF1wsmgGVZrm6O5KRObqDptzeTgXpG08c4YA44aOUajwkRrCeXQT31+Y+EwmnHxEuhlQ==";
   };
 
   nativeBuildInputs = [
