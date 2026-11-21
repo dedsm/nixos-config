@@ -270,9 +270,11 @@ The local patch holds the transition in the client until the host's OSC 11 reply
 forwarded to the server (foreground is queried first, so both colours are in place), then
 sends it. Every transition already triggers that query, so the hold is normally one round
 trip; a 500 ms deadline on the client tick releases it anyway for a terminal that never
-answers. Tracked upstream as
-[herdrdev/herdr#4183](https://github.com/herdrdev/herdr/issues/4183) — check it when bumping
-herdr, and drop the patch once the fix ships. The client still repaints its own chrome in the new palette immediately; what waits
+answers. Reported upstream as
+[herdrdev/herdr#4183](https://github.com/herdrdev/herdr/issues/4183) and fixed on master by
+[#5517](https://github.com/herdrdev/herdr/pull/5517) (2026-10-23), which holds the report the
+same way; 0.9.5 predates it. Drop the patch once a release after 0.9.5 reaches
+nixpkgs-unstable. The client still repaints its own chrome in the new palette immediately; what waits
 is the server's copy of the appearance, and with it the report to panes.
 
 ### Splits and workspace jumps
@@ -916,7 +918,7 @@ and rewrites `keys.json` on its own.
   it). The wrapper strips them for app-started cores; with no live terminals, `hc server
   stop` and reopening the app is the cleanest restart (up to 0.1.18 a restart takes the caller's environment; from
   0.1.19 it keeps the old one, and the core has to be stopped and started). The cost is a
-  smaller guard against an agent typing while you do; herdr-core 0.1.20 adds a separate
+  smaller guard against an agent typing while you do; herdr-core 0.1.20 (in nixpkgs since 2026-11-19) adds a separate
   draft wait (agent messages hold while unsent text sits at a prompt) that covers the
   worst case of that, a half-typed line submitted with the agent's message.
 - **Costs:** as in the terminal herdr, `ctrl+l`, `ctrl+k` and `ctrl+j` no longer reach a

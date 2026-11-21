@@ -2,8 +2,8 @@ Hold a host light/dark transition back from panes until the host's new
 default colours have reached the server.
 
 Upstream: https://github.com/herdrdev/herdr/issues/4183 (the Linux "OSC 11
-stale by one flip" comment is this bug). Drop this patch once that issue is
-closed and the fix ships in the herdr version nixpkgs-unstable carries.
+stale by one flip" comment is this bug), fixed on master by #5517 after 0.9.5.
+Drop this patch once a release with that fix is in nixpkgs-unstable.
 
 Local patch only: herdr closes unsolicited PRs from non-approved
 contributors, and its bug template forbids attaching patches.

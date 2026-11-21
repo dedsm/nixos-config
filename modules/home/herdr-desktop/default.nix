@@ -16,9 +16,9 @@ let
   # is 3000 ms. edge-nav forwards ctrl+h/j/k/l into Neovim with `hc keys`, so
   # at 3 s the first move after typing (leaving insert mode, say) stalled for
   # up to three seconds. The pause guards against an agent's input landing in
-  # the middle of yours; herdr-core 0.1.20 adds a separate draft wait (agent
-  # messages hold while unsent text sits at a prompt), so a short pause loses
-  # little once that version is in nixpkgs. See docs/herdr.md.
+  # the middle of yours; since herdr-core 0.1.20 a separate draft wait (agent
+  # messages hold while unsent text sits at a prompt) covers the worst case,
+  # so a short pause loses little. See docs/herdr.md.
   quietMs = "250";
 
   # The core reads HC_QUIET_MS from its own environment, which is whatever

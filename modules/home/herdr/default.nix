@@ -11,8 +11,8 @@ let
   # until the host's new background has arrived, so an app that answers the
   # mode 2031 report with an OSC 11 query (Claude Code's "auto" theme) reads
   # the new colour rather than the old one. See docs/herdr.md, "Theming".
-  # Upstream: https://github.com/herdrdev/herdr/issues/4183 — drop the patch
-  # once that is fixed in the herdr nixpkgs-unstable ships.
+  # Upstream: herdrdev/herdr#4183, fixed on master by #5517 (2026-10-23) but
+  # not in 0.9.5 — drop the patch once a later release is in nixpkgs-unstable.
   herdrPkg = pkgs.unstable.herdr.overrideAttrs (old: {
     patches = (old.patches or [ ]) ++ [ ./defer-appearance-report.patch ];
   });
