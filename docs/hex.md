@@ -202,18 +202,9 @@ keys are Hyprland binds. They're toggles because holding a key to draw needs a r
 
 Recording works on manwe from DMA-BUFs, apparently with VA-API (the file has no x264 marker, and the log names no encoder).
 
-**Stock v3.3.0 draws wrongly here**, and the module carries two patches for it. Recording follows what's picked in the portal, but unpatched, the pen doesn't, in three ways:
+**Since v3.4.0 the pen follows the screen picked in the portal**, at that screen's size in points: xdph 1.4.1 and later send the picked output's name as `mapping_id`, and Hex opens the pen on that `wl_output` and takes its size from `xdg_output` ([#1515](https://github.com/anomalyco/hex/pull/1515), reported as [#999](https://github.com/anomalyco/hex/issues/999) and [#1000](https://github.com/anomalyco/hex/issues/1000)). Up to v3.3.0 the module carried that as a local patch, because stock Hex opened the pen on the monitor where the capture started, at an integer scale that shrank its area on the 1.33 and 1.5 screens.
 
-- **It stays on the monitor where the capture started**, at the top left, whatever was picked. Clicks elsewhere reach the app underneath, which looks like the pen not working.
-- **It uses the wrong scale.** Rune takes a layer surface's scale from `wl_surface.preferred_buffer_scale`, an integer, so 1.5 and 1.33 become 2 and the pen's area shrinks: only the top-left 1128x752 of the 1692x1128 laptop screen works. Hex's fix for this ([#1001](https://github.com/anomalyco/hex/pull/1001)) takes the logical size from the portal's `size`, but xdph reports pixels there, so it does nothing here.
-- **It stops at the bar**, because Rune's layer has an exclusive zone of 0. Strokes there don't reach Hex, and the clicks go to Dux Shell.
-
-These are reported as [#999](https://github.com/anomalyco/hex/issues/999) (scale and bar) and [#1000](https://github.com/anomalyco/hex/issues/1000) (target), and the patches are posted on #1000. Neither needs Hyprland-specific code:
-
-- `annotate-mapping-id.patch` (Hex): xdph 1.4.1 and later send the picked output's name as `mapping_id`, so Hex finds that `wl_output`, opens the pen on it, and takes its size in points from `xdg_output` as the stroke frame. Tested on the laptop screen at 1.33 and on a 4K screen at 1.5 picked from the laptop. Without a name, or with one that matches no output, Hex behaves as stock.
-- `rune-full-screen-over-bars.patch` (Rune): a full-screen overlay uses an exclusive zone of -1, so it covers the bar. It's applied to the vendored copy of Rune in `postPatch`, because Rune is a git dependency.
-
-Upstream merged the same approach as `annotate-mapping-id.patch` in [#1515](https://github.com/anomalyco/hex/pull/1515) on 2026-11-08, after 3.3.0, so both patches go with the next release. The bar is still covered only by the Rune patch then (Rune at Hex `main` keeps an exclusive zone of 0), but the pen stopping at the bar is a minor annoyance, not worth a patch on its own. An assertion fails once the pin moves past 3.3.0, as the reminder. Hex compiles from source anyway (see [Updating](#updating)), so the patches don't add a build.
+**The pen stops at the bar.** Rune's layer surface keeps an exclusive zone of 0, so strokes over Dux Shell's bar don't reach Hex and the clicks go to the bar. A second local patch to the vendored Rune (an exclusive zone of -1 for full-screen overlays) fixed that, but it was dropped with the v3.4.0 bump as not worth carrying on its own; the change is a one-liner in Rune's `LayerSurface::place` if it's ever wanted again.
 
 **Window picks are still wrong, on any portal**: the ScreenCast spec gives `position` for monitor streams only, so nothing says where a picked window is. The pen covers the whole screen, and the frame is the window's size from the screen's top-left corner, so marks are offset by the window's position. The pen cursor never appears, because Rune maps custom cursors to the default shape on layer surfaces.
 
@@ -237,7 +228,7 @@ Debugging: `systemctl --user status hex.service`, `journalctl --user -u hex.serv
 
 ## Updating
 
-The input is pinned to a release tag (`github:anomalyco/hex/v3.3.0`) because the default branch is
+The input is pinned to a release tag (`github:anomalyco/hex/v3.4.0`) because the default branch is
 `dev`, Hex's newest development builds. `nix flake update` therefore won't move it: change the tag in
 `flake.nix`, then run `nix flake update hex`. Hex's in-app updater doesn't touch a Nix install.
 
