@@ -8,6 +8,24 @@
   pkgs,
   ...
 }:
+let
+  solarizedTerminal = (import ../theme/solarized.nix).terminal;
+
+  # foot's names for a mode's colours: `cursor` is "<text> <cursor>", and the
+  # 16 ANSI colours are regular0..7 then bright0..7.
+  footColors =
+    mode:
+    {
+      inherit (mode) background foreground;
+      cursor = "${mode.cursorText} ${mode.cursor}";
+    }
+    // lib.listToAttrs (
+      lib.imap0 (
+        i: color:
+        lib.nameValuePair (if i < 8 then "regular${toString i}" else "bright${toString (i - 8)}") color
+      ) mode.ansi
+    );
+in
 {
   options.dedsm.linux-desktop.enable = lib.mkEnableOption "the Linux desktop session's applications and plumbing";
 
@@ -56,51 +74,12 @@
             delayed-render-upper = 16000000;
           };
 
-          colors-light = {
-            # Solarized Light (applied on SIGUSR1 / light mode; bare [colors] is deprecated)
-            cursor = "fdf6e3 586e75";
-            background = "fdf6e3";
-            foreground = "657b83";
-            regular0 = "eee8d5"; # base2
-            regular1 = "dc322f"; # red
-            regular2 = "859900"; # green
-            regular3 = "b58900"; # yellow
-            regular4 = "268bd2"; # blue
-            regular5 = "d33682"; # magenta
-            regular6 = "2aa198"; # cyan
-            regular7 = "073642"; # base02
-            bright0 = "cb4b16"; # orange
-            bright1 = "fdf6e3"; # base3
-            bright2 = "93a1a1"; # base1
-            bright3 = "839496"; # base0
-            bright4 = "657b83"; # base00
-            bright5 = "6c71c4"; # violet
-            bright6 = "586e75"; # base01
-            bright7 = "002b36"; # base03
-          };
-
-          colors-dark = {
-            # Solarized Dark (applied on SIGUSR2 / dark mode; foot renamed colors2 -> colors-dark)
-            cursor = "002b36 93a1a1";
-            background = "002b36";
-            foreground = "839496";
-            regular0 = "073642"; # base02
-            regular1 = "dc322f"; # red
-            regular2 = "859900"; # green
-            regular3 = "b58900"; # yellow
-            regular4 = "268bd2"; # blue
-            regular5 = "d33682"; # magenta
-            regular6 = "2aa198"; # cyan
-            regular7 = "eee8d5"; # base2
-            bright0 = "cb4b16"; # orange
-            bright1 = "002b36"; # base03
-            bright2 = "586e75"; # base01
-            bright3 = "657b83"; # base00
-            bright4 = "839496"; # base0
-            bright5 = "6c71c4"; # violet
-            bright6 = "93a1a1"; # base1
-            bright7 = "fdf6e3"; # base3
-          };
+          # Solarized Light and Dark, from the shared palette
+          # (modules/home/theme/solarized.nix). foot switches a running
+          # terminal to colors-dark on SIGUSR1 and colors-light on SIGUSR2
+          # (the theme module sends them; bare [colors] is deprecated).
+          colors-light = footColors solarizedTerminal.light;
+          colors-dark = footColors solarizedTerminal.dark;
         };
       };
     };

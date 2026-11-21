@@ -1,800 +1,83 @@
 # Herdr
 
-[Herdr](https://herdr.dev) is a terminal multiplexer with an agent-awareness layer: a
-sidebar shows the lifecycle state (working / blocked / done / idle) of every recognised
-agent process across every workspace. That is the reason it is here — with several Claude
-Code sessions running across `work/<branch>` worktrees, "which one is waiting on me" is
-otherwise answered by cycling through windows.
+[Herdr](https://herdr.dev) runs terminals and coding agents and shows what every agent is
+doing (working, done, idle) across every space. That is why it is here: with several Claude
+Code sessions running across `work/<branch>` worktrees, the sidebar answers "which one is
+waiting on me" without cycling through windows.
 
-It is a standalone Rust binary with its own PTY handling and socket API. It does **not**
-embed or wrap tmux, so nothing in `programs.tmux` carries over to it.
+It is two programs: **herdr-core** (`hc`), a headless server that runs terminals and agents
+and keeps them running when no window is open, and **herdr-desktop** (`herdr-app`), a GUI
+window on top of it that draws its own terminals (Ghostty's VT engine, on Vulkan).
 
 Module: [`modules/home/herdr/default.nix`](../modules/home/herdr/default.nix).
-Toggle: `dedsm.herdr.enable`, set in `users/david/shared.nix` — both hosts or neither.
+Toggle: `dedsm.herdr.enable`, set in `users/david/shared.nix`: both hosts (see "macOS" below).
+It installs `pkgs.unstable.herdr-desktop` and `pkgs.unstable.herdr-core`, sets the theme and
+font, and adds Neovim-aware pane navigation. nixpkgs builds both from source and they are
+in the binary cache, so nothing compiles locally; the cost is lagging upstream's releases by
+a version or two. nixpkgs patches the app to find its own herdr-core; the module also puts
+`hc` on `PATH` for shells, agents and the navigation plugin. Layouts, and every setting and
+key the module doesn't name, stay the app's own, under `~/.config/herdr-app/`.
 
-## It coexists with tmux
+Workspaces are called *spaces*, and plugins are JavaScript *mods*. The app's guide to its
+own files is `~/.config/herdr-app/AGENTS.md`, rewritten on every start; `herdr-app --skill`
+is the short version for agents.
 
-`dedsm.tmux.enable` and `dedsm.herdr.enable` are independent and both are on. Separate binaries,
-separate servers, separate sockets: a running Herdr server cannot disturb a running tmux
-session, and vice versa. Run one in each terminal window and compare them at leisure.
+It coexists with tmux (`dedsm.tmux`): separate programs, separate servers.
 
-Do not nest them. Two multiplexers stacked in one terminal is a prefix-collision problem
-with no upside — launch Herdr from a fresh terminal window, never from inside a tmux pane.
-`$HERDR_ENV` is `1` inside a Herdr pane, which is the reliable way to tell.
+### The terminal herdr, removed
 
-## Model
+Until 2026-11 this module was the original terminal herdr (the `herdr` binary, a TUI
+multiplexer with a `ctrl+f` prefix, `config.toml` and the `vim-herdr-navigation` plugin),
+with herdr-desktop on trial beside it as `dedsm.herdr-desktop`. Upstream's development moved
+to herdr-desktop, and the terminal one was dropped; the toggle kept the name. What went with
+it: `pkgs/vim-herdr-navigation`, the local appearance-report patch, the `python3` on `PATH`
+for herdr's Claude Code integration hook, and the claude-code module's disabled
+`Notification` hooks (restored; see "Notifications" below). Its leftovers on disk are not
+managed: `~/.config/herdr/` (logs, session state) and, if the integration was never
+uninstalled, `~/.claude/hooks/herdr-agent-state.sh` plus its `hooks.SessionStart` entry in
+`~/.claude/settings.json`, which does nothing outside a terminal-herdr pane. The git
+history before that change has the whole terminal-herdr doc.
 
-Herdr nests one level deeper than tmux, and the extra level maps onto the bare-repo plus
-`work/<branch>` layout:
+## Restarting after an update
 
-```
-Session          one is enough
-└─ Workspace     one per worktree
-   └─ Tab
-      └─ Pane    an ordinary terminal
-         └─ Agent   a recognised process, with live state in the sidebar
-```
-
-| tmux | Herdr |
-|---|---|
-| session `carv` | the default session |
-| a window on a worktree | workspace |
-| a second window on the same worktree | a second *tab* in that workspace |
-| pane running `.claude-wrapped` | pane, recognised as an agent |
-| cycling windows to find the blocked agent | the sidebar |
-
-## Getting started
-
-```bash
-herdr                        # launch the server and attach
-```
-
-Run from any directory and a workspace is created for it. Beyond that, no setup step is
-required: `[terminal] new_cwd` defaults to `follow`, so a new workspace, tab, or pane
-inherits the source pane's directory, and Herdr names the workspace from it (see "Workspace
-naming" below). Creating one needs neither `--cwd` nor `--label`.
-
-Panes are ordinary terminals — run `claude`, an editor, anything. Because panes inherit the
-cwd, direnv fires per worktree exactly as it does under tmux.
-
-The CLI equivalents, useful for scripting a layout:
+A rebuild that bumps either package changes nothing that is already running: the core keeps
+its old binary until it is restarted, and the window keeps the app's. To tell, compare what
+runs with what is installed:
 
 ```bash
-herdr workspace create --cwd <path> --label <name> --no-focus
-herdr workspace list
-herdr pane split <pane_id> --direction right|down
+hc server status --json | jq -r .version     # the running core
+hc --version                                 # the installed core
+readlink /proc/$(pgrep -of 'bin/herdr-app( |$)')/exe   # the running app's store path (Linux)
+herdr-app --version                          # the installed app
 ```
 
-## Keyboard cheatsheet
-
-The prefix is `ctrl+f`. `prefix+?` lists live bindings and is authoritative over this table.
-
-| Panes | |
-|---|---|
-| Split right / down | `prefix+v` or `prefix+\|` &nbsp;·&nbsp; `prefix+-` or `prefix+\` |
-| Focus left/down/up/right | `ctrl+h` `j` `k` `l` |
-| Resize left/down/up/right (one nudge) | `prefix+h` `j` `k` `l` |
-| Cycle panes forward / back | `prefix+tab` · `prefix+shift+tab` |
-| Zoom · close | `prefix+z` · `prefix+x` |
-| Resize mode (sticky: `h`/`l` width, `j`/`k` height, `esc` out) | `prefix+r` |
-| Rename pane · scrollback | `prefix+shift+p` · `prefix+e` |
-| Copy mode (keyboard scrollback) | `prefix+[` |
-| Clear screen (gives `ctrl+l` back to the shell) | `prefix+ctrl+l` |
-
-| Tabs | |
-|---|---|
-| New · rename · close | `prefix+c` · `prefix+shift+t` · `prefix+shift+x` |
-| Next / previous | `prefix+n` · `prefix+p` |
-| Jump to 1–9 | `prefix+1` … `prefix+9` |
-
-| Workspaces | |
-|---|---|
-| Picker · fuzzy goto | `prefix+w` · `prefix+g` |
-| Jump to 1–9 | `prefix+shift+1` … `prefix+shift+9` |
-| New · rename · close | `prefix+shift+n` · `prefix+shift+w` · `prefix+shift+d` |
-| New worktree | `prefix+shift+g` |
-| Toggle sidebar | `prefix+b` |
-
-| Agents | |
-|---|---|
-| Jump to 1–9 | `prefix+ctrl+1` … `prefix+ctrl+9` |
-| Next / previous (attention order) | `prefix+a` · `prefix+shift+a` |
-
-| Session | |
-|---|---|
-| Detach (leaves everything running) | `prefix+q` |
-| Reload config · settings · help | `prefix+shift+r` · `prefix+s` · `prefix+?` |
-
-Past nine workspaces the numbered jumps run out, so `prefix+g` is the practical way around a
-repo with more worktrees than that. Agents have no such picker — see "Agent navigation".
-
-**Navigate mode** is a separate surface where plain keys work with no prefix: `up`/`down`
-move between workspaces, `h`/`j`/`k`/`l` between panes.
-
-**Copy mode** (`prefix+[`, the tmux chord, and a Herdr default rather than something set
-here) is the keyboard route through scrollback: a cursor with vim motions, page scrolling,
-`/` search, and a visual selection that yanks to the clipboard. `prefix+e` is the other
-half — it dumps the pane's scrollback into `$EDITOR` when searching it is easier there.
-Neither depends on `ui.mouse_capture`; both worked before it was enabled and still do.
-
-### Bindings that ship unset
-
-Upstream leaves these empty, and the herdr docs present some of them as though they were
-defaults. This module binds `switch_workspace`, `focus_agent`, `next_agent` and
-`previous_agent`; what remains unset is:
-
-`open_worktree` · `remove_worktree` · `previous_workspace` · `next_workspace` · `last_pane`
-
-Note also that `backslash`, `bracketleft` and `bracketright` are not key names the binary
-recognises.
-
-### Creating worktrees
-
-`herdr worktree create` and `prefix+shift+g` default to `[worktrees] directory`, which is
-`~/.herdr/worktrees` — a single global path that cannot express the per-repo
-`<repo>/work/<branch>` convention used here. Pass the path explicitly:
-
-```bash
-herdr worktree create --branch <name> --base main --path <repo>/work/<name>
-```
-
-Existing worktrees just need a workspace, via `herdr workspace create --cwd` or
-`herdr worktree open --path`.
-
-## Packaging
-
-`pkgs.unstable.herdr` — Herdr is in nixpkgs, and in the unstable revision this flake
-already pins, so there is no entry under `pkgs/` and no extra flake input. It builds for
-both `aarch64-darwin` and `x86_64-linux`.
-
-It carries one local patch, `defer-appearance-report.patch` beside the module, which fixes
-Claude Code's "auto" theme inside panes — see "Pane apps and the appearance race" under
-"Theming". A version bump that stops applying it fails the build loudly; drop it once
-upstream ships an equivalent fix.
-
-Home Manager 26.05 ships no `programs.herdr` module — the flake pins
-`home-manager/release-26.05`, and a grep for "herdr" across its 396 program modules finds
-nothing. So the config file is rendered here from a Nix attrset with `pkgs.formats.toml` and
-linked with `xdg.configFile`, which keeps the settings readable as Nix — the same shape as
-`programs.ghostty.settings` and `programs.starship.settings` — rather than a quoted heredoc.
-
-`modules/programs/herdr.nix` *does* exist on home-manager **master**, and it works exactly
-this way: `pkgs.formats.toml` → `xdg.configFile."herdr/config.toml"`, with a free-form
-`settings` attrset (its own example sets `onboarding = false`). When it reaches a release the
-migration is mechanical — the `settings` binding in this module is already the right shape:
-
-```nix
-programs.herdr = {
-  enable = true;
-  package = pkgs.unstable.herdr;   # the option defaults to pkgs.herdr, i.e. stable
-  inherit settings;
-};
-```
-
-Until then the one thing worth borrowing is its `onChange`, which this module now carries:
-`herdr server reload-config` after the file changes, so a rebuild applies keybindings to the
-running server instead of waiting for the next launch. Upstream writes `|| true` there, to
-cover activation with no server up; this module routes it through the `herdr-try` wrapper
-instead, which keeps that case quiet but reports a server that *refused* the reload — see
-"Talking to herdr from an activation script" below.
-
-The link is on `herdr/config.toml` specifically, not on the `herdr/` directory. Herdr
-writes logs and session state into that directory at runtime, so it has to stay a real
-directory rather than a symlink into the store.
-
-## Settings, and why
-
-| Setting | Rationale |
-|---|---|
-| `onboarding = false` | Skips the first-run notification setup. See "Onboarding and the read-only config" below. |
-| `keys.prefix = "ctrl+f"` | Matches the tmux prefix, so muscle memory survives running both. |
-| `keys.focus_pane_* = ""` | Unbound, because prefix-free `ctrl+h/j/k/l` — the chords `vim-tmux-navigator` owns under tmux — already move between panes. See "Prefix-free pane movement" below for what it costs. |
-| `keys.command` → `prefix+ctrl+l` | Sends a literal `ctrl+l` to the focused pane, buying back the clear-screen the navigation binding takes from the shell. See "Prefix-free pane movement" below. |
-| `keys.resize_pane_* = "prefix+h/j/k/l"` | Reuses the hjkl chords `focus_pane_*` gave up, so a single nudge needs no mode switch. Ships unset, and is one-shot — Herdr has no `bind -r`. See "Resizing" below. |
-| `keys.focus_agent` / `next_agent` / `previous_agent` | Reaching an agent directly instead of via its workspace. All three ship unset. See "Agent navigation" below. |
-| `ui.agent_panel_sort = "priority"` | Orders the agent panel as an attention queue instead of grouping by workspace, which is what makes `next_agent` mean "next agent waiting on me". See "Agent navigation" below. |
-| `ui.mouse_capture = true` | Click-to-focus panes, drag-to-resize borders, wheel scrollback. See "Mouse" below for the trade — and for why it has to be a config key rather than a toggle. |
-| `ui.sidebar.spaces.rows` | Shows `branch` + `git_status` per workspace. With bare repos and many `work/<branch>` checkouts, that is more useful than a pane title. |
-| `ui.sidebar.agents.rows_by_agent.claude` | Claude Code writes its current activity to the terminal title, so `terminal_title_stripped` becomes a live "what is this agent doing" column. The override key must be Herdr's canonical agent id. |
-| `ui.toast.delivery = "system"` | Herdr owns desktop notifications for every agent; Claude Code's own hooks are disabled to avoid notifying twice. See "Notifications" below. |
-| `ui.sound.enabled = true` | Sound on agent state changes in background workspaces. Herdr's default, pinned because the skipped onboarding modal would have asked. |
-| `session.resume_agents_on_restore = true` | See "Restart behaviour" below. |
-| `theme.*` | Solarized, switching with the host terminal's appearance. See "Theming" below. |
-
-### Onboarding and the read-only config
-
-Herdr shows a first-run notification-setup modal whenever the top-level `onboarding` key is
-*missing*, and on dismissal writes `onboarding = false` back into `config.toml`. That write
-cannot succeed here — the file is a symlink into the Nix store — so the server logged
-
-```
-WARN failed to write config … context="onboarding setting" err="Read-only file system (os error 30)"
-```
-
-and the modal returned on every launch. Declaring the post-onboarding value in Nix is the
-fix: with `onboarding = false` present, Herdr never opens the modal and never attempts the
-write.
-
-The same applies to anything else Herdr persists into `config.toml` at runtime — the
-settings overlay (`prefix+s`) can toggle theme, toasts, sound, and a few `ui`/`experimental`
-flags, and those toggles will apply for the session but fail to save with the same warning.
-Settings changed there have to be moved into the module to survive a restart. Runtime state
-that is *not* config (`session.json`, logs, the plugin lock) lives beside it in a real
-directory and writes normally.
-
-### Theming
-
-```toml
-[theme]
-auto_switch = true
-dark_name = "solarized"
-light_name = "solarized-light"
-name = "solarized"
-```
-
-`auto_switch` follows the **host terminal's** light/dark appearance, not the OS and not a
-notification daemon. That is why Herdr needs none of the bridge that
-[`theme/default.nix`](../modules/home/theme/default.nix) builds for tmux —
-no matugen templates or transition hooks on manwe, no `dark-notify` agent or
-`theme-apply` symlink dance on morgoth. It detects the transition itself, identically on both hosts.
-
-`solarized` / `solarized-light` are exact built-in identifiers (verified against the
-binary's theme table, alongside `catppuccin-latte`, `gruvbox-light`, `one-light`,
-`tokyo-night-day`, `kanagawa-lotus`, `rose-pine-dawn`, `nord`, `dracula`, `vesper`). They
-match the Solarized palette the `theme` module already applies to tmux and the Hyprland
-borders.
-
-`name` is set as well because `auto_switch` only chooses between `dark_name` and
-`light_name` when detection succeeds; without a base name, a failed detection falls back to
-Herdr's catppuccin default.
-
-There is also a `name = "terminal"` theme that adopts the host terminal's ANSI palette
-directly. That would track Ghostty's `Selenized` exactly rather than approximating it with
-Solarized, but whether it re-reads the palette when the terminal switches modes is not
-documented, so the explicit pair is used instead.
-
-#### Pane apps and the appearance race
-
-herdr also passes the transition *into* panes: an app that sets DEC mode 2031 gets a
-`CSI ?997;1n`/`2n` report, and herdr answers the pane's OSC 10/11 queries with the host
-terminal's default colours. Claude Code's "auto" theme uses both — on a 2031 report it does
-not trust the reported mode, it immediately re-queries OSC 11 and picks from the colour's
-luminance.
-
-Upstream (0.9.1) forwards the report the moment the host sends it, but only learns the host's
-new background after re-querying the host, a round trip later. A probe in a pane measured
-the reply to an OSC 11 query sent on receipt of the report as the *old* background, and
-the correct one ~20 ms later — so Claude Code read the stale colour and never switched.
-
-The local patch holds the transition in the client until the host's OSC 11 reply has been
-forwarded to the server (foreground is queried first, so both colours are in place), then
-sends it. Every transition already triggers that query, so the hold is normally one round
-trip; a 500 ms deadline on the client tick releases it anyway for a terminal that never
-answers. Reported upstream as
-[herdrdev/herdr#4183](https://github.com/herdrdev/herdr/issues/4183) and fixed on master by
-[#5517](https://github.com/herdrdev/herdr/pull/5517) (2026-10-23), which holds the report the
-same way; 0.9.5 predates it. Drop the patch once a release after 0.9.5 reaches
-nixpkgs-unstable. The client still repaints its own chrome in the new palette immediately; what waits
-is the server's copy of the appearance, and with it the report to panes.
-
-### Splits and workspace jumps
-
-`split_vertical` and `split_horizontal` carry the herdr defaults plus tmux-style aliases —
-`|` splits right, `\` splits down, matching `bind |` / `bind \\` in `tmux.conf`. herdr names
-a split after the divider it draws, so its "vertical" is tmux's `split-window -h`.
-
-**These two aliases are unverified.** `backslash`, `bracketleft` and `bracketright` appear
-nowhere in the binary, so `\` has no *named* form — it is bound here as a literal printable
-key, which the documented syntax ("plain keys") should accept but which nothing offline
-confirms. `herdr config check` only validates that the file parses — it reports `config: ok`
-for these bindings — so the only reliable check is `prefix+?`, which lists live bindings. If
-either alias is missing there, drop it; the `prefix+v` / `prefix+minus` defaults remain bound either way.
-
-`switch_workspace` ships unset upstream and is bound to `prefix+shift+1..9`. It only reaches
-nine, so `goto` (`prefix+g`) remains the way past the ninth worktree.
-
-### Agent navigation
-
-Herdr's agent surface is exactly three actions — an indexed jump plus step forward/back —
-and all three ship unset, which left the sidebar read-only: it told you *which* agent was
-blocked, and you then reached it by jumping to its workspace. They are bound here:
-
-```toml
-focus_agent = "prefix+ctrl+1..9"
-next_agent = "prefix+a"
-previous_agent = "prefix+shift+a"
-```
-
-`ctrl` is the free modifier for the indexed jump: `prefix+1..9` is `switch_tab` and
-`prefix+shift+1..9` is `switch_workspace` above.
-
-**`ctrl+digit` is the one uncertain part.** `herdr config check` accepts the binding — and it
-genuinely validates rather than rubber-stamping, since `prefix+wibble+1..9` gets
-`invalid keybinding … disabling binding` — but that only proves the *config* parses. `ctrl+1`
-has no distinct legacy encoding: most terminals send a bare `0x31`, indistinguishable from
-plain `1`. Without the kitty keyboard protocol active, `prefix+ctrl+1` would therefore arrive
-as `prefix+1` and silently switch *tab* instead, with no error anywhere. Herdr carries the
-protocol machinery (`TerminalRuntime::keyboard_protocol`, and the `CSI = …u` / `CSI < u`
-push/pop sequences are in the binary) and foot and Ghostty both speak it, so it should
-disambiguate — but as with the split aliases above, only pressing it settles this. If it
-switches tabs, fall back to upstream's own example of `prefix+alt+1..9`: `alt` survives legacy
-encoding as an ESC prefix, at the cost of the macOS Option-key problem on morgoth
-(`macos-option-as-alt` is not set in the ghostty module, so Ghostty's default applies).
-
-**Past nine agents there is no picker.** `prefix+w` and `prefix+g` are workspace-only; the
-action list in the binary has `WorkspacePicker` and `OpenNavigator` but nothing agent-shaped
-that opens one. So the answer past nine is not an indexed key but
-`ui.agent_panel_sort = "priority"`, which reorders the agent panel from upstream's
-workspace-grouped `"spaces"` default into an attention queue — `next_agent` then walks "next
-thing waiting on me" rather than workspace order, which is the useful traversal regardless of
-count. The uncapped escape hatch is `herdr agent list` piped into `herdr agent focus <id>`.
-
-### No index column in the sidebar
-
-The workspace numbers `prefix+shift+1..9` refers to are real and exposed by the API —
-`herdr workspace list` reports a `number` per workspace — but they cannot be *displayed*. The
-space row token table in the binary is exactly `state_icon`, `state_text`, `workspace`,
-`branch`, `git_status`, with no index or ordinal token, so `ui.sidebar.spaces.rows` has
-nothing to put a number in.
-
-The only lever is the `$name` custom token, fed by `herdr workspace report-metadata
-<workspace_id> --source <id> --token num=<n>`. That is a plugin's job rather than a config
-setting: herdr's plugin event hooks include `workspace_created`, `workspace_closed` and
-`workspace_renamed`, so a plugin could re-push every workspace's number on each of those and
-`rows` could then read `$num`. Nothing like that is installed, and it would need re-pushing
-for *all* workspaces on every close, since the numbers are positional. Until then `prefix+w`
-(picker) and `prefix+g` (fuzzy goto) are the way to pick a workspace by name instead of by
-count.
-
-### Prefix-free pane movement
-
-`ctrl+h/j/k/l` move between panes without the prefix — the same chords `vim-tmux-navigator`
-owns under tmux — and they are **vim-aware**: inside a Neovim pane they move between Neovim
-splits and only cross into the neighbouring Herdr pane at a split edge.
-
-They are not bound to `focus_pane_*` directly. Each is a `[[keys.command]]` entry of
-`type = "plugin_action"` pointing at the navigation plugin (see "Plugins" below), which is
-what makes the vim-awareness possible; Herdr rejects a key bound twice, so `focus_pane_*`
-cannot also claim them. Its `prefix+h/j/k/l` defaults are not kept either — they would be
-a worse duplicate of the same movement — so all four are explicitly unbound and the chords
-go to resizing instead (see "Resizing" below).
-
-```toml
-[[keys.command]]
-key = "ctrl+h"
-type = "plugin_action"
-command = "vim-herdr-navigation.left"
-```
-
-`ctrl+alt+h/j/k/l` is Herdr's own suggestion for prefix-free bindings and is deliberately
-not used — `CTRL + ALT + L` is bound to `loginctl lock-session` in the Hyprland config on
-**manwe**, so "focus pane right" would lock the screen mid-navigation, and diverging per
-host is worse than picking a chord that is free on both.
-
-**What this still costs.** Forwarding only happens for Vim/Neovim panes, so in an ordinary
-shell pane **`ctrl+l`** (clear screen), **`ctrl+k`** (kill line) and **`ctrl+j`** are
-consumed by the navigation. Other TUIs that own these chords can be added to the plugin's
-`HERDR_NAV_PASSTHROUGH_RE`.
-
-tmux has the same problem and keeps an escape hatch — `bind C-l send-keys 'C-l'` in
-`tmux.conf`. Herdr has no send-keys *binding* type, but it does have the `herdr pane
-send-keys` CLI and a `type = "shell"` custom command that can reach it, so the same chord
-is bound the same way:
-
-```toml
-[[keys.command]]
-key = "prefix+ctrl+l"
-type = "shell"
-command = '"$HERDR_BIN_PATH" pane send-keys "$HERDR_ACTIVE_PANE_ID" ctrl+l'
-description = "Clear screen"
-```
-
-`type = "shell"` runs the command detached through `/bin/sh -lc` and exports
-`HERDR_ACTIVE_PANE_ID`, `HERDR_ACTIVE_{WORKSPACE,TAB}_ID`, `HERDR_ACTIVE_PANE_CWD`,
-`HERDR_SOCKET_PATH` and `HERDR_BIN_PATH` to it. The last is used in preference to this
-generation's store path deliberately: it is the **running server's** binary, so the call
-can never lose to the `protocol_mismatch` a rebuilt-but-not-restarted Herdr produces (see
-"Talking to herdr from an activation script"). `ctrl+k` and `ctrl+j` get no equivalent —
-they are cheap to retype, and every prefixed chord spent is one fewer left.
-
-`ctrl+h` and Backspace share byte `0x08` unless the kitty keyboard protocol is active. foot
-(manwe) and Ghostty (morgoth) both speak it, so Backspace should stay distinct — but that,
-like the split aliases above, is only truly settled by trying it.
-
-### Resizing
-
-`prefix+h/j/k/l` resize the focused pane. Herdr ships `resize_pane_*` unset and puts
-`focus_pane_*` on those chords instead, which is the wrong trade here: `ctrl+h/j/k/l` above
-already focus panes, and more usefully, so the prefixed copies were a duplicate of something
-better while resizing cost a mode switch through `resize_mode` (`prefix+r`).
-
-```toml
-[keys]
-focus_pane_left = ""
-resize_pane_left = "prefix+h"
-```
-
-Both halves have to be written. `""` is Herdr's own convention for leaving an action
-unbound — the shipped-unset optional bindings use it — and without it the default
-`focus_pane_left = "prefix+h"` collides with the new `resize_pane_left`. Herdr resolves a
-collision by keeping one binding and disabling the other rather than erroring, so the
-duplicate would fail quietly in whichever direction Herdr picked; `herdr config check`
-prints the resolution (`prefix+v: kept keys.split_vertical, disabled keys.zoom`) and is the
-way to catch it.
-
-**These bindings are one-shot, and there is no repeat flag.** tmux's `bind -r` marks a
-binding repeatable, so `prefix+j` then a run of bare `j`s keeps resizing until the repeat
-timeout lapses. Herdr has no equivalent: `KeysConfigOverlay` carries no repeat or sticky
-option, upstream's docs mention none, and the `resize_pane_*` example is introduced as
-"tmux-style one-keystroke pane resizing *without entering resize mode*" — single-shot is
-the point of them. Each nudge costs a fresh `prefix+`.
-
-`prefix+r` (`resize_mode`) is the answer for a run of adjustments, and stays bound for
-exactly that. It is a mode with its own status bar, like copy mode, rather than a repeat
-timeout — `h`/`l` adjust width, `j`/`k` height, `esc` leaves — so it does not expire
-mid-adjustment the way tmux's repeat does. The two are complementary: `prefix+h/j/k/l` for
-a single nudge, `prefix+r` when the pane is properly the wrong size.
-
-`prefix+tab` / `prefix+shift+tab` remain a prefixed way to reach another pane if the
-navigation plugin is ever unavailable — dropping `focus_pane_*` does not leave pane
-movement dependent on the plugin alone.
-
-### Mouse
-
-`ui.mouse_capture = true` gives the multiplexer the mouse: click a pane to focus it, drag a
-border to resize, wheel-scroll the scrollback.
-
-Capture is not all-or-nothing per event. Herdr tracks whether the focused pane's program has
-asked for mouse reporting and forwards to it when it has, so a TUI that wants the mouse
-still gets it — Neovim here does not (`vim.opt.mouse = ""` in the nvim config), so Herdr
-keeps those events. What capture does cost is the **host terminal's** own click-drag
-selection, since Herdr now claims the events foot and Ghostty would have used for it. Hold
-**shift** while dragging to bypass the application and select with the terminal directly;
-that is a terminal-level escape hatch, not a Herdr binding.
-
-`ui.copy_on_select` and `ui.mouse_scroll_lines` are the two related knobs, both left at
-Herdr's defaults.
-
-**There is no runtime toggle.** Herdr 0.7.5 has no `:set mouse` equivalent: its bindable
-action list — `prefix`, the `navigate_*`/`focus_pane_*`/`swap_pane_*` families,
-`new_workspace`, `new_worktree`, `open_worktree`, `remove_worktree`, `close_workspace`,
-`detach`, `reload_config`, `open_notification_target`, `previous`/`next_workspace`,
-`previous`/`next_agent`, `focus_agent`, `remote_image_paste`, the `*_tab` family,
-`rename_pane`, `edit_scrollback`, `copy_mode`, `cycle_pane_next`/`previous`, `last_pane`,
-`split_vertical`/`horizontal`, `close_pane`, `resize_mode`, `toggle_sidebar`, `indexed` —
-contains nothing mouse-related, `toggle_sidebar` being its only toggle at all. The socket
-API has no mouse method either, and `herdr config` offers only `check` and `reset-keys`. So
-the config key is the sole switch: flip it back to `false` here and rebuild, which reaches a
-running server through the `onChange` reload described under "Packaging".
-
-A per-session toggle would have to be a plugin action that rewrites `config.toml` and calls
-`reload_config` — which the store symlink makes impossible for the same reason it broke the
-`onboarding` write below. Enabling it wholesale is the cheaper experiment.
-
-## Workspace naming
-
-Nothing in this repo names workspaces; Herdr's own automatic label is used. Read from the
-0.9.5 source (`src/workspace.rs`, `src/workspace/git/discovery.rs`), it comes from the
-**first tab's root pane** and follows that pane as it changes directory:
-
-- inside a git checkout, the name of the checkout's top-level directory, so a subdirectory
-  keeps the checkout's label and `<repo>/work/main` is just `main`;
-- otherwise the directory's basename, or `~` for `$HOME`.
-
-There is no setting that changes this: no format string or template, in config or API.
-What Herdr does offer is a **custom name that overrides the automatic label**, from
-`prefix+shift+w`, `herdr workspace rename <id> <label>`, or `--label` on `workspace create`
-and `worktree create`/`open`. `ui.prompt_new_workspace_name = true` asks for one at creation.
-
-A custom name is permanent for that workspace. It persists in `session.json`, automatic
-naming stops, and nothing clears it: the prompt ignores empty input, and the API has no
-clear method. Getting the automatic label back means closing the workspace and creating a
-new one.
-
-For more than the label there are two display-only levers: `$name` sidebar tokens fed by
-`herdr workspace report-metadata` (see "No index column in the sidebar"), and
-`ui.window_title` for the outer terminal's title. A plugin can also call rename on Herdr's
-workspace events, which is how a computed name would be done in Herdr itself.
-
-zsh `chpwd` hooks used to rename both Herdr workspaces and tmux windows (`repo:dir`); they
-were removed. tmux windows now take tmux's default name, the running command.
+If the core differs, `hc server restart`; then quit and reopen the app if it differs too.
+
+Programs keep running through a core restart because the core is two processes:
+`herdr-core serve` (the API, the state, the app's connection) and `herdr-core hold`, the
+holder, which owns every terminal's pty and is the parent of every program in one. A restart
+replaces only `serve`; the new core reattaches to the holder's socket
+(`$XDG_RUNTIME_DIR/herdr-core/default.holder.*.sock`). `hc server status --json` lists the
+holders and their terminal counts. Terminals kept alive through an update keep their old
+holder's behaviour until they are recreated. `hc server stop` is different: it parks kept
+terminals and ends the rest, and the next core start gives them fresh shells.
+
+The core hands its own environment to every terminal it starts (see the typing pause
+below). Up to 0.1.18 a restart takes the caller's environment; from 0.1.19 it keeps the old
+one, and `hc server restart --fresh`, run from a terminal outside Herdr (foot), takes that
+shell's environment instead; that is how a changed variable the core reads gets in.
 
 ## Notifications
 
-Herdr is the notification system for agents on both hosts. `ui.toast.delivery = "system"`
-hands each one to the OS notification service — `notify-send` into DMS's notification
-server on Linux (hence
-`libnotify` in the module's `home.packages`; Herdr calls it by name, not by store path),
-`osascript`/`display notification` into Notification Center on Darwin. Both paths were
-verified in the respective 0.7.5 binaries.
+herdr-desktop's toasts are drawn inside its own window, and it sends nothing to the
+system's notification service, so it cannot raise one while the window is hidden. Desktop
+notifications therefore come from Claude Code's own `Notification`/`UserPromptSubmit` hooks
+(`claude-notify.sh` into DMS's notification centre; see [`claude-code.md`](./claude-code.md)).
+A layout can name a replacement toast mod that forwards to `notify-send` instead (the
+`"toast"` root key, in the app's `AGENTS.md`); none is installed here, since it would only
+work while the app runs and would duplicate the hooks.
 
-The other deliveries are `herdr` (in-app toasts, useless while detached), `terminal` (OSC
-9/777, dependent on the outer terminal), and `off`. `ui.sound.enabled` is independent of
-`delivery` and fires on agent state changes in background workspaces;
-`[ui.sound.agents] <id> = "off"` mutes one agent if a particular one gets noisy.
-
-### Why not Claude Code's hooks
-
-They are disabled — `Notification = [ ]` and `UserPromptSubmit = [ ]` in the claude-code
-module's `managedSettings`. Running both would notify twice for one permission prompt.
-Herdr was chosen to own it because:
-
-- it covers **every recognised agent**, not just Claude Code, so a codex or gemini pane
-  raises notifications on the same terms;
-- `prefix+o` (`open_notification_target`) jumps to the pane that raised the notification,
-  which a notification popup cannot do;
-- the hook path had no Herdr awareness at all — `notify.nix` titles from the **tmux**
-  window name and otherwise falls back to the cwd basename, so inside Herdr every
-  notification was titled `Claude Code <dirname>`.
-
-What is lost, and worth knowing before deciding it was the right call:
-
-- **Urgency.** The Linux hook raised `permission_prompt`/`idle_prompt` at
-  `urgency=critical` and everything else at `normal`. Herdr does not distinguish.
-- **Replace-and-dismiss.** The hook tracked a notification id per session in `/tmp` so a
-  new notification replaced the previous one, and `UserPromptSubmit` dismissed it once you
-  replied. Herdr's notifications stand until the service times them out.
-- **Per-type sounds on Darwin.** `cli-notify` played Basso for prompts and Glass for
-  completion.
-
-Reverting is a one-line change per hook array; the scripts are still installed. See
-[`docs/claude-code.md`](./claude-code.md).
-
-### Two limits of the system delivery
-
-Herdr invokes `notify-send -- <title> <body>` with no flags at all — no `-A/--action`, no
-`-u/--urgency`, no `-t/--expire-time` (verified against the string literals adjacent to
-`notify-send` in the 0.7.5 binary). Two consequences, both accepted rather than worked
-around:
-
-- **Clicking a notification does not jump to the agent.** With no action attached there is
-  nothing for the notification server to invoke, so a click only dismisses. `prefix+o`
-  (`open_notification_target`) is the way to reach the pane that raised one.
-- **They expire on the shell's normal-urgency timeout.** No `-u` means normal urgency;
-  only critical notifications persist. Nothing is lost — DMS's notification centre keeps
-  them, and groups them by source.
-
-Both are fixable only by the sender. A `notify-send` shim on `PATH` (Herdr calls it by
-name, not by store path) could add `-u critical` and an action handler, at the cost of
-intercepting every other caller and leaving one blocked process per notification — not
-worth it for what it buys.
-
-## Restart behaviour
-
-Detaching (`prefix+q`) leaves the server up and every process running, exactly like tmux.
-
-A reboot stops the server. Herdr restores workspaces, tabs, panes, cwd, layout, and focus
-automatically, but the processes themselves are gone and panes return as fresh shells —
-the same bargain as tmux-resurrect/continuum.
-
-The difference is `session.resume_agents_on_restore`: supported agents reopen their own
-conversation session rather than starting cold. tmux has no equivalent.
-
-That resume is only as good as what the pane recorded, and **it depends on `python3` being
-on `PATH`**. Herdr cannot see a Claude session id by itself; the only channel is the
-`SessionStart` hook installed by `herdr integration install claude`, which reports
-`pane.report_agent_session` (the session UUID plus the transcript path) over `herdr.sock`.
-That hook is `sh` for a dozen lines and then a `python3` heredoc — Herdr is Rust, but the
-script it writes into the agent's config needs a JSON parser and a unix-socket client in
-whatever environment the agent's hooks run in, and it assumes `python3` for the shell-hook
-agents the way it assumes node for the `.ts`/`.js` ones. Without it the hook exits **0** at
-`command -v python3 >/dev/null 2>&1 || exit 0`, so nothing is reported, no `agent_session`
-lands in `session.json`, and there is no id left to build `claude --resume <uuid>` from.
-
-Nothing else here puts a bare `python3` on `PATH` — `brain` and Neovim's `withPython3` both
-resolve an interpreter by store path — so it is listed explicitly in
-`home.packages` in `users/david/shared.nix` for this. The failure is silent on both ends (the
-hook exits clean, Herdr simply never hears from the pane); `herdr agent list` is what shows
-it, as a pane with no `agent_session` field. Pane layout, cwd and focus restore regardless
-— that is Herdr's own state and never touches the hook.
-
-Scrollback contents are **not** restored. That needs `[experimental] pane_history`, which
-is off by default upstream because terminal history can contain secrets, and is left off
-here for the same reason.
-
-## Plugins
-
-One is installed: [`vim-herdr-navigation`](https://github.com/paulbkim-dev/vim-herdr-navigation),
-which is what makes `ctrl+h/j/k/l` vim-aware. It is packaged in
-[`pkgs/vim-herdr-navigation`](../pkgs/vim-herdr-navigation/default.nix) and registered from
-the herdr module — no `herdr plugin install`, no clone-and-build at runtime.
-
-### How registration works
-
-Herdr's plugin registry is `~/.config/herdr/plugins.json`, a plain JSON array. `herdr
-plugin link <path>` appends a record to it: the plugin's `herdr-plugin.toml` denormalized
-into JSON, plus `plugin_root`, `manifest_path`, `enabled`, and `source.kind = "local"`.
-Three properties of that command make it safe from an activation script, all verified
-against 0.7.5 and re-verified on 0.8.0:
-
-- it does **not** need a running server (it takes `.plugins.lock` and writes the file
-  itself; when a server *is* up the CLI routes through the socket and the server persists);
-- it is idempotent — linking the same path twice leaves one entry;
-- linking a different path for an id already present **replaces** that entry, which is what
-  every rebuild does when a plugin's store path changes.
-
-So the module keeps a list of `{ id, root }`, links each at activation, then prunes: any
-registry entry whose `plugin_root` is under `/nix/store` but is no longer declared gets
-unlinked. Entries linked by hand from outside the store are left alone, so a local
-checkout you are hacking on survives a rebuild.
-
-One asymmetry: `unlink` *does* require a running server. `link` and `list` fall back to
-editing `plugins.json` directly under `.plugins.lock`; `unlink` has no such fallback — it
-connects to `herdr.sock` unconditionally, and with no server up it fails with
-`server_not_running`. (Through 0.7.5 that surfaced as a bare
-`Error: Os { code: 2, kind: NotFound }`, which read like a missing plugin but was the
-missing socket — confirmed with `strace`: the failing call was
-`connect(AF_UNIX, "…/herdr.sock")`, and nothing under the config dir was ever opened.
-0.8.0 reports it as a named error instead, which is what the wrapper below matches on.)
-
-So the prune is best-effort: a plugin dropped from the list lingers in the registry until
-the next activation that runs while Herdr is up. In practice rebuilds happen from a
-terminal inside Herdr, so that is the common case — verified end to end by linking a
-throwaway store-rooted plugin, running the activation script, and watching it disappear
-while `vim-herdr-navigation` was re-linked in place.
-
-### Talking to herdr from an activation script
-
-Every herdr command the module runs — the three plugin calls above and the `config.toml`
-`onChange` reload — goes through `herdr-try`, a small `writeShellScript` wrapper. It runs
-one command, passes its stdout through untouched (fd 3, so `plugin list --json` still
-reaches `jq`), **always exits 0**, and turns a failure into a warning on stderr. Two
-reasons it exists, both of them things that bit:
-
-**A failing command used to abort the entire activation.** herdr's CLI talks to a running
-server over `herdr.sock` whenever there is one — including for `link` and `list`, which
-only fall back to the file when no server answers. So after a rebuild bumps the package,
-the session that rebuild was launched *from* is still running the old binary, and every
-socket call is refused:
-
-```
-{"id":"cli:plugin","error":{"code":"protocol_mismatch","message":"client protocol 19 is
-newer than server protocol 17; restart the Herdr server before using this command. …"}}
-```
-
-`plugin link` was guarded with `|| true`, but the `plugin list | jq | while` pipeline was
-not, and the home-manager activation script runs under `set -euo pipefail` — so a failing
-`list` took the whole thing down:
-
-```
-home-manager-david.service: Main process exited, code=exited, status=1/FAILURE
-Failed to start Home Manager environment for david.
-```
-
-which fails `nixos-rebuild switch` (exit 4) over a multiplexer that was merely out of date.
-
-**`|| true` hid the interesting half.** The same mismatch means the plugin registry and the
-config reload silently did nothing. The wrapper unwraps herdr's JSON `.error.message` (for
-`protocol_mismatch` it is several lines and names the fix — `herdr server stop`, which
-exits pane processes, then relaunch) and appends one line of its own saying this
-generation's config and plugins are not on the running server and will land when it
-restarts. Non-JSON failures, e.g. a mistyped subcommand, print raw.
-
-The one failure that stays **quiet** is `server_not_running`: `unlink` and `reload-config`
-only work through the socket, and there is usually no server up during activation. That is
-the normal case, not a problem, and warning about it every rebuild would train the warning
-away.
-
-### Why not a declarative `plugins.json`
-
-Every field of that file is derivable at eval time, so `xdg.configFile` could render it —
-but Herdr rewrites it on every link/unlink/enable/disable, and a store symlink is read-only.
-That is exactly the failure the `onboarding` setting used to hit, and it would also mean
-`herdr plugin enable/disable` silently failing at runtime. Leaving the file mutable and
-converging it at activation avoids the whole class.
-
-### Packaging notes
-
-The manifest ships `command = ["bash", "navigate.sh", "<dir>"]`, which assumes a `PATH` and
-a working directory. The derivation rewrites those four lines to point at a wrapper that
-puts `jq` on `PATH` (without it the plugin degrades to plain focus movement, no Vim
-detection) and sets `HERDR_BIN_PATH` to the same `pkgs.unstable.herdr` the user runs.
-
-Upstream tags nothing, so the pin follows the default branch and the version carries the
-commit date. Bumping it is `scripts/update-packages.sh vim-herdr-navigation` — the package
-carries a `passthru.updateScript` of `nix-update --flake --version=branch`, so there is no
-rev or hash to edit by hand. It does *not* move with `nix flake update`.
-
-The editor half is linked to `~/.config/nvim/after/plugin/herdr-nav.lua` by the *herdr*
-module, gated on `dedsm.nvim.enable`. `after/plugin` is what lets it win over the
-`vim-tmux-navigator` mappings, and the file itself falls back to `TmuxNavigate*` when
-`$HERDR_PANE_ID` is unset — so it is a superset of the tmux setup rather than a conflict,
-and needs no `HERDR_ENV` guard. The nvim module links its `config/` recursively and has no
-`after/` of its own, so nothing collides.
-
-### The alternatives
-
-All three known ports work the same way as `vim-tmux-navigator`: the Herdr half inspects the
-focused pane with `herdr pane process-info` and either forwards the key via `herdr pane
-send-keys` or moves focus with `herdr pane focus --direction`, while the editor half falls
-out to Herdr when a window is already at the edge.
-
-| Plugin | Shape |
-|---|---|
-| [`paulbkim-dev/vim-herdr-navigation`](https://github.com/paulbkim-dev/vim-herdr-navigation) | **In use.** The closest 1:1 port of the tmux setup. Herdr plugin plus `editor/nvim.lua`. Has a `HERDR_NAV_PASSTHROUGH_RE` escape hatch for TUIs that never report an edge (lazygit and friends). |
-| [`lmilojevicc/herdr-splits.nvim`](https://github.com/lmilojevicc/herdr-splits.nvim) | `smart-splits.nvim` flavour: adds `alt+h/j/k/l` resizing, `at_edge` behaviour, sidebar/float awareness, auto-unzoom. Its `setup()` regenerates `~/.config/herdr/plugins/config/herdr-splits/herdr-splits.conf` — harmless, that is not the store-linked `config.toml` — but its eight keybinds would still have to be declared in this module. |
-| [`willfish/herdr-navigator`](https://github.com/willfish/herdr-navigator) | Herdr side only, `alt+h/j/k/l`, pairs with a separate `herdr-navigator.nvim`. |
-
-The plugin-free alternative, if these ever become a maintenance problem, is a small `pkgs/`
-script bound with `[[keys.command]] type = "shell"` doing the same `process-info` →
-`send-keys`/`focus` dance with no registry involved.
-
-## Deliberately not managed here
-
-**The Claude integration.** `herdr integration install claude` writes
-`~/.claude/hooks/herdr-agent-state.sh` and a `hooks.SessionStart` entry into
-`~/.claude/settings.json`. For Claude it is a *session-identity* integration only: on
-session start (`startup`/`resume`/`clear`/`compact`/`fork` — v10 narrowed the matcher from a
-wildcard to exactly those sources) it reports the session UUID and transcript path, which is
-what restore resumes from (see "Restart behaviour" above). It does **not** report lifecycle
-state. herdr only lets agents with complete lifecycle hooks (Pi, OMP, OpenCode, Kimi, …) be
-the state authority; for Claude, `idle`/`working`/`blocked` always come from herdr's *screen
-manifest* detection — the foreground process is identified, then TOML rules are matched
-against the live bottom of the pane buffer. A misread state is diagnosed with
-`herdr agent explain <pane>`, not by looking at hooks.
-
-It is not run from this module — the Claude Code setup here already installs hooks of its
-own (see [`docs/claude-code.md`](./claude-code.md)), and the two need to be reconciled by
-hand before mixing them. `herdr integration status` reports an outdated version after a
-herdr upgrade; rerun the install to update it.
-
-Nix's `claude` → `.claude-wrapped` wrapper does not hide the process from detection:
-`herdr agent list` reports those panes as `claude`. If a future wrapper ever does,
-`HERDR_AGENT=claude` on the wrapper command tells herdr which manifest to use.
-
-The two do coexist as installed: the Claude Code module's settings merge recurses into objects
-and — since the managed brain-health hook joined `hooks.SessionStart` — **array-merges that key
-specifically**, so the integration's `SessionStart` entry survives every switch with the managed
-entry appended beside it (see [`claude-code.md`](./claude-code.md)). The one thing provided *for* the integration is the `python3`
-its hook needs on `PATH`, in `users/david/shared.nix`'s packages — see "Restart behaviour" above. The
-alternative
-considered and rejected was replacing the hook with a Nix-authored one calling
-`herdr pane report-agent-session` (the same request, no interpreter needed): it takes
-ownership of a file whose own header says reinstalling the integration overwrites it, and
-pins Herdr's `v7` field set by hand.
-
-## Verifying
-
-```bash
-herdr --version
-herdr status                 # server/client health
-herdr config check           # parse the rendered config.toml and print diagnostics
-herdr agent list             # what it currently recognises as an agent
-herdr agent explain <target> --json   # why something was or wasn't detected
-herdr server reload-config   # normally automatic via onChange; manual re-apply
-herdr plugin list --json     # registered plugins; roots should be store paths
-herdr plugin action list     # the actions the keybindings resolve against
-herdr plugin log             # what a plugin action actually ran, and its output
-```
-
-The rendered config lands at `~/.config/herdr/config.toml` as a symlink into the store;
-`herdr --default-config` prints upstream's defaults for comparison.
-
-## herdr-desktop (trial)
-
-Herdr's newer product is two programs: **herdr-core** (`hc`), a headless server that runs
-terminals and agents and keeps them running when no window is open, and **herdr-desktop**
-(`herdr-app`), a GUI window on top of it that draws its own terminals (Ghostty's VT
-engine, on Vulkan). Development has moved there; the terminal herdr above still gets fixes
-but its releases have slowed. Both are on trial on manwe, beside the terminal herdr, not
-instead of it.
-
-Module: [`modules/home/herdr-desktop/default.nix`](../modules/home/herdr-desktop/default.nix).
-Toggle: `dedsm.herdr-desktop.enable`, set in `users/david/nixos.nix` (Linux only). It
-installs `pkgs.unstable.herdr-desktop` and `pkgs.unstable.herdr-core`, carries the terminal
-herdr's keys, theme and font over (below), and adds Neovim-aware pane navigation. nixpkgs
-builds both from source and they are in the binary cache, so nothing compiles locally; the
-cost is lagging upstream's releases by a version or two. nixpkgs patches the app to find its
-own herdr-core; the module also puts `hc` on `PATH` for shells, agents and the navigation
-plugin. Layouts, and every setting and key the module doesn't name, stay the app's own,
-under `~/.config/herdr-app/`.
-
-Workspaces are called *spaces* here, and plugins are replaced by JavaScript *mods*, a
-different API, so `vim-herdr-navigation` does not apply. The app's guide to its own files
-is `~/.config/herdr-app/AGENTS.md`, rewritten on every start; `herdr-app --skill` is the
-short version for agents.
-
-### What the module writes, and how
+## What the module writes, and how
 
 Everything goes through the `herdrDesktop` activation step, never a store symlink: the app
 watches these files and rewrites some of them.
@@ -804,49 +87,46 @@ watches these files and rewrites some of them.
   file, then the managed entries, so whatever the app or you change survives and the
   managed entries are reasserted on every switch. `keys.json` holds every binding, not
   overrides, and the app only writes its defaults when the file is missing, so the base for
-  it is the app's shipped `keys.json`, taken from the installed version's source. Putting
+  it is the app's shipped `keys.json` (`keys.macos.json` on Darwin, see "macOS"), taken from
+  the installed version's source. Putting
   the defaults first also brings new default shortcuts in on an upgrade, which the app
   itself stops doing once the file has been edited; the cost is that a default you delete
   comes back on the next switch, so bind it to `"terminal"` instead to hand the key to the
   program. `settings.json` holds overrides only, so its base is empty. Invalid JSON (a file
   mid-edit) is left alone with a warning.
 - **Theme files, the `herdr-nav` layout and the edge-nav mod are copied** into `themes/`,
-  `layouts/` and `mods/edge-nav/`, and
-  rewritten only when they change (an identical rewrite still makes the app reload them).
-  The mod folder is replaced whole, keyed on its store path in
-  `~/.local/state/herdr-desktop/edge-nav.source`; the app does not hot-reload a symlinked
-  mod folder.
+  `layouts/` and `mods/edge-nav/`, and rewritten only when they change (an identical
+  rewrite still makes the app reload them). The mod folder is replaced whole, keyed on its
+  store path in `~/.local/state/herdr-desktop/edge-nav.source`; the app does not hot-reload
+  a symlinked mod folder.
 
-### Keys
+## Keys
 
-herdr's `ctrl+f` prefix is not carried over: herdr-app's own shortcuts are used instead,
-prefix-free chords that cover nearly everything the prefix did. The module adds only what
-they lack:
+herdr-app's own shortcuts are prefix-free chords. The module adds only what they lack:
 
-- `ctrl+h/j/k/l` → `edge-nav.*`, Neovim-aware pane movement (below). The app's own
-  `alt-h/j/k/l` stay bound to plain `pane.go`.
+- `ctrl+h/j/k/l` → `edge-nav.*`, Neovim-aware pane movement (below), on the chords
+  vim-tmux-navigator uses under tmux. The app's own `alt-h/j/k/l` stay bound to plain
+  `pane.go`.
 - `ctrl+f ctrl+l` → clear screen (`send:` Ctrl+L's byte). `ctrl+l` now moves between
-  panes and no default gives a shell its clear screen back, so herdr's `prefix+ctrl+l`
-  survives as the one key *sequence*: a binding can be several keystrokes, and GPUI holds
-  the first as pending input for up to a second (`PENDING_INPUT_TIMEOUT` in the vendored
-  GPUI), so the second key must follow within that second.
+  panes and no default gives a shell its clear screen back, so tmux's `prefix C-l` survives
+  as the one key *sequence*: a binding can be several keystrokes, and GPUI holds the first
+  as pending input for up to a second (`PENDING_INPUT_TIMEOUT` in the vendored GPUI), so
+  the second key must follow within that second.
 
-Where herdr's prefixed bindings went, in herdr-app's defaults:
+The defaults worth knowing (Linux; macOS ships cmd-based ones instead):
 
-| herdr | herdr-app |
+| Action | herdr-app |
 |---|---|
-| `prefix+v` / `prefix+-` (split) | `ctrl-shift-o` (right) / `ctrl-shift-e` (down) |
-| `prefix+z`, `prefix+x` | `ctrl-shift-z` zoom, `ctrl-shift-x` close pane |
-| `prefix+c`, `prefix+shift+x` | `ctrl-shift-t` new tab, `ctrl-shift-w` close tab |
-| `prefix+shift+t` | `f2` rename tab |
-| `prefix+n` / `prefix+p`, `prefix+1..9` | `ctrl-tab` or `alt-]` / `ctrl-shift-tab` or `alt-[`, `ctrl-1..9` |
-| `prefix+w`, `prefix+g` | `ctrl-shift-k` space picker |
-| `prefix+shift+1..9` | `alt-1..9` |
-| `prefix+shift+n`, `prefix+shift+w` | `ctrl-shift-n` new space, `shift-f2` rename space |
-| `prefix+b` | `ctrl-shift-b` sidebar |
-| `prefix+a` / `prefix+shift+a` | `alt-down` / `alt-up` |
-| `prefix+s`, `prefix+?` | `ctrl-,` settings, `ctrl-?` help |
-| (none) | `ctrl-shift-p` command palette, `alt-shift-h/j/k/l` swap panes |
+| split right / down | `ctrl-shift-o` / `ctrl-shift-e` |
+| zoom, close pane | `ctrl-shift-z`, `ctrl-shift-x` |
+| new tab, close tab, rename tab | `ctrl-shift-t`, `ctrl-shift-w`, `f2` |
+| next / previous tab, tab N | `ctrl-tab` or `alt-]` / `ctrl-shift-tab` or `alt-[`, `ctrl-1..9` |
+| space picker, space N | `ctrl-shift-k`, `alt-1..9` |
+| new space, rename space | `ctrl-shift-n`, `shift-f2` |
+| sidebar | `ctrl-shift-b` |
+| next / previous agent | `alt-down` / `alt-up` |
+| settings, help | `ctrl-,`, `ctrl-?` |
+| command palette, swap panes | `ctrl-shift-p`, `alt-shift-h/j/k/l` |
 
 No default for: closing a space (space menu, or the palette), detaching (closing the
 window does it: herdr-core keeps every terminal), resizing (drag a divider; `layout.resize`
@@ -855,25 +135,23 @@ pane, copy mode and the scrollback-in-`$EDITOR` dump (`ctrl-shift-f` searches
 scrollback), and reloading config (edits apply live). Any of these that has a command can
 be bound through `managedKeys` in the module.
 
-### Settings and look
+## Settings and look
 
-`settings.json` gets the terminal herdr's theme and foot's font: `solarized` and
-`solarized-light` as a `{light, dark}` pair, which follows the system appearance that DMS
-drives (herdr's `auto_switch`), and InconsolataGo Nerd Font Mono at 16px (foot's 12pt; the
-app sizes in px at zoom 1). The main layout sets no look of its own, so these decide it.
-The two theme files are generated from foot's `colors-dark`/`colors-light`
-(`modules/home/linux-desktop`), so a terminal looks the same as in foot; their selection
-colour is base02/base2, which foot leaves to inversion.
+`settings.json` gets Solarized and foot's font: `solarized` and `solarized-light` as a
+`{light, dark}` pair, which follows the system appearance (DMS drives it on Linux), and
+InconsolataGo Nerd Font Mono at 16px (foot's 12pt; the app sizes in px at zoom 1). The main
+layout sets no look of its own, so these decide it. The two theme files are generated from
+the shared Solarized terminal palette (`modules/home/theme/solarized.nix`), the one foot's
+`colors-dark`/`colors-light` come from too, so a terminal looks the same as in foot and the
+module does not depend on foot being configured; their selection colour is base02/base2,
+which foot leaves to inversion.
 
-Not carried over: `session.resume_agents_on_restore` (herdr-core gives a lost terminal a
-fresh shell in its last folder, never its old program), the sidebar's row layout and
-`agent_panel_sort` (those are the `spaces`/`agents` mods' own), `ui.toast.delivery =
-"system"` (the app draws its own toasts), and `mouse_capture`/`onboarding`, which have no
-meaning here. Sounds are on by default, as they were.
+herdr-core gives a lost terminal a fresh shell in its last folder, never its old program;
+there is no agent-resume on restore. Sounds are on by default.
 
-### Pane navigation: edge-nav
+## Pane navigation: edge-nav
 
-`ctrl+h/j/k/l` move between panes and are Neovim-aware, as in the terminal herdr, through
+`ctrl+h/j/k/l` move between panes and are Neovim-aware through
 [herdr-app-edge-nav](https://github.com/sebcbi1/herdr-app-edge-nav)
 (`pkgs/herdr-app-edge-nav`, MIT): an app mod plus a Neovim plugin in one repo, built as a
 Vim plugin. In a pane running nvim the mod sends the chord in with `hc keys`; nvim moves
@@ -884,7 +162,7 @@ and rewrites `keys.json` on its own.
 
 - **Stops at the last pane.** Upstream crosses into the adjacent tab (left/right) or space
   (up/down) at an edge and wraps around; the module turns `TRAVERSE_TABS`,
-  `TRAVERSE_SPACES` and `WRAP` off in the copy it installs, to match the terminal herdr.
+  `TRAVERSE_SPACES` and `WRAP` off in the copy it installs, to match vim-tmux-navigator.
 - **Docking, and the `herdr-nav` layout.** The mod draws nothing, but a key bound to
   `edge-nav.*` reaches it only through a copy docked in the shown layout. The app docks a
   new mod by itself (where its `mod.json` asks: bottom, 0px) **except into a shipped
@@ -899,10 +177,11 @@ and rewrites `keys.json` on its own.
   `{ "id": "edge-nav", "type": "block", "size": { "px": 0 }, "content": { "mod": "edge-nav" } }`
   somewhere in its tree.
 - **Neovim:** the plugin is added to `programs.neovim.plugins` and maps whatever chords
-  `keys.json` binds to `edge-nav.*`, only inside a terminal herdr-desktop shows. The
-  terminal herdr's `after/plugin/herdr-nav.lua` loads after it and would remap the keys to
-  the tmux fallback, so when `$HC_TERMINAL_ID` is set it re-runs edge-nav's `setup()` and
-  stops.
+  `keys.json` binds to `edge-nav.*`, only inside a terminal herdr-desktop shows
+  (`$HC_TERMINAL_ID` set); elsewhere it maps nothing and the keys stay vim-tmux-navigator's.
+  Inside one both plugins map them from `plugin/`, and vim-tmux-navigator loads later, so
+  the module also links `~/.config/nvim/after/plugin/herdr-edge-nav.lua`, which re-runs
+  edge-nav's `setup()` after every `plugin/` file has loaded.
 - **The core's typing pause is 250 ms, not 3 s.** herdr-core types into a terminal
   (`hc send`, `hc keys`) only once the person typing there has paused for `HC_QUIET_MS`
   (default 3000; `quiet()` in its `src/input.rs`), so an agent's input never lands in the
@@ -910,22 +189,42 @@ and rewrites `keys.json` on its own.
   default the first move after typing (leaving insert mode, say) stalled for up to three
   seconds. The module sets `HC_QUIET_MS=250` for the core, which reads it from its own
   environment, i.e. from whatever started it: herdr-app gets it from a wrapper
-  (`--set-default`, so it can be overridden), shells from `home.sessionVariables`. A
-  running core keeps its environment, so a change takes `hc server restart` from a shell
-  that has the variable, and **not one inside a terminal-herdr pane**: the core hands its
-  environment to every terminal it starts, and `HERDR_PANE_ID` and friends would make every
-  herdr-desktop shell claim to be that pane (Claude Code's herdr hook reports sessions to
-  it). The wrapper strips them for app-started cores; with no live terminals, `hc server
-  stop` and reopening the app is the cleanest restart (up to 0.1.18 a restart takes the caller's environment; from
-  0.1.19 it keeps the old one, and the core has to be stopped and started). The cost is a
-  smaller guard against an agent typing while you do; herdr-core 0.1.20 (in nixpkgs since 2026-11-19) adds a separate
-  draft wait (agent messages hold while unsent text sits at a prompt) that covers the
-  worst case of that, a half-typed line submitted with the agent's message.
-- **Costs:** as in the terminal herdr, `ctrl+l`, `ctrl+k` and `ctrl+j` no longer reach a
-  shell. There is no resize: edge-nav has none, and the app ships no resize keys
-  (`layout.resize` exists, for a binding later).
+  (`--set-default`, so it can be overridden), shells from `home.sessionVariables`, and on
+  macOS the GUI session from launchd (see "macOS"). A
+  running core keeps its environment, so a change takes `hc server restart --fresh` from
+  a shell that has it (see "Restarting after an update"). The cost is a smaller guard against an agent typing while you do;
+  herdr-core 0.1.20 (in nixpkgs since 2026-11-19) adds a separate draft wait (agent
+  messages hold while unsent text sits at a prompt) that covers the worst case of that, a
+  half-typed line submitted with the agent's message.
+- **Costs:** `ctrl+l`, `ctrl+k` and `ctrl+j` no longer reach a shell. There is no resize:
+  edge-nav has none, and the app ships no resize keys (`layout.resize` exists, for a
+  binding later).
 
-What the trial has to answer:
+## macOS
+
+The module is the same on morgoth, with two differences, both because macOS builds of the
+app behave differently:
+
+- **The keys base is `keys.macos.json`.** A macOS build compiles in different defaults
+  (`DEFAULTS` in `src/keys.rs`): cmd rather than ctrl-shift shortcuts, plus Mac terminal
+  editing keys. The managed `ctrl+h/j/k/l` and `ctrl+f ctrl+l` go on top as on Linux; ctrl
+  is free there (Aerospace uses alt and the cmd-alt-ctrl hyper chord), and the defaults
+  claim neither.
+- **`HC_QUIET_MS` reaches the app through launchd.** Herdr.app (copied into
+  `~/Applications/Home Manager Apps` with the other home packages, `targets.darwin.copyApps`) runs the bundle's own
+  executable when opened from the Dock or Spotlight, not the `bin/herdr-app` wrapper, and
+  gets launchd's environment rather than a shell's. A launchd agent, `herdr-env`
+  (`org.nix-community.home.herdr-env`), runs `launchctl setenv HC_QUIET_MS 250` at login,
+  so the app and every core it starts have it. Shells still get it from
+  `home.sessionVariables`.
+
+The theme pair follows macOS's own appearance setting. The running-app check under
+"Restarting after an update" reads `/proc`, which macOS lacks; there, quitting and reopening
+Herdr after a `darwin-rebuild` that bumps it is the simple answer. Not yet tried on the Mac
+itself: the configuration evaluates and both packages are in the binary cache for
+`aarch64-darwin`, but nothing here has been run there.
+
+## Open questions
 
 - **Agent status for Claude Code: answered, it works.** herdr-core does not detect agents
   from the screen; an agent has a status only if it reports one through OSC 7501. Claude
@@ -936,7 +235,9 @@ What the trial has to answer:
 - **Telemetry** is on by default in upstream releases; for a source build (which is what
   nixpkgs ships) upstream says it never sends. Settings → Privacy either way.
 
-If it is adopted, notes for doing it properly:
+## Pinning upstream releases instead of nixpkgs
+
+If nixpkgs' lag ever matters, notes for doing it properly:
 
 - Upstream publishes `releases.herdr.dev/{app,core}/latest.json` (URL and sha256 per
   platform), the same shape the Claude Code updater pins from. `hc` is static; `herdr-app`

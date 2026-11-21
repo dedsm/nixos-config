@@ -65,26 +65,37 @@ let
       # like the keys below, so an entry something else adds here is replaced.
       PostToolUse = agentHarness.claudeCode.postToolUse;
 
-      # Desktop notifications are herdr's job now: it sees every recognised
-      # agent rather than just Claude Code, and `prefix+o` jumps to the pane
-      # that raised one, which a shell notification popup cannot do. Leaving these hooks
-      # enabled would notify twice for the same prompt. See "Notifications" in
-      # docs/herdr.md.
-      #
-      # These must stay as empty *lists* rather than being deleted:
-      # `mergeClaudeSettings` merges with `jq -s '.[0] * .[1]'`, so a key
-      # dropped from managedSettings keeps whatever value is already in
-      # ~/.claude/settings.json instead of going away. The scripts themselves
-      # are still installed below, so re-enabling is a one-line revert.
-      Notification = [ ];
+      # Desktop notification on permission prompts, idle and completion.
+      # Herdr (herdr-desktop) draws its own toasts inside its window but sends
+      # nothing to the system, so these are the only desktop notifications.
+      Notification = [
+        {
+          hooks = [
+            {
+              type = "command";
+              command = "~/.local/bin/claude-notify.sh";
+            }
+          ];
+        }
+      ];
 
-      # Only ever existed to dismiss the notification the hook above raised.
-      UserPromptSubmit = [ ];
+      # Dismisses the notification above once the prompt is answered.
+      UserPromptSubmit = [
+        {
+          matcher = "*";
+          hooks = [
+            {
+              type = "command";
+              command = "~/.local/bin/claude-dismiss-notification.sh";
+            }
+          ];
+        }
+      ];
 
       # Owned by the agent-harness module (the brain plugin's health hook, when
-      # `agent-harness.brain.claude-code` is on). Unlike the empty-list keys
-      # above, SessionStart is SHARED: herdr's integration installs its own
-      # entry here (docs/herdr.md), so the merge script array-merges this key
+      # `agent-harness.brain.claude-code` is on). Unlike the keys above,
+      # SessionStart is SHARED: tools' agent integrations install their own
+      # entries here, so the merge script array-merges this key
       # instead of letting `*` replace it — user entries survive, the managed
       # entry is (re)appended by command.
       SessionStart = agentHarness.claudeCode.sessionStart;
@@ -117,10 +128,9 @@ let
   );
 
   # Deep-merge (`*`) recurses into objects but REPLACES arrays — fine for the
-  # hook keys this module owns outright (the empty lists above), wrong for
-  # hooks.SessionStart, which herdr's integration also writes an entry into
-  # (docs/herdr.md): replacing the array would silently delete herdr's hook on
-  # every switch. SessionStart is therefore array-merged after the deep merge:
+  # hook keys this module owns outright, wrong for hooks.SessionStart, which
+  # agent integrations of other tools also write entries into: replacing the
+  # array would silently delete their hooks on every switch. SessionStart is therefore array-merged after the deep merge:
   # user-installed entries survive (minus any stale copy of the managed one,
   # matched by its command path), and the managed entry is appended.
   brainHealthHookPath = agentHarness.claudeCode.brainHealthCommand;

@@ -11,7 +11,7 @@ with lib;
     extraInit = lib.mkOption {
       type = lib.types.lines;
       default = "";
-      description = "Host-specific lines spliced into initContent, after the tmux/herdr hooks.";
+      description = "Host-specific lines spliced into initContent, after the tmux hooks.";
     };
   };
 

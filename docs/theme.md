@@ -9,8 +9,9 @@ that differs per platform:**
 - **Darwin** — `dark-notify`, driven by `AppleInterfaceStyle`, exactly as before.
 
 The `theme` home-manager module (`modules/home/theme/default.nix`, opt-in via
-`dedsm.theme.enable`) holds what is shared: the Solarized palette in its `colors` attrset (also dumped to
-`~/.colorscheme-palette` as JSON), the tmux theme files, the matugen templates and hooks that carry
+`dedsm.theme.enable`) holds what is shared: the Solarized palette, defined once in
+`modules/home/theme/solarized.nix` (its `colors`, plus each mode's 16 terminal colours, which foot
+and herdr's theme files are generated from) and also dumped to `~/.colorscheme-palette` as JSON, the tmux theme files, the matugen templates and hooks that carry
 a transition to foot and tmux, the activation guard below, and (Linux only, in `toolkits.nix`) the
 GTK, Qt, cursor and icon theme settings. It no longer runs a scheduler of its
 own on Linux — darkman is gone.
@@ -242,8 +243,9 @@ user template in `~/.config/matugen/config.toml` if it is missed.
 ## foot and tmux
 
 - **foot** is signalled in place: `SIGUSR1` selects `[colors-dark]`, `SIGUSR2` selects
-  `[colors-light]`. Both palettes are declared in the `foot` settings in
-  `modules/home/linux-desktop/default.nix`. A *newly started* terminal takes its
+  `[colors-light]`. Both are generated in the `foot` settings in
+  `modules/home/linux-desktop/default.nix` from the terminal palette in
+  `modules/home/theme/solarized.nix`. A *newly started* terminal takes its
   mode from `main.initial-color-theme`, which only accepts a literal `dark` or `light` — foot has no
   "follow the system" value — so `foot.ini` includes `~/.config/foot/mode.ini`, a one-line file the
   same hook rewrites on every transition. It is written to a temporary file and `mv`'d into place,

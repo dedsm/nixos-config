@@ -1,3 +1,7 @@
+# Herdr: herdr-desktop (`herdr-app`), the GUI app, and herdr-core (`hc`), the
+# headless server that runs its terminals and keeps them alive with no window
+# open. Solarized from ../theme/solarized.nix, in foot's font; see
+# docs/herdr.md.
 {
   config,
   lib,
@@ -5,385 +9,276 @@
   ...
 }:
 let
-  tomlFormat = pkgs.formats.toml { };
+  cfg = config.dedsm.herdr;
 
-  # One local patch: hold a host light/dark transition back from the panes
-  # until the host's new background has arrived, so an app that answers the
-  # mode 2031 report with an OSC 11 query (Claude Code's "auto" theme) reads
-  # the new colour rather than the old one. See docs/herdr.md, "Theming".
-  # Upstream: herdrdev/herdr#4183, fixed on master by #5517 (2026-10-23) but
-  # not in 0.9.5 — drop the patch once a later release is in nixpkgs-unstable.
-  herdrPkg = pkgs.unstable.herdr.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [ ./defer-appearance-report.patch ];
-  });
+  # How long herdr-core waits after a person's last keystroke in a terminal
+  # before it types anything into it (`hc send`, `hc keys`); upstream's default
+  # is 3000 ms. edge-nav forwards ctrl+h/j/k/l into Neovim with `hc keys`, so
+  # at 3 s the first move after typing (leaving insert mode, say) stalled for
+  # up to three seconds. The pause guards against an agent's input landing in
+  # the middle of yours; since herdr-core 0.1.20 a separate draft wait (agent
+  # messages hold while unsent text sits at a prompt) covers the worst case,
+  # so a short pause loses little. See docs/herdr.md.
+  quietMs = "250";
 
-  # Every herdr command this module runs is best-effort: a rebuild must not
-  # fail because the multiplexer is unreachable. But it must not be *silent*
-  # either, which is what a bare `|| true` bought. This wrapper runs one
-  # command, passes its stdout through, always exits 0, and turns a failure
-  # into a warning on stderr.
-  #
-  # The case worth surfacing is `protocol_mismatch`. herdr's CLI talks to a
-  # running server over `herdr.sock` whenever there is one, and refuses when
-  # its protocol is newer than the server's — exactly what a rebuild that
-  # bumps the package produces, because the session that rebuild was started
-  # from is still running the old binary. Every socket command then fails
-  # until that server is restarted, so the plugin registry and the config
-  # reload silently did nothing.
-  #
-  # It also blocked the whole activation: `plugin link` was guarded with
-  # `|| true`, but the `plugin list | jq | while` pipeline below was not, and
-  # under the activation script's `set -o pipefail` a failing `list` took
-  # home-manager-<user>.service down with it (exit 1, "Failed to start Home
-  # Manager environment").
-  #
-  # `server_not_running` stays quiet: `unlink` and `reload-config` only work
-  # through the socket and there is usually no server up during activation,
-  # which is the normal case rather than a problem. `link` and `list` fall
-  # back to editing plugins.json directly and succeed either way.
-  herdrTry = pkgs.writeShellScript "herdr-try" ''
-    # fd 3 is the real stdout, so the command's own output still reaches the
-    # caller — `plugin list --json` is piped into jq — while stderr, where
-    # herdr writes its JSON errors, is captured for the warning.
-    exec 3>&1
-
-    herdrStatus=0
-    herdrError=$(${lib.getExe herdrPkg} "$@" 2>&1 1>&3 3>&-) || herdrStatus=$?
-
-    if [ "$herdrStatus" -eq 0 ]; then
-      exit 0
-    fi
-
-    case $herdrError in
-      *server_not_running*) exit 0 ;;
-    esac
-
-    # herdr reports a failure as a single JSON line. Unwrap the human message
-    # — for `protocol_mismatch` it is several lines and names the fix — and
-    # fall back to the raw output for anything that is not that shape.
-    herdrMessage=$(printf '%s\n' "$herdrError" | ${lib.getExe pkgs.jq} -r '.error.message // empty' 2>/dev/null)
-    [ -n "$herdrMessage" ] || herdrMessage=''${herdrError:-(no output)}
-
-    echo "warning: herdr $* failed (exit $herdrStatus)" >&2
-    echo "$herdrMessage" >&2
-
-    case $herdrError in
-      *protocol_mismatch*)
-        echo "This generation's herdr config and plugins were not applied to the running server; they take effect when it restarts." >&2
-        ;;
-    esac
-
-    exit 0
-  '';
-
-  navPkg = pkgs.local.vim-herdr-navigation;
-  navRoot = "${navPkg}/share/vim-herdr-navigation";
-
-  # Registered with `herdr plugin link` at activation, and pruned from the
-  # registry when dropped from this list. See "Plugins" in docs/herdr.md.
-  plugins = [
-    {
-      id = "vim-herdr-navigation";
-      root = navRoot;
-    }
-  ];
-
-  # `ctrl+h/j/k/l` go through the navigation plugin rather than binding
-  # `focus_pane_*` directly, which is what makes them vim-aware: the action
-  # forwards the key into the pane when it is running Vim/Neovim and moves
-  # herdr's focus otherwise. herdr rejects a key that is bound twice, so
-  # `focus_pane_*` is unbound below rather than left on its defaults.
-  navKeybinds =
-    map
-      (d: {
-        key = "ctrl+${d.key}";
-        type = "plugin_action";
-        command = "vim-herdr-navigation.${d.dir}";
-        description = "Navigate ${d.dir} (vim/herdr)";
-      })
-      [
-        {
-          key = "h";
-          dir = "left";
-        }
-        {
-          key = "j";
-          dir = "down";
-        }
-        {
-          key = "k";
-          dir = "up";
-        }
-        {
-          key = "l";
-          dir = "right";
-        }
-      ];
-
-  # `ctrl+l` is spent on the navigation plugin above, so the shell can no
-  # longer see it and clear its screen — the same trade `vim-tmux-navigator`
-  # forces under tmux, where `bind C-l send-keys 'C-l'` buys it back. herdr
-  # has no native "send keys to the focused pane" action, so the prefixed
-  # copy goes out through the CLI instead: `type = "shell"` runs the command
-  # detached via `/bin/sh -lc` and hands it `HERDR_ACTIVE_PANE_ID` plus
-  # `HERDR_BIN_PATH`.
-  #
-  # `$HERDR_BIN_PATH` rather than this generation's store path on purpose: it
-  # is the *running server's* binary, so the call can never lose to the
-  # `protocol_mismatch` that a rebuilt-but-not-restarted herdr produces.
-  clearScreenKeybind = {
-    key = "prefix+ctrl+l";
-    type = "shell";
-    command = ''"$HERDR_BIN_PATH" pane send-keys "$HERDR_ACTIVE_PANE_ID" ctrl+l'';
-    description = "Clear screen";
+  # The core reads HC_QUIET_MS from its own environment, which is whatever
+  # started it: herdr-app (launched from the desktop) or `hc` in a shell. So
+  # the app gets it from a wrapper and shells from home.sessionVariables (and,
+  # on macOS, from launchd; see launchd.agents.herdr-env below).
+  # A wrapper's variables reach every terminal the core starts; this one is
+  # harmless there (nixpkgs avoids a wrapper only for LD_LIBRARY_PATH).
+  herdrApp = pkgs.symlinkJoin {
+    name = "herdr-desktop-${pkgs.unstable.herdr-desktop.version}";
+    paths = [ pkgs.unstable.herdr-desktop ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram $out/bin/herdr-app --set-default HC_QUIET_MS ${quietMs}
+    '';
+    inherit (pkgs.unstable.herdr-desktop) meta;
   };
 
-  settings = {
-    # The first-run notification setup. herdr shows it whenever this key is
-    # missing, then persists `onboarding = false` back into config.toml once
-    # dismissed — a write that fails against a store symlink ("Read-only file
-    # system"), so the welcome screen came back on every launch. Declaring the
-    # post-onboarding value here is the fix; the notification preferences that
-    # modal asks about are set under `ui` below.
-    onboarding = false;
+  appDir = "${config.xdg.configHome}/herdr-app";
+  stateDir = "${config.xdg.stateHome}/herdr-desktop";
 
-    keys = {
-      # Same prefix as tmux, so the muscle memory carries over while both
-      # multiplexers are installed side by side.
-      prefix = "ctrl+f";
+  edgeNav = pkgs.local.herdr-app-edge-nav;
 
-      # Prefix-free pane movement on the same chords `vim-tmux-navigator`
-      # already owns under tmux, via the plugin actions defined above.
-      #
-      # `ctrl+alt+h/j/k/l` is herdr's own suggestion and is not used: `CTRL +
-      # ALT + L` is the lock bind on manwe, and diverging per host is worse
-      # than picking a chord that is free on both.
-      #
-      # `prefix+ctrl+l` follows, giving the shell back the `ctrl+l` that the
-      # navigation binding above takes from it.
-      command = navKeybinds ++ [ clearScreenKeybind ];
+  # The edge-nav mod with its options set: stop at the last pane, as
+  # vim-tmux-navigator does under tmux, instead of crossing into the next tab
+  # or space and wrapping around. Upstream keeps the options as constants at the
+  # top of main.js; --replace-fail breaks the build if they are renamed.
+  edgeNavMod = pkgs.runCommand "herdr-app-edge-nav-mod" { } ''
+    cp -r ${edgeNav}/mods/edge-nav $out
+    chmod -R u+w $out
+    substituteInPlace $out/main.js \
+      --replace-fail 'const TRAVERSE_TABS = true;' 'const TRAVERSE_TABS = false;' \
+      --replace-fail 'const TRAVERSE_SPACES = true;' 'const TRAVERSE_SPACES = false;' \
+      --replace-fail 'const WRAP = true;' 'const WRAP = false;'
+  '';
 
-      # `prefix+h/j/k/l` defaults to *focusing* a pane, which the vim-aware
-      # `ctrl+h/j/k/l` above already does better — so the prefixed copies are
-      # dead weight, and the hjkl half of the keyboard is better spent on
-      # resizing, which otherwise costs a mode switch (`prefix+r`). `""` is
-      # herdr's own way of leaving an action unbound; both halves have to be
-      # written out because a key bound twice is a conflict, which herdr
-      # resolves by silently disabling one of the two (`herdr config check`
-      # reports which).
-      #
-      # `prefix+r` (resize_mode) stays bound for a run of adjustments, and
-      # `prefix+tab`/`prefix+shift+tab` remain the prefixed way to reach
-      # another pane if the navigation plugin is ever unavailable.
-      focus_pane_left = "";
-      focus_pane_down = "";
-      focus_pane_up = "";
-      focus_pane_right = "";
+  # A personal copy of the shipped `main` layout with an edge-nav block in it.
+  # The app docks a new mod into the shown layout by itself, but never into
+  # a shipped one (`sync_folders` in its src/window.rs skips them), and a key
+  # bound to `edge-nav.*` reaches only a docked copy. Generated from the
+  # installed version's own main.json on every switch, so it follows upstream
+  # changes to `main`, unlike a `layout.clone`, which is frozen. The block goes
+  # at the bottom of the `work` column, which has no divider or gap, so at 0px
+  # it is invisible; jq -e fails the build if that column is gone.
+  navLayoutName = "herdr-nav";
+  navLayout =
+    pkgs.runCommand "herdr-app-${navLayoutName}.json" { nativeBuildInputs = [ pkgs.jq ]; }
+      ''
+        jq -e '
+          if any(.children[]; .id == "work" and .type == "column") then
+            (.children[] | select(.id == "work") | .children) += [{
+              id: "edge-nav", type: "block", size: { px: 0 },
+              content: { mod: "edge-nav" }
+            }]
+          else error("main.json has no work column") end
+        ' ${pkgs.unstable.herdr-desktop.src}/defaults/layouts/main.json > $out
+      '';
 
-      resize_pane_left = "prefix+h";
-      resize_pane_down = "prefix+j";
-      resize_pane_up = "prefix+k";
-      resize_pane_right = "prefix+l";
+  # ---- Keys ---------------------------------------------------------------
+  #
+  # herdr-app's own shortcuts (ctrl-shift-*, alt-*, ctrl-1..9; see
+  # docs/herdr.md) are prefix-free. The module adds only what they lack.
+  #
+  # Ctrl+L's byte, for "clear screen" (`send:` types it into the terminal).
+  # Nix strings have no \f escape; JSON's decoder supplies it.
+  formFeed = builtins.fromJSON ''"\u000c"'';
 
-      # tmux muscle memory, kept as aliases beside the herdr defaults. herdr
-      # names a split after the divider it draws, so "vertical" is the
-      # side-by-side one that tmux calls `split-window -h`.
-      split_vertical = [
-        "prefix+v"
-        "prefix+|"
-      ];
-      split_horizontal = [
-        "prefix+minus"
-        "prefix+\\"
-      ];
-
-      # Jump straight to a worktree. Ships unset; only 1..9 are reachable, so
-      # `goto` (prefix+g) stays the answer past the ninth workspace.
-      switch_workspace = "prefix+shift+1..9";
-
-      # Agent navigation. All three ship unset upstream; without them the
-      # sidebar is read-only and reaching an agent means jumping to its
-      # workspace. `prefix+1..9` is switch_tab and `prefix+shift+1..9` is
-      # switch_workspace above, so ctrl is the free modifier for the indexed
-      # jump — see "Agent navigation" in docs/herdr.md for the caveat, and
-      # `ui.agent_panel_sort` below for what next/previous_agent walks.
-      focus_agent = "prefix+ctrl+1..9";
-      next_agent = "prefix+a";
-      previous_agent = "prefix+shift+a";
+  # Bindings asserted on every switch. Everything else in keys.json is the
+  # app's or the user's.
+  managedKeys = {
+    global = {
+      # Pane movement through edge-nav, whose Neovim half maps whichever
+      # chords keys.json binds to it: the chords vim-tmux-navigator uses under
+      # tmux, so muscle memory carries over. herdr-app's own alt-h/j/k/l stay
+      # bound to plain pane.go.
+      "ctrl-h" = "edge-nav.left";
+      "ctrl-j" = "edge-nav.down";
+      "ctrl-k" = "edge-nav.up";
+      "ctrl-l" = "edge-nav.right";
+      # ctrl-l above takes the shell's clear screen, and no default gives it
+      # back, so tmux's `prefix C-l` survives (with the ctrl-f prefix) as the
+      # one key sequence: GPUI holds ctrl-f as pending input for up to a
+      # second.
+      "ctrl-f ctrl-l" = "send:${formFeed}";
     };
+  };
 
-    ui = {
-      # Mouse at the multiplexer level: click to focus a pane, drag a border to
-      # resize, wheel-scroll the scrollback. herdr still forwards events to an
-      # inner TUI that asks for mouse reporting, so this costs the terminal's
-      # own click-drag selection (hold shift for that) rather than app input.
-      #
-      # There is no runtime toggle to fall back on — herdr 0.7.5 has no
-      # `:set mouse` equivalent, and nothing mouse-related in its bindable
-      # action list — so this key is the only switch.
-      mouse_capture = true;
+  # The app's shipped keys.json, from the source of the exact version
+  # installed. The app compiles it in and writes it out only when keys.json is
+  # missing, and keys.json holds every binding (not overrides on top of the
+  # defaults), so a file with only managedKeys in it would drop all the rest.
+  # macOS builds ship a different set, keys.macos.json (cmd rather than
+  # ctrl-shift, plus Mac terminal editing keys; `DEFAULTS` in src/keys.rs).
+  # Copied out so the closure holds this one file, not the whole source tree.
+  shippedKeysName = if pkgs.stdenv.isDarwin then "keys.macos.json" else "keys.json";
+  shippedKeys = pkgs.runCommand "herdr-app-shipped-keys.json" { } ''
+    cp ${pkgs.unstable.herdr-desktop.src}/defaults/${shippedKeysName} $out
+  '';
 
-      # herdr owns agent notifications, for every recognised agent rather than
-      # just Claude Code — whose own notification hooks are disabled in the
-      # claude-code module so the same prompt does not notify twice. See
-      # "Notifications" in docs/herdr.md.
-      #
-      # "system" hands off to the OS notification service: `notify-send` (hence
-      # libnotify below) into DMS's notification centre on Linux, `osascript`/`display
-      # notification` into Notification Center on Darwin. The alternatives are
-      # "herdr" (in-app toasts, invisible while detached) and "terminal" (OSC
-      # 9/777, dependent on the outer terminal).
-      toast.delivery = "system";
+  # ---- Settings and look --------------------------------------------------
+  #
+  # settings.json holds overrides only (an absent key is the default), so it
+  # needs no shipped base. The main layout sets no look of its own, so these
+  # decide it. Solarized, as a {light, dark} pair that follows the system's
+  # appearance, which DMS drives. The font is foot's (InconsolataGo Nerd Font
+  # Mono at 12pt); herdr-app sizes in px at zoom 1, and 12pt is 16px at
+  # 96 dpi.
+  managedSettings = {
+    theme = {
+      light = "solarized-light";
+      dark = "solarized";
+    };
+    font = "InconsolataGo Nerd Font Mono";
+    font_size = 16;
+  };
 
-      # Agent state changes in *background* workspaces. Unchanged herdr default,
-      # pinned because the skipped onboarding modal would have asked.
-      sound.enabled = true;
+  # The two themes, from the shared Solarized terminal palette (the same one
+  # foot uses, so a terminal looks alike in both). herdr-app's theme files
+  # take the 16 ANSI colours in order, with `#`.
+  terminalPalette = (import ../theme/solarized.nix).terminal;
+  themeFrom =
+    mode:
+    let
+      hex = c: "#${c}";
+    in
+    builtins.toJSON {
+      background = hex mode.background;
+      foreground = hex mode.foreground;
+      cursor = hex mode.cursor;
+      selection = hex mode.selection;
+      ansi = map hex mode.ansi;
+    };
+  themes = pkgs.linkFarm "herdr-app-themes" {
+    "solarized.json" = pkgs.writeText "solarized.json" (themeFrom terminalPalette.dark);
+    "solarized-light.json" = pkgs.writeText "solarized-light.json" (themeFrom terminalPalette.light);
+  };
 
-      # Order the agent panel as an attention queue rather than grouping by
-      # workspace (upstream's "spaces" default). That is what makes
-      # `next_agent` mean "next agent waiting on me" — and it is the only
-      # answer past nine agents, since `focus_agent` stops at 9 and herdr has
-      # no agent equivalent of the `goto` workspace picker.
-      agent_panel_sort = "priority";
+  jq = lib.getExe pkgs.jq;
 
-      sidebar = {
-        # Worktree-oriented layout: bare repos with many `work/<branch>`
-        # checkouts, so branch and dirty state matter more than the pane title.
-        spaces.rows = [
-          [
-            "state_icon"
-            "workspace"
-          ]
-          [
-            "branch"
-            "git_status"
-          ]
+  # Same approach as the Claude Code settings (docs/claude-code.md): a jq deep
+  # merge into the file the app owns, rather than a store symlink. For
+  # keys.json the shipped defaults go first, then the existing file, then the
+  # managed keys: user changes survive, managed keys are reasserted, and a
+  # default shortcut added in a newer release still arrives even though the
+  # file is no longer the untouched default the app would refresh itself. The
+  # cost is that a deleted default comes back; bind it to "terminal" instead
+  # to hand the key to the program.
+  mergeJson =
+    name: base: managed:
+    let
+      managedFile = pkgs.writeText "herdr-app-managed-${name}" (builtins.toJSON managed);
+    in
+    ''
+      file=${lib.escapeShellArg appDir}/${name}
+      if [ ! -e "$file" ]; then
+        ${jq} -s '.[0] * .[1]' ${base} ${managedFile} > "$file.tmp" && mv "$file.tmp" "$file"
+      elif ${jq} empty "$file" 2>/dev/null; then
+        ${jq} -s '.[0] * .[1] * .[2]' ${base} "$file" ${managedFile} > "$file.tmp" && mv "$file.tmp" "$file"
+      else
+        # Mid-edit, most likely. The app keeps its last good version meanwhile.
+        echo "warning: $file is not valid JSON; the managed ${name} entries were not merged into it" >&2
+      fi
+    '';
+
+  emptyJson = pkgs.writeText "empty.json" "{}";
+
+  mergeFiles = pkgs.writeShellScript "merge-herdr-app-files" ''
+    mkdir -p ${lib.escapeShellArg appDir}
+    ${mergeJson "keys.json" shippedKeys managedKeys}
+    ${mergeJson "settings.json" emptyJson managedSettings}
+  '';
+
+  # Copied, not linked: the app does not hot-reload a symlinked mod folder,
+  # and every file here is one it watches. Each is rewritten only when it
+  # changed, since an identical rewrite still makes the app reload it.
+  installFiles = pkgs.writeShellScript "install-herdr-app-files" ''
+    app=${lib.escapeShellArg appDir}
+    stamp=${lib.escapeShellArg stateDir}/edge-nav.source
+
+    # The mod folder is this module's alone: replaced whole when it changes.
+    if [ "$(cat "$stamp" 2>/dev/null)" != ${edgeNavMod} ] || [ ! -d "$app/mods/edge-nav" ]; then
+      mkdir -p "$app/mods" "$(dirname "$stamp")"
+      rm -rf "$app/mods/edge-nav.new"
+      cp -r ${edgeNavMod} "$app/mods/edge-nav.new"
+      chmod -R u+w "$app/mods/edge-nav.new"
+      rm -rf "$app/mods/edge-nav"
+      mv "$app/mods/edge-nav.new" "$app/mods/edge-nav"
+      echo ${edgeNavMod} > "$stamp"
+    fi
+
+    mkdir -p "$app/themes"
+    for theme in ${themes}/*.json; do
+      dest="$app/themes/$(basename "$theme")"
+      cmp -s "$theme" "$dest" || install -m644 "$theme" "$dest"
+    done
+
+    mkdir -p "$app/layouts"
+    dest="$app/layouts/${navLayoutName}.json"
+    cmp -s ${navLayout} "$dest" || install -m644 ${navLayout} "$dest"
+  '';
+in
+{
+  options.dedsm.herdr.enable = lib.mkEnableOption "Herdr (the herdr-desktop app and herdr-core)";
+
+  config = lib.mkIf cfg.enable {
+    # Straight from nixpkgs-unstable, which builds both from source and has
+    # them in the binary cache. The app already finds this herdr-core through
+    # a path nixpkgs patches in; installing it too puts `hc` on PATH for
+    # shells, agents and edge-nav's Neovim half, at the same version.
+    home.packages = [
+      herdrApp
+      pkgs.unstable.herdr-core
+    ];
+
+    home.sessionVariables.HC_QUIET_MS = quietMs;
+
+    # On macOS, Herdr.app opened from the Dock or Spotlight runs the bundle's
+    # own executable, not the bin/ wrapper, and gets launchd's environment,
+    # never a shell's. `launchctl setenv` puts the variable into the GUI
+    # session's launchd domain, so the app and every core it starts see it.
+    # Run at login and on every activation that changes the agent.
+    launchd.agents.herdr-env = {
+      enable = pkgs.stdenv.isDarwin;
+      config = {
+        ProgramArguments = [
+          "/bin/launchctl"
+          "setenv"
+          "HC_QUIET_MS"
+          quietMs
         ];
-
-        # Claude Code writes its current activity to the terminal title, which
-        # turns that row into a live "what is this agent doing" column. The
-        # override key must be herdr's canonical agent id.
-        agents.rows_by_agent.claude = [
-          [
-            "state_icon"
-            "agent"
-            "state_text"
-          ]
-          [ "terminal_title_stripped" ]
-          [
-            "workspace"
-            "tab"
-          ]
-        ];
+        RunAtLoad = true;
       };
     };
 
-    session = {
-      # A reboot kills the pane processes either way; this lets supported agents
-      # reopen their own conversation rather than coming back as a bare shell.
-      resume_agents_on_restore = true;
-    };
+    # edge-nav's Neovim half. It does nothing outside a terminal herdr-desktop
+    # shows ($HC_TERMINAL_ID unset), leaving the keys to vim-tmux-navigator.
+    programs.neovim.plugins = lib.mkIf config.dedsm.nvim.enable [ edgeNav ];
 
-    theme = {
-      # herdr detects the host terminal's light/dark appearance itself, so it
-      # needs none of the theme-switching bridge the `theme` module builds
-      # for tmux. Upstream defaults this to false.
-      auto_switch = true;
-      dark_name = "solarized";
-      light_name = "solarized-light";
-
-      # Fallback when appearance detection fails; without it that case lands on
-      # herdr's catppuccin default.
-      name = "solarized";
-    };
-  };
-in
-with lib;
-{
-  options.dedsm.herdr = {
-    enable = lib.mkEnableOption "the herdr agent-aware multiplexer";
-  };
-
-  config = lib.mkIf config.dedsm.herdr.enable {
-    # `ui.toast.delivery = "system"` shells out to `notify-send` by name on
-    # Linux, so libnotify has to be on PATH. Darwin needs nothing extra —
-    # herdr goes through osascript there.
-    home.packages = [ herdrPkg ] ++ optional pkgs.stdenv.isLinux pkgs.libnotify;
-
-    # Single-file link on purpose: `~/.config/herdr/` stays a real directory so
-    # herdr can still write its logs and session state next to the config.
-    xdg.configFile."herdr/config.toml" = {
-      source = tomlFormat.generate "herdr-config.toml" settings;
-
-      # Apply on rebuild instead of waiting for the next launch. Copied from
-      # the `programs.herdr` module on home-manager master, which this module
-      # replaces until that lands in a release — see docs/herdr.md. That one
-      # writes `|| true` for the (expected) case of no server running during
-      # activation; `herdrTry` keeps that quiet while still reporting a
-      # server that refused the reload.
-      onChange = "${herdrTry} server reload-config";
-    };
-
-    # The editor half of the navigation plugin: `<C-h/j/k/l>` move between
-    # Neovim splits and cross into the neighbouring herdr pane at an edge. It
-    # lives in `after/plugin` so it wins over the `vim-tmux-navigator`
-    # mappings, and falls back to them when $HERDR_PANE_ID is unset, i.e. under
-    # tmux. The nvim module links `config/` recursively and has no `after/`,
-    # so this is the only thing there.
-    #
-    # Inside a herdr-core terminal ($HC_TERMINAL_ID set, i.e. herdr-desktop)
-    # the same keys belong to herdr-app-edge-nav (modules/home/herdr-desktop).
-    # Its own plugin/ file has mapped them by now, but this file loads later
-    # and would remap them to the tmux fallback, so there it re-runs
-    # edge-nav's setup (which wins as the last mapping) and stops. Outside
-    # herdr-desktop's own terminals edge-nav's setup maps nothing, leaving the
-    # keys as vim-tmux-navigator set them.
-    xdg.configFile."nvim/after/plugin/herdr-nav.lua" = mkIf config.dedsm.nvim.enable {
+    # Inside one, both plugins map <C-h/j/k/l> from plugin/, and
+    # vim-tmux-navigator loads after edge-nav, so its mappings would win.
+    # after/plugin runs once every plugin/ has, so re-running edge-nav's
+    # setup() here makes it the last mapping. The nvim module links
+    # `config/` recursively and has no `after/`, so this is the only file
+    # there.
+    xdg.configFile."nvim/after/plugin/herdr-edge-nav.lua" = lib.mkIf config.dedsm.nvim.enable {
       text = ''
         if vim.env.HC_TERMINAL_ID and vim.env.HC_TERMINAL_ID ~= "" then
           local ok, edge_nav = pcall(require, "herdr-app-edge-nav")
           if ok then
             edge_nav.setup()
           end
-          return
         end
-        dofile("${navRoot}/editor/nvim.lua")
       '';
     };
 
-    # `plugins.json` is deliberately *not* a store symlink: herdr rewrites it
-    # on every link/unlink/enable/disable, so managing it declaratively would
-    # reproduce the read-only failure the `onboarding` setting used to hit.
-    # `herdr plugin link` needs no running server, is idempotent, and replaces
-    # the entry for an id when its path changes — which it does on every
-    # rebuild that bumps a plugin's store path.
-    home.activation.herdrPlugins = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      herdrPluginIds="${concatMapStringsSep " " (p: p.id) plugins}"
-
-      ${concatMapStringsSep "\n" (p: ''
-        $DRY_RUN_CMD ${herdrTry} plugin link ${p.root} >/dev/null
-      '') plugins}
-
-      # Drop store-linked plugins that are no longer declared here. Anything
-      # linked by hand from outside the store is left alone on purpose.
-      #
-      # `link` and `list` fall back to editing plugins.json directly, but
-      # `unlink` always goes through herdr.sock — with no server up it fails
-      # with `server_not_running`. So this half is best-effort: a plugin
-      # removed from the list above may linger in the registry until the
-      # next activation that happens while herdr is running.
-      #
-      # Everything here goes through `herdrTry`, which always exits 0 — a
-      # failing `list` would otherwise fail the pipeline (`set -o pipefail`)
-      # and abort the activation. jq handles its empty output as no plugins.
-      ${herdrTry} plugin list --json \
-        | ${getExe pkgs.jq} -r '.result.plugins[]? | select(.plugin_root | startswith("/nix/store")) | .plugin_id' \
-        | while read -r id; do
-            case " $herdrPluginIds " in
-              *" $id "*) ;;
-              *) $DRY_RUN_CMD ${herdrTry} plugin unlink "$id" >/dev/null ;;
-            esac
-          done
+    # The mod and themes first: keys.json binds edge-nav, and settings.json
+    # names the themes, so both should exist when the app reloads those.
+    home.activation.herdrDesktop = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      $DRY_RUN_CMD ${installFiles}
+      $DRY_RUN_CMD ${mergeFiles}
     '';
   };
 }

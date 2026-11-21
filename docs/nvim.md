@@ -21,14 +21,14 @@ Lua config lives under `config/` and is symlinked wholesale into `~/.config/nvim
 - **Light/dark sync**: nvim's TUI queries the terminal's background colour (OSC 11) at startup and sets `'background'` itself, so the colorscheme follows foot. On Darwin a pinned `dark-notify` plugin does it instead, driven by the `dark-notify` binary the `theme` module's launchd agent runs; that plugin has no Linux build and is guarded to macOS.
 - **Misc quality-of-life**: `gitsigns-nvim`, `which-key-nvim`, `todo-comments-nvim`, `vim-tmux-navigator` (pane navigation shared with tmux), `vim-lastplace`, `vim-sleuth`, `mini-nvim`, `fidget-nvim` (LSP progress UI).
 
-One file arrives from outside this module: the **herdr** module links
-`~/.config/nvim/after/plugin/herdr-nav.lua` (from `pkgs/vim-herdr-navigation`) whenever both
-`dedsm.nvim.enable` and `dedsm.herdr.enable` are set. It re-maps `<C-h/j/k/l>` so a split edge crosses
-into the neighbouring herdr pane, and defers to `vim-tmux-navigator` when `$HERDR_PANE_ID`
-is unset — `after/plugin` is what lets it win over the plugin's own mappings. Inside a
-herdr-desktop terminal (`$HC_TERMINAL_ID` set) it hands the same keys to
-`herdr-app-edge-nav`, a plugin the **herdr-desktop** module adds. This config's
-`config/` tree has no `after/` of its own. See [`herdr.md`](./herdr.md).
+Two things arrive from outside this module when both `dedsm.nvim.enable` and
+`dedsm.herdr.enable` are set: the **herdr** module adds the `herdr-app-edge-nav` plugin, which
+maps `<C-h/j/k/l>` so a split edge crosses into the neighbouring herdr-desktop pane, but only
+inside a herdr-desktop terminal (`$HC_TERMINAL_ID` set); and it links
+`~/.config/nvim/after/plugin/herdr-edge-nav.lua`, which re-runs that plugin's `setup()` there,
+because `vim-tmux-navigator` maps the same keys from `plugin/` and loads later. Everywhere else
+the keys stay `vim-tmux-navigator`'s. This config's `config/` tree has no `after/` of its own.
+See [`herdr.md`](./herdr.md).
 
 ## Adding a plugin
 

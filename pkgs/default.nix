@@ -6,14 +6,8 @@ self: super: {
 
   dstask-note = super.callPackage ./dstask-note { };
 
-  # herdr itself comes from unstable, and the plugin's wrapper has to call the
-  # same binary the user runs.
-  vim-herdr-navigation = super.callPackage ./vim-herdr-navigation {
-    herdr = unstablePkgs.herdr;
-  };
-
-  # herdr-desktop's Neovim-aware pane navigation: the app mod and its Neovim
-  # half, from one repo. Installed by the herdr-desktop module.
+  # Herdr's Neovim-aware pane navigation: the herdr-desktop mod and its Neovim
+  # half, from one repo. Installed by the herdr module.
   herdr-app-edge-nav = super.callPackage ./herdr-app-edge-nav { };
 
   # Granola's macOS build on nixpkgs' Electron, built with unstable's

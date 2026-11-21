@@ -114,8 +114,8 @@ in
     ];
   };
 
-  # The brain plugin's health hook. SessionStart is shared with herdr's own
-  # entry, so the claude-code merge array-merges it, dropping any stale copy
+  # The brain plugin's health hook. SessionStart is shared with other tools'
+  # entries, so the claude-code merge array-merges it, dropping any stale copy
   # of this entry by its command path — which therefore stays stable across
   # rebuilds (./default.nix links the script there) and is exported even when
   # the flag is off, so a previously merged entry is still removed.

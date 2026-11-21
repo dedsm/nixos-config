@@ -4,6 +4,7 @@
 {
   dedsm = {
     tmux.enable = true;
+    # herdr-desktop and herdr-core (docs/herdr.md).
     herdr.enable = true;
     nvim.enable = true;
     zsh.enable = true;
@@ -111,13 +112,5 @@
 
     # K8S
     k9s
-
-    # On PATH by name for herdr's agent integration: the hook it installs
-    # into Claude Code is `sh` + a `python3` heredoc (herdr itself is
-    # Rust), and it exits 0 without reporting when `command -v python3`
-    # fails — which silently costs agent session recovery. See
-    # "Restart behaviour" in docs/herdr.md. Same store path `brain`
-    # already pins via patchShebangs, so this costs no extra build.
-    python3
   ];
 }
