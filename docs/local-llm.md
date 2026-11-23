@@ -5,7 +5,8 @@ anything on this machine to call. A request names a model, the server loads it i
 freed again when idle. Only manwe enables it.
 
 Hex's [dictation cleanup](./hex.md#cleanup) is the first client, using both models listed so far: `cleanup`
-(Spokenly's Cleanup 1, plain-text prompts) and `gemma` (Gemma 4 E4B, chat).
+(Spokenly's Cleanup 1, plain-text prompts) and `gemma` (Gemma 4 E4B, chat, and images through its
+multimodal projector).
 
 ## How it fits together
 
@@ -32,6 +33,31 @@ curl -s http://127.0.0.1:8012/v1/completions -H 'content-type: application/json'
 
 `curl -s http://127.0.0.1:8012/models | jq` lists the models and whether each is loaded. A Claude Code
 skill or a script can use this the same way, with no setup beyond knowing the model's name.
+
+## Images
+
+`gemma` reads images: its entry in `models.json` pins the repo's `mmproj-F16.gguf` projector next to the
+model, and the module passes it to the server as `mmproj`. Send an image the OpenAI way:
+
+```bash
+curl -s http://127.0.0.1:8012/v1/chat/completions -H 'content-type: application/json' -d '{
+  "model": "gemma",
+  "max_tokens": 300,
+  "chat_template_kwargs": {"enable_thinking": false},
+  "messages": [{"role": "user", "content": [
+    {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,..."}},
+    {"type": "text", "text": "Describe this slide."}]}]
+}' | jq -r '.choices[0].message.content'
+```
+
+Turn thinking off for this kind of request. With it on, Gemma reasons first: a slide took 26 s and 461 tokens,
+against 5.5 s and 43 tokens with the same answer, and a small `max_tokens` can run out before the reply starts.
+A 1280 px wide image costs about 500 prompt tokens. The projector adds about 1 GiB when the model is loaded,
+and Hex's text-only requests never use it.
+
+The context is 32768 tokens, which is Gemma's `ctx-size`. Its trained limit is 131072. Measured on the 890M with
+the projector, the full 131072 used 9.7 GiB of GPU memory in all (the weights and projector are about 5.9 GiB), so
+there is room to raise it if a request needs more than 32768.
 
 ## Loading and unloading
 
@@ -65,7 +91,9 @@ Add an entry to `models.json`, with `rev` and `hash` left empty:
 }
 ```
 
-Then run `scripts/update-packages.sh local-llm-models`, which fills in the pin, and rebuild. The entry's
+Then run `scripts/update-packages.sh local-llm-models`, which fills in the pin, and rebuild. A vision model
+also takes `"mmproj": { "file": "mmproj-F16.gguf", "hash": "" }`, a projector file from the same repo and
+commit; the updater fills in its hash too. The entry's
 name is the name requests use. `preset` takes `llama-server`'s long option names without the dashes.
 A chat model needs `jinja`; Cleanup 1 takes a plain-text prompt and doesn't. Both current models set
 `"spec-type": "ngram-simple"`: speculative decoding that drafts tokens from n-grams already in the context instead of

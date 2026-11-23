@@ -12,12 +12,23 @@ let
 
   models = lib.importJSON ./models.json;
 
-  modelFile =
-    model:
+  # A file from the model's repo at its pinned commit.
+  fetchFile =
+    model: file: hash:
     pkgs.fetchurl {
-      name = model.file;
-      url = "https://huggingface.co/${model.repo}/resolve/${model.rev}/${model.file}";
-      inherit (model) hash;
+      name = file;
+      url = "https://huggingface.co/${model.repo}/resolve/${model.rev}/${file}";
+      inherit hash;
+    };
+
+  modelFile = model: fetchFile model model.file model.hash;
+
+  # The multimodal projector that lets a vision model read images, pinned to
+  # the same commit as the model. Optional: a text-only model has none.
+  mmprojPreset =
+    model:
+    lib.optionalAttrs (model ? mmproj) {
+      mmproj = "${fetchFile model model.mmproj.file model.mmproj.hash}";
     };
 in
 {
@@ -33,7 +44,9 @@ in
       host = "127.0.0.1";
       # Not the module's 8080, which development servers tend to want.
       port = 8012;
-      modelsPreset = lib.mapAttrs (_: model: model.preset // { model = "${modelFile model}"; }) models;
+      modelsPreset = lib.mapAttrs (
+        _: model: model.preset // { model = "${modelFile model}"; } // mmprojPreset model
+      ) models;
       extraFlags = [
         "--models-max"
         "2"

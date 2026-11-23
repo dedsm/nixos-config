@@ -28,4 +28,17 @@ for name in $(jq -r 'keys[]' "$MODELS_FILE"); do
     '.[$n].rev = $rev | .[$n].hash = $hash' "$MODELS_FILE")"
   printf '%s\n' "$updated" >"$MODELS_FILE"
   echo "$name: pinned to $latest ($hash)"
+
+  # A vision model's projector lives in the same repo, so it moves with the
+  # model's commit.
+  mmproj="$(jq -r --arg n "$name" '.[$n].mmproj.file // empty' "$MODELS_FILE")"
+  if [ -n "$mmproj" ]; then
+    echo "$name: fetching $repo/$mmproj at $latest..."
+    mmproj_hash="$(nix store prefetch-file --json --name "$mmproj" \
+      "https://huggingface.co/$repo/resolve/$latest/$mmproj" | jq -er .hash)"
+    updated="$(jq --arg n "$name" --arg hash "$mmproj_hash" \
+      '.[$n].mmproj.hash = $hash' "$MODELS_FILE")"
+    printf '%s\n' "$updated" >"$MODELS_FILE"
+    echo "$name: projector pinned ($mmproj_hash)"
+  fi
 done
