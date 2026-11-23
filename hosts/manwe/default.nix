@@ -60,6 +60,25 @@
       { pkgs, ... }:
       {
         imports = [ ../../users/david/nixos.nix ];
+        # Stoda work: commit as david@stoda.ai. The key is the personal one
+        # from shared.nix, which carries that UID too, so the signature
+        # verifies against the commit email; signing is restated here so
+        # these repos stay signed whatever the global default becomes.
+        # `gitdir:` with a trailing slash matches every repo below, and
+        # worktrees whose git dir lives there (aegis is bare).
+        programs.git.includes = [
+          {
+            condition = "gitdir:~/Develop/stoda/";
+            contents = {
+              user = {
+                email = "david@stoda.ai";
+                signingkey = "8655217C8614EB611CF2259DF287187DBA42E303";
+              };
+              commit.gpgsign = true;
+              tag.gpgsign = true;
+            };
+          }
+        ];
         dedsm.hyprland.enable = true;
         dedsm.sharePicker.enable = true;
         dedsm.hex = {
