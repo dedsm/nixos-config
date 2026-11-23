@@ -37,6 +37,96 @@ let
     inherit (pkgs.unstable.herdr-desktop) meta;
   };
 
+  # ---- Resuming Claude Code after a lost terminal -------------------------
+  #
+  # When herdr-core loses a terminal (logout, reboot, `hc server stop`), it
+  # restarts it as a fresh shell under the same address ($HC_TERMINAL_ID) and
+  # in its last folder, but never reruns its program, and it records no agent
+  # session. So Claude Code's own hooks record one: which session runs in
+  # which terminal, kept when Claude is killed and dropped when it is quit.
+  # The restarted shell resumes it. See docs/herdr.md.
+  claudeRecords = "\${XDG_STATE_HOME:-$HOME/.local/state}/herdr-claude";
+  claudeHookCommand = "~/.local/bin/claude-herdr-session.sh";
+
+  # Claude Code hook: `start` (SessionStart) or `end` (SessionEnd), with the
+  # hook's JSON on stdin. Fail-open and silent: it never blocks a session.
+  claudeHook = ''
+    #!/bin/sh
+    [ -n "''${HC_TERMINAL_ID:-}" ] || exit 0
+    dir="${claudeRecords}"
+    record="$dir/$HC_TERMINAL_ID.json"
+    input=$(cat) || exit 0
+    session=$(printf '%s' "$input" | ${jq} -r '.session_id // empty' 2>/dev/null)
+    [ -n "$session" ] || exit 0
+
+    case "''${1:-}" in
+      start)
+        # Interactive sessions only (`claude -p` and the SDK set another).
+        [ "''${CLAUDE_CODE_ENTRYPOINT:-}" = cli ] || exit 0
+        # Only a Claude started at the terminal's own shell, the program
+        # herdr-core restarts: that shell's parent is herdr-core's holder. A
+        # Claude a script or another Claude starts is left alone.
+        claude=''${CLAUDE_PID:-}
+        if [ -z "$claude" ]; then
+          pid=$PPID
+          for _ in 1 2 3 4; do
+            case "$(ps -o comm= -p "$pid" 2>/dev/null)" in *claude*) claude=$pid; break ;; esac
+            pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+            [ -n "$pid" ] || break
+          done
+        fi
+        [ -n "$claude" ] || exit 0
+        shell=$(ps -o ppid= -p "$claude" 2>/dev/null | tr -d ' ')
+        holder=$(ps -o ppid= -p "''${shell:-0}" 2>/dev/null | tr -d ' ')
+        case "$(ps -o comm= -p "''${holder:-0}" 2>/dev/null)" in *herdr-core) ;; *) exit 0 ;; esac
+        mkdir -p "$dir" || exit 0
+        printf '%s' "$input" | ${jq} '{session_id, cwd, transcript_path}' > "$record.tmp" \
+          && mv "$record.tmp" "$record"
+        # Terminals closed with Claude still running leave a record behind.
+        find "$dir" -name '*.json' -mtime +30 -delete 2>/dev/null
+        ;;
+      end)
+        # A kill (SIGHUP or SIGTERM as the session or the holder ends) ends a
+        # session with reason "other": keep the record. Any other reason is a
+        # quit (/exit, ctrl-d, logout) or a switch (/clear, /resume, which
+        # record the next session themselves): drop it, if it is still ours.
+        [ "$(printf '%s' "$input" | ${jq} -r '.reason // empty')" = other ] && exit 0
+        [ "$(${jq} -r '.session_id // empty' "$record" 2>/dev/null)" = "$session" ] && rm -f "$record"
+        ;;
+    esac
+    exit 0
+  '';
+
+  # Runs before the first prompt of a terminal's own shell: once, and only
+  # where a record says a Claude session was running when the terminal was
+  # lost. The record is consumed first, so a resume that fails is not retried
+  # by every later shell; the resumed session records itself again.
+  claudeResume = ''
+    if [[ -n $HC_TERMINAL_ID && -o interactive ]]; then
+      _herdr_claude_resume() {
+        add-zsh-hook -d precmd _herdr_claude_resume
+        unfunction _herdr_claude_resume
+        local rec="${claudeRecords}/$HC_TERMINAL_ID.json"
+        [[ -f $rec ]] || return 0
+        # The terminal's own shell, which herdr-core's holder starts; a zsh
+        # run inside it leaves the record for that one.
+        [[ $(ps -o comm= -p $PPID 2>/dev/null) == *herdr-core ]] || return 0
+        local id cwd transcript
+        id=$(${jq} -r '.session_id // empty' $rec 2>/dev/null)
+        cwd=$(${jq} -r '.cwd // empty' $rec 2>/dev/null)
+        transcript=$(${jq} -r '.transcript_path // empty' $rec 2>/dev/null)
+        rm -f $rec
+        # A session from another folder can't be resumed here (and the record
+        # can't be ours if herdr-core's state was wiped and addresses reused).
+        [[ -n $id && -n $cwd && ''${cwd:A} == ''${PWD:A} && -f $transcript ]] || return 0
+        print -P "%F{yellow}herdr: resuming the Claude session this terminal had ($id)%f"
+        claude --resume $id
+      }
+      autoload -Uz add-zsh-hook
+      add-zsh-hook precmd _herdr_claude_resume
+    fi
+  '';
+
   appDir = "${config.xdg.configHome}/herdr-app";
   stateDir = "${config.xdg.stateHome}/herdr-desktop";
 
@@ -273,6 +363,38 @@ in
         end
       '';
     };
+
+    # Resuming Claude Code in a terminal herdr-core restarted (see the let
+    # block). The hook is linked under ~/.local/bin/claude-*, which the
+    # claude-code merge recognises as its own, so a rebuild replaces its
+    # SessionStart entry instead of adding a second one.
+    home.file.".local/bin/claude-herdr-session.sh" = lib.mkIf config.dedsm.claude-code.enable {
+      executable = true;
+      text = claudeHook;
+    };
+    dedsm.claude-code.extraHooks = lib.mkIf config.dedsm.claude-code.enable {
+      SessionStart = [
+        {
+          hooks = [
+            {
+              type = "command";
+              command = "${claudeHookCommand} start";
+            }
+          ];
+        }
+      ];
+      SessionEnd = [
+        {
+          hooks = [
+            {
+              type = "command";
+              command = "${claudeHookCommand} end";
+            }
+          ];
+        }
+      ];
+    };
+    programs.zsh.initContent = lib.mkIf config.dedsm.claude-code.enable (lib.mkOrder 1500 claudeResume);
 
     # The mod and themes first: keys.json binds edge-nav, and settings.json
     # names the themes, so both should exist when the app reloads those.

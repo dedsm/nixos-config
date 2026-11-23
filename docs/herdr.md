@@ -147,7 +147,49 @@ module does not depend on foot being configured; their selection colour is base0
 which foot leaves to inversion.
 
 herdr-core gives a lost terminal a fresh shell in its last folder, never its old program;
-there is no agent-resume on restore. Sounds are on by default.
+it has no agent-resume of its own (Claude Code gets one from this module: see below).
+Sounds are on by default.
+
+## Resuming Claude Code
+
+Quitting the app loses nothing, and neither does `hc server restart`: herdr-core keeps
+every program running (see "Restarting after an update"). Logout, a reboot and
+`hc server stop` do lose them. herdr-core then restarts each kept terminal (the app's
+terminals are all kept, `"keep": true` in `hc get`) as a fresh shell in its last folder,
+under the **same address**, so `$HC_TERMINAL_ID` is unchanged: the terminal's record
+survives and only its program is replaced (`recover_kept` in herdr-core's `src/kept.rs`;
+addresses are never reused, since `next_id` only grows). Its agent status carries no
+session id (OSC 7501 reports state, app, title and message only), so herdr-core cannot
+resume an agent itself; the terminal herdr could, through `resume_agents_on_restore` and
+its own Claude hook.
+
+The module rebuilds that from Claude Code's side, in two parts:
+
+- **A hook records the session.** `~/.local/bin/claude-herdr-session.sh`, on `SessionStart`
+  and `SessionEnd` (added through the claude-code module's `extraHooks`), keeps one record
+  per terminal in `$XDG_STATE_HOME/herdr-claude/<address>.json`: session id, folder and
+  transcript path. It records only an interactive Claude (`CLAUDE_CODE_ENTRYPOINT=cli`)
+  started at the terminal's own shell, the program herdr-core restarts. It checks this by
+  walking the process tree: Claude (`$CLAUDE_PID`) → shell → herdr-core's holder. A
+  `claude -p` from a script or from another Claude is left out. On `SessionEnd` the reason
+  decides: a kill (SIGHUP or SIGTERM, which is how the session ends when the holder or the
+  login goes) ends with reason `other`, and the record stays. Any other reason is a quit
+  (`/exit`, ctrl-d, logout) or a switch (`/clear`, `/resume`, whose next session records
+  itself), and the record is dropped. Records older than 30 days are pruned; a terminal
+  closed with Claude still running leaves one.
+- **The restarted shell resumes it.** zsh's first `precmd` in a herdr terminal looks for
+  the record, but only in the terminal's own shell (parent `herdr-core`), so a nested zsh
+  doesn't take it. It consumes the record, then runs `claude --resume <id>` if the record's
+  folder is the shell's and the transcript still exists. Leaving Claude afterwards drops
+  you at that shell. Consuming the record first means a resume that fails isn't retried
+  by every later shell; the resumed session records itself again.
+
+So a Claude Code session killed with its terminal comes back as the same conversation,
+in every pane at once after a reboot, without anyone at the keyboard. One that was quit
+doesn't come back. A Claude that crashed while its shell lived on is resumed at the next
+loss of that terminal unless a new session replaced the record first. Without the
+claude-code module (`dedsm.claude-code`) none of this is installed. Scrollback is not
+restored either way.
 
 ## Pane navigation: edge-nav
 

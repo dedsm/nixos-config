@@ -48,6 +48,16 @@ let
 
   inherit (cfg) notifyScript dismissScript;
 
+  extraOwnedHooks = builtins.removeAttrs cfg.extraHooks [ "SessionStart" ];
+  # The events this module owns itself, which `extraHooks` must leave alone.
+  ownHookEvents = [
+    "Stop"
+    "PreToolUse"
+    "PostToolUse"
+    "Notification"
+    "UserPromptSubmit"
+  ];
+
   # === Managed Settings ===
   managedSettings = {
     fileSuggestion = {
@@ -92,14 +102,16 @@ let
         }
       ];
 
-      # Owned by the agent-harness module (the brain plugin's health hook, when
-      # `agent-harness.brain.claude-code` is on). Unlike the keys above,
-      # SessionStart is SHARED: tools' agent integrations install their own
-      # entries here, so the merge script array-merges this key
-      # instead of letting `*` replace it — user entries survive, the managed
-      # entry is (re)appended by command.
-      SessionStart = agentHarness.claudeCode.sessionStart;
-    };
+      # The agent-harness module's (the brain plugin's health hook, when
+      # `agent-harness.brain.claude-code` is on) and other modules', through
+      # `extraHooks` below. Unlike the keys above, SessionStart is SHARED:
+      # tools' agent integrations install their own entries here, so the merge
+      # script array-merges this key instead of letting `*` replace it — user
+      # entries survive, the managed entries are (re)appended.
+      SessionStart = agentHarness.claudeCode.sessionStart ++ cfg.extraHooks.SessionStart or [ ];
+    }
+    # Every other event other modules hook (herdr's SessionEnd), owned outright.
+    // extraOwnedHooks;
     statusLine = {
       type = "command";
       command = "~/.local/bin/claude-statusline.sh";
@@ -130,10 +142,14 @@ let
   # Deep-merge (`*`) recurses into objects but REPLACES arrays — fine for the
   # hook keys this module owns outright, wrong for hooks.SessionStart, which
   # agent integrations of other tools also write entries into: replacing the
-  # array would silently delete their hooks on every switch. SessionStart is therefore array-merged after the deep merge:
-  # user-installed entries survive (minus any stale copy of the managed one,
-  # matched by its command path), and the managed entry is appended.
-  brainHealthHookPath = agentHarness.claudeCode.brainHealthCommand;
+  # array would silently delete their hooks on every switch. SessionStart is
+  # therefore array-merged after the deep merge: user-installed entries
+  # survive, and the managed entries are appended. A stale copy of a managed
+  # entry is told apart by its command: every managed hook script is linked at
+  # ~/.local/bin/claude-*, a path that stays put across rebuilds, so an entry
+  # running one is dropped before the current set goes in, which also removes
+  # the entry of a hook whose module or flag has since been turned off.
+  managedHookPrefix = "~/.local/bin/claude-";
 
   # env keys this module used to set and no longer does. The deep merge would
   # leave a dropped key in settings.json forever, so the merge deletes these
@@ -155,7 +171,7 @@ let
         | ($user * $managed)
         | .hooks.SessionStart =
             ((($user.hooks.SessionStart // [])
-              | map(select(([.hooks[]?.command] | index("${brainHealthHookPath}")) | not)))
+              | map(select(any(.hooks[]?.command; startswith("${managedHookPrefix}")) | not)))
              + ($managed.hooks.SessionStart // []))
         | del(${delRetiredEnv})
       ' "$SETTINGS" ${managedSettingsFile} > "$SETTINGS.tmp" && ${mv} "$SETTINGS.tmp" "$SETTINGS"
@@ -179,6 +195,20 @@ in
       defaultText = lib.literalMD "the platform notifier from ./notify.nix";
       description = "Script text installed as ~/.local/bin/claude-notify.sh, run by the Stop and Notification hooks.";
     };
+    extraHooks = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.listOf lib.types.attrs);
+      default = { };
+      example = lib.literalExpression ''
+        { SessionEnd = [ { hooks = [ { type = "command"; command = "~/.local/bin/claude-foo.sh"; } ]; } ]; }
+      '';
+      description = ''
+        Hook entries other modules add, by event. SessionStart entries are
+        appended to the shared array; any other event is owned outright, like
+        the hooks this module sets itself, so it must not be one of those.
+        Link a command's script at ~/.local/bin/claude-* so the merge can drop
+        a stale copy of it (see docs/claude-code.md).
+      '';
+    };
     dismissScript = lib.mkOption {
       type = lib.types.str;
       default = dismissScriptDefault;
@@ -188,6 +218,13 @@ in
   };
 
   config = lib.mkIf cfg.enable ({
+    assertions = [
+      {
+        assertion = builtins.all (event: !(extraOwnedHooks ? ${event})) ownHookEvents;
+        message = "dedsm.claude-code.extraHooks: ${lib.concatStringsSep ", " ownHookEvents} are set by the claude-code module itself.";
+      }
+    ];
+
     home.packages = [
       claudeCodePkg
     ]

@@ -116,10 +116,10 @@ in
 
   # The brain plugin's health hook. SessionStart is shared with other tools'
   # entries, so the claude-code merge array-merges it, dropping any stale copy
-  # of this entry by its command path — which therefore stays stable across
-  # rebuilds (./default.nix links the script there) and is exported even when
-  # the flag is off, so a previously merged entry is still removed.
-  claudeCode.brainHealthCommand = brainHealthCommand;
+  # of a managed entry by its ~/.local/bin/claude-* command path — which
+  # therefore stays stable across rebuilds (./default.nix links the script
+  # there), and which also removes a previously merged entry once the flag is
+  # off.
   claudeCode.sessionStart = lib.optional active.brain.claude-code {
     # Deliberately not "compact": the line would repeat mid-task.
     matcher = "startup|resume|clear";
