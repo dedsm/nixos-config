@@ -18,11 +18,11 @@ in
   };
 
   config = mkIf cfg.enable {
-    # Open Tablet Driver
-    hardware.opentabletdriver = {
-      enable = true;
-      package = pkgs.unstable.opentabletdriver;
-    };
+    # Drawing tablet (One by Wacom M, CTL-672): nothing here on purpose. The
+    # in-kernel `wacom` driver binds it on its own and Hyprland maps it
+    # (input.tablet in modules/home/hyprland). OpenTabletDriver used to run it,
+    # but it blacklists `wacom`, keeps its mapping in an unmanaged settings.json
+    # and fixes it to one monitor layout, which dock/undock then invalidates.
 
     # Ledger support
     hardware.ledger.enable = true;

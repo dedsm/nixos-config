@@ -123,6 +123,22 @@ with lib;
               touchpad = {
                 natural_scroll = true;
               };
+              # Drawing tablet (One by Wacom M, kernel `wacom` driver; see
+              # modules/nixos/peripherals). It covers the focused monitor
+              # only, so focus decides which screen the pen draws on, and it
+              # follows hyprdynamicmonitors' dock/undock without config.
+              # The surface is 216x135 mm (16:10) and the 4K monitors 16:9,
+              # so mapping all of it would stretch a drawn square ~11% wide;
+              # the active area is trimmed to 16:9 at the top instead, leaving
+              # a ~13 mm strip along the bottom dead. The laptop panel is 3:2,
+              # so undocked it stretches the other way.
+              tablet = {
+                output = "current";
+                active_area_size = [
+                  216
+                  121.5
+                ];
+              };
             };
             general = {
               border_size = 2;
