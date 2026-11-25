@@ -6,6 +6,9 @@
   lib,
   pkgs,
   modulesPath,
+  nixpkgs,
+  nixpkgs-kernel-pin,
+  self,
   ...
 }:
 {
@@ -38,7 +41,40 @@
     cleanOnBoot = true;
   };
 
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  # TEMPORARY kernel pin: 7.3.4, from the nixpkgs revision that built it, so it
+  # is the exact binary that ran (and a cache hit, no local kernel build). On
+  # 7.3.5 the AX210 twice failed to come back from s2idle: a
+  # _iwl_trans_pcie_grab_nic_access WARNING in iwl_pci_resume, every register
+  # reading 0x5a5a5a5a, then "Failed to start RT ucode: -110" retries until a
+  # reboot. 7.3.1 and 7.3.4 resumed 42 times without it. As of 2026-11-25 no
+  # upstream report or fix was found, and 7.3.6 has no resume-related iwlwifi
+  # change.
+  #
+  # To drop it: go back to `pkgs.linuxPackages_latest`, delete the assertion
+  # below and the `nixpkgs-kernel-pin` input (flake.nix, its two pass-throughs
+  # and the argument above), and the note in CLAUDE.md.
+  boot.kernelPackages =
+    nixpkgs-kernel-pin.legacyPackages.${pkgs.stdenv.hostPlatform.system}.linuxPackages_latest;
+  assertions =
+    let
+      # 2026-12-09T00:00:00Z. Pure evaluation has no clock, so "now" is the
+      # newer of this repo's last commit and the locked nixpkgs: the build
+      # fails on the first commit or `nix flake update` after that date.
+      expires = 1796774400;
+      now = lib.max self.lastModified nixpkgs.lastModified;
+    in
+    [
+      {
+        assertion = now < expires;
+        message = ''
+          manwe's kernel is still pinned to 7.3.4 (iwlwifi resume failure on
+          7.3.5) and the pin expired on 2026-12-09. Check whether nixpkgs'
+          linuxPackages_latest is past 7.3.5 and fixes it, then drop the pin
+          (see hosts/manwe/hardware-configuration.nix) or move `expires` on
+          deliberately.
+        '';
+      }
+    ];
 
   # ttm.pages_limit / ttm.page_pool_size are raised to 100 GiB (26214400 * 4 KiB)
   # on purpose: running LLMs on the iGPU needs model weights resident in GTT, far

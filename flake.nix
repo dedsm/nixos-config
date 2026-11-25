@@ -30,6 +30,13 @@
       url = "github:nix-darwin/nix-darwin/nix-darwin-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # TEMPORARY: the nixos-26.05 revision whose linuxPackages_latest is 7.3.4,
+    # the last kernel on which manwe's AX210 survived every resume (7.3.5 lost
+    # it twice in four). Used only for boot.kernelPackages in
+    # hosts/manwe/hardware-configuration.nix, which also fails the build once
+    # the pin is past its expiry date. Remove both together.
+    nixpkgs-kernel-pin.url = "https://releases.nixos.org/nixos/26.05/nixos-26.05.14234.f1e5c356f35d/nixexprs.tar.zst";
   };
 
   outputs =
@@ -41,6 +48,8 @@
       hyprdynamicmonitors,
       hex,
       darwin,
+      nixpkgs-kernel-pin,
+      self,
       ...
     }:
     let
@@ -59,6 +68,8 @@
           hyprdynamicmonitors
           hex
           darwin
+          nixpkgs-kernel-pin
+          self
           ;
       };
 

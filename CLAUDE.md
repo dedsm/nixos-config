@@ -15,7 +15,7 @@ This is a **Nix configuration flake** for David's personal systems, supporting b
 - **Multi-host ready**: Hardware config and module enablement are per-host, so adding a host doesn't require touching another host's config
 
 ### Current Hosts
-- **manwe** (NixOS): Framework laptop, `x86_64-linux`, Hyprland
+- **manwe** (NixOS): Framework laptop, `x86_64-linux`, Hyprland. Kernel temporarily pinned to 7.3.4 through the `nixpkgs-kernel-pin` input (the AX210 failed to resume on 7.3.5); an assertion in `hosts/manwe/hardware-configuration.nix` fails the build after 2026-12-09 so the pin can't be forgotten
 - **morgoth** (Darwin): macOS, `aarch64-darwin`, Aerospace window manager
 
 ### Key Technologies
