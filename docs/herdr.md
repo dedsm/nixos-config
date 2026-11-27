@@ -191,6 +191,24 @@ loss of that terminal unless a new session replaced the record first. Without th
 claude-code module (`dedsm.claude-code`) none of this is installed. Scrollback is not
 restored either way.
 
+**This is due to be replaced.** herdr-core gained OSC 7577, the Program Resume Protocol
+(<https://www.superlogical.com/rex/docs/build/program-resume>), in #429 and #433 on
+2026-11-26, after 0.1.22 and so in no release yet. A program under a kept terminal reports
+the command that resumes it, authenticated with the `OSC7577_TOKEN` herdr-core puts in the
+terminal's environment; after a loss herdr-core runs it through the terminal's shell
+(`zsh -ic '…; exec zsh -i'`, so you're still left at a shell), checks the folder, and
+doesn't retry a failed resume. Claude Code doesn't send it itself (2.1.330 has no trace of
+it), so the replacement is a `SessionStart` hook that writes `claude --resume <id>` and the
+folder to `/dev/tty` as an OSC 7577 report for Claude's pid, and a `SessionEnd` hook that
+sends `clear=1` for any reason but `other`. That removes the records, the process-tree
+walk and the zsh `precmd`, which must go in the same change: herdr-core's `exec zsh -i`
+would otherwise run the `precmd` resume too. Two things to test first: that a hook can
+open `/dev/tty`, and that a Claude started from Claude's Bash tool (which inherits the
+token) doesn't report over its parent. An assertion in the module fails the build after
+2026-12-11 so this is checked; it reads the date the way the manwe kernel pin does
+(`self.lastModified`/`nixpkgs.lastModified`, passed to Home Manager in
+`modules/common/default.nix`).
+
 ## Pane navigation: edge-nav
 
 `ctrl+h/j/k/l` move between panes and are Neovim-aware through

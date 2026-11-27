@@ -3,6 +3,7 @@
 # builders (home-manager.users); every module in modules/home is registered for
 # all of them here and stays off until a user's config enables it.
 {
+  self,
   nixpkgs,
   unstable,
   hyprdynamicmonitors,
@@ -22,7 +23,16 @@
   home-manager.useGlobalPkgs = true;
   home-manager.backupFileExtension = "home_manager_bak";
   # hyprland/hyprdynamicmonitors takes the daemon's package from the input.
-  home-manager.extraSpecialArgs = { inherit hex hyprdynamicmonitors; };
+  # self and nixpkgs give a module a clock for an expiring workaround: pure
+  # evaluation has none, so "now" is max of their lastModified (herdr's).
+  home-manager.extraSpecialArgs = {
+    inherit
+      hex
+      hyprdynamicmonitors
+      self
+      nixpkgs
+      ;
+  };
   home-manager.sharedModules = [
     ../home
     hyprdynamicmonitors.homeManagerModules.default

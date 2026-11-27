@@ -6,6 +6,8 @@
   config,
   lib,
   pkgs,
+  self,
+  nixpkgs,
   ...
 }:
 let
@@ -395,6 +397,32 @@ in
       ];
     };
     programs.zsh.initContent = lib.mkIf config.dedsm.claude-code.enable (lib.mkOrder 1500 claudeResume);
+
+    # The hook and zsh resume above are meant to go: herdr-core resumes kept
+    # programs through OSC 7577 (herdrdev/herdr-core#429 and #433, on master
+    # 2026-11-26, in no release yet), so a SessionStart hook that sends one
+    # can replace all of it. This makes sure the switch is looked at.
+    assertions =
+      let
+        # 2026-12-11T00:00:00Z. Pure evaluation has no clock, so "now" is the
+        # newer of this repo's last commit and the locked nixpkgs: the build
+        # fails on the first commit or `nix flake update` after that date.
+        expires = 1796947200;
+        now = lib.max self.lastModified nixpkgs.lastModified;
+      in
+      [
+        {
+          assertion = !config.dedsm.claude-code.enable || now < expires;
+          message = ''
+            herdr's Claude Code resume (claude-herdr-session.sh and the zsh
+            precmd resume in modules/home/herdr) expired on 2026-12-11. Check
+            whether a herdr-core release with OSC 7577 resume (#429/#433) is out
+            and in use here; if so, replace both with a hook that sends OSC 7577
+            (see docs/herdr.md, "Resuming Claude Code"), or move `expires` on
+            deliberately.
+          '';
+        }
+      ];
 
     # The mod and themes first: keys.json binds edge-nav, and settings.json
     # names the themes, so both should exist when the app reloads those.
