@@ -69,7 +69,7 @@ from pathlib import Path
 # Nix skill only. See the governance note there.
 # --------------------------------------------------------------------------
 
-TEMPLATE_VERSION = 18     # bump with templates/AGENTS.md; `.brain-version` mirrors it
+TEMPLATE_VERSION = 19     # bump with templates/AGENTS.md; `.brain-version` mirrors it
 VERSION_FILE = ".brain-version"
 
 # `goal` is the quarterly outcomes layer: 3-5 live at a time, due = quarter
@@ -3505,6 +3505,27 @@ MANUAL_DIRS = (".agents/rules",)
 def _is_manual(relp: str) -> bool:
     return relp in MANUAL_FILES or any(relp.startswith(d + "/") for d in MANUAL_DIRS)
 
+
+def _gitignore_missing(src: Path, dst: Path) -> str:
+    """The template .gitignore's patterns the store's copy lacks, each group led
+    by its template comment, as text to append ("" when nothing is missing).
+    The store's own lines are never touched: a store may ignore more than the
+    template, never less."""
+    have = {ln.strip() for ln in dst.read_text(encoding="utf-8").splitlines()}
+    out, comment = [], []
+    for ln in src.read_text(encoding="utf-8").splitlines():
+        s = ln.strip()
+        if not s:
+            comment = []
+        elif s.startswith("#"):
+            comment.append(ln)
+        elif s not in have:
+            if comment and out:
+                out.append("")
+            out += comment + [ln]
+            comment = []
+    return "\n".join(out)
+
 # Versions whose upgrade needs judgment — a model-executed, diff-and-ask
 # backfill per the skill's sync procedure. `sync` stops before stamping when
 # the store's gap crosses one of these. Purely additive bumps don't register.
@@ -3599,6 +3620,8 @@ def cmd_sync(args) -> int:
                 plan.append(("replace", str(relp)))
         elif not dst.exists():
             plan.append(("create", str(relp)))
+        elif str(relp) == ".gitignore" and _gitignore_missing(src, dst):
+            plan.append(("extend", str(relp)))
     for d in MANUAL_DIRS:
         if (store / d).is_dir():
             for old in sorted((store / d).rglob("*")):
@@ -3629,6 +3652,15 @@ def cmd_sync(args) -> int:
             dst.mkdir(parents=True, exist_ok=True)
         elif action == "remove":
             dst.unlink()
+            changed.append(relp)
+        elif action == "extend":
+            # A store scaffolded by copying from the Nix store can hold this
+            # file read-only (0444); it is the store's own file, so take write.
+            dst.chmod(dst.stat().st_mode | 0o200)
+            text = dst.read_text(encoding="utf-8")
+            sep = "" if not text or text.endswith("\n") else "\n"
+            dst.write_text(text + sep + "\n"
+                           + _gitignore_missing(tpl / relp, dst) + "\n", encoding="utf-8")
             changed.append(relp)
         else:
             dst.parent.mkdir(parents=True, exist_ok=True)

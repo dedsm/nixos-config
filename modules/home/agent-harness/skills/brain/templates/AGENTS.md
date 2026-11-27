@@ -1,6 +1,6 @@
 # Brain — Personal Tracking Store
 
-<!-- brain-template v18 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
+<!-- brain-template v19 — bump when conventions change, then rebuild + run `/brain --sync` per machine -->
 <!-- The store's own copy of this version lives in `.brain-version`, written by
      `brain version --stamp` as the LAST step of a migration. -->
 
@@ -84,6 +84,8 @@ frontmatter is deterministic instead of hand-typed — see **Tooling** below and
   One sanctioned mechanical touch besides rotation: **`brain mv` retargets `[[links]]`** inside
   entries when a page moves/renames — the entry's text never changes, only where its link points
   (same spirit as rotate-log: verbatim content, kept resolvable).
+- `tmp/` — scratch for agents and scripts (drafts, intermediate output). Git-ignored and never
+  knowledge: anything worth keeping is filed as a page.
 
 ## Page schema (YAML frontmatter)
 

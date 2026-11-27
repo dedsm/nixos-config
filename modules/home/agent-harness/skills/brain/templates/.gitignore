@@ -4,3 +4,6 @@
 # Python bytecode from anything under resources/scripts/
 __pycache__/
 *.pyc
+
+# Scratch space for agents and scripts (never knowledge, never committed)
+tmp/

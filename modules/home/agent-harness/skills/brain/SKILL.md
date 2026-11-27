@@ -177,7 +177,8 @@ latest conventions after a rebuild shipped a new template/CLI.
 1. **Run the verb.** `brain sync --dry-run` to show the plan, then **`brain sync`**. The CLI owns
    the whole mechanical phase — replace `~/brain/AGENTS.md` (and its `CLAUDE.md` import stub) and
    the topic rules in `.agents/rules/` with the canonical manual (deleting rule files the template
-   dropped), create missing bucket dirs / scaffold files (**never overwriting an existing one**), `normalize`,
+   dropped), create missing bucket dirs / scaffold files (**never overwriting an existing one**; `.gitignore`
+   alone is extended with any template pattern it lacks, e.g. v19's `tmp/`), `normalize`,
    `reindex`, untrack newly-ignored files — as one tight commit, and then **stamps in a second
    commit if and only if** no version in the gap is registered in its `JUDGMENT_MIGRATIONS`
    table (it refuses on a dirty tree; commit or stash first). If it stamped: verify the hooks are
